@@ -8,11 +8,17 @@
 //
 // The font comes from CreateFontIndirectA (0x100208a4) with lfHeight = the
 // height field and everything else 0, so the height is the cell height
-// (ascent + descent), not the em size a CSS font size gives. METRICS holds
-// each font's em size and ascent as fractions of its cell (from the fonts'
-// usWinAscent / usWinDescent); "System" falls back to Arial's.
-const ARIAL = { em: 2048 / 2288, ascent: 1854 / 2288 };
-const METRICS = { arial: ARIAL, "courier new": { em: 2048 / 2320, ascent: 1705 / 2320 } };
+// (ascent + descent), not the em size a CSS font size gives. GDI draws
+// TrueType at a whole pixel size: the largest one whose cell, with ascent
+// and descent each rounded up to whole pixels, fits the height. METRICS
+// holds usWinAscent / usWinDescent per 2048 units; "System" uses Arial's.
+const ARIAL = { ascent: 1854, descent: 434 };
+const METRICS = { arial: ARIAL, "courier new": { ascent: 1705, descent: 615 } };
+const pixelSize = (m, height) => {
+  let p = Math.max(1, Math.floor((height * 2048) / (m.ascent + m.descent)));
+  while (p > 1 && Math.ceil((p * m.ascent) / 2048) + Math.ceil((p * m.descent) / 2048) > height) p--;
+  return p;
+};
 
 export class Texts {
   constructor(engine) {
@@ -56,7 +62,7 @@ export class Texts {
     let w = 1, h = 1, pixels = new Uint8Array(1);
     if (Canvas && t.text) {
       const m = METRICS[t.font.toLowerCase()] || ARIAL;
-      const font = `${t.size * m.em}px "${t.font}", Arial, sans-serif`;
+      const font = `${pixelSize(m, t.size)}px "${t.font}", Arial, sans-serif`;
       const probe = new Canvas(1, 1).getContext("2d");
       probe.font = font;
       w = Math.max(1, Math.ceil(probe.measureText(t.text).width));
@@ -67,7 +73,7 @@ export class Texts {
       c.font = font;
       c.textBaseline = "alphabetic";
       c.fillStyle = "#fff";
-      c.fillText(t.text, 0, Math.round(1 + t.size * m.ascent));
+      c.fillText(t.text, 0, Math.round(1 + (t.size * m.ascent) / (m.ascent + m.descent)));
       const img = c.getImageData(0, 0, w, h).data;
       pixels = new Uint8Array(w * h);
       for (let i = 0; i < w * h; i++) if (img[i * 4 + 3] > 110) pixels[i] = t.color;
