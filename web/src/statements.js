@@ -1,6 +1,8 @@
 // Fixed-size statements. Sizes are from [ExecStmt] 0x1001f1f7; handlers are
 // filled in as they are reversed. Unimplemented ones log once and continue.
 
+import { STATEMENT_NAMES } from "./names.js";
+
 export const FIXED = {
   0x02: 2, 0x04: 8, 0x0b: 0x1a, 0x0d: 8, 0x0e: 0x2e, 0x10: 0x26, 0x11: 0x14,
   0x14: 8, 0x17: 0x20, 0x1a: 0xc, 0xca: 0xc, 0x1b: 4, 0x1c: 0xc, 0x1e: 0xc,
@@ -26,7 +28,7 @@ export function installStatements(vm, handlers) {
     vm.statements.set(op, h
       ? (vm, b, dv, pos) => ({ len: size, ok: h(vm, b, dv, pos) === 0 ? 0 : 1 })
       : (vm, b, dv, pos) => {
-          vm.noteUnknown("statement", "0x" + op.toString(16) + " " + hex(b, pos + 2, pos + size));
+          vm.noteUnknown("statement", `0x${op.toString(16)} ${STATEMENT_NAMES[op] || "?"} ${hex(b, pos + 2, pos + size)}`);
           return { len: size, ok: 1 };
         });
   }

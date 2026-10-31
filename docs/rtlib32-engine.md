@@ -135,7 +135,8 @@ dispatcher `0x10003f4b` reads the id from the stack:
 
 * `id < 0xFA`: one of RTLIB32's own builtins, a 247-case switch in
   `0x10003fad` (math like `Cosine` and `GetAngle`, sprites, sounds, strings,
-  resource tables).
+  resource tables). Names for all of them are in
+  [rtlib32-names.md](rtlib32-names.md); see "Naming the builtins" below.
 * `id >= 0xFA`: extern number `id - 0xFA`. [CallExtern] `0x10009b6c` passes
   the function pointer, the plugin's context and the args to `ExternalCall`
   (export, `0x1002af65`).
@@ -172,9 +173,11 @@ A `u16` opcode, then a record. Most records have a fixed size (the table is in
 | `0x01` | `9 + 1 + 4*n` bytes | start a script with `n` args (`0x10015ce6`) |
 | `0x39` | | quit (or go to the scene set by `0x3A`) |
 
-The others (about 90 opcodes) call fixed-size handlers for sprites, palettes,
-sound, scenes and so on. Their records hold literal values or variable ids
-with an "is a variable" flag byte, resolved by `0x10014e00`.
+The others call fixed-size handlers for sprites, palettes, sound, scenes and
+so on. Their records hold literal values or variable ids with an "is a
+variable" flag byte, resolved by `0x10014e00`. All 90 opcodes, with their
+record layouts as far as they are known, are in
+[rtlib32-names.md](rtlib32-names.md).
 
 ### Expressions
 
@@ -205,6 +208,58 @@ Stack bytecode, one-byte opcodes, ending with `0x00`. Evaluated by
 Variables are 32-bit ints. Ids below `0x13FE` (5,118) are globals at
 `rt+0x3E2F`. Ids from `0x13FE` up are locals and arguments in the current
 frame (`rt+0x35CF`), so `0x13FE` is `L0`, the first argument.
+
+## Naming the builtins and statements
+
+Both dispatchers are MSVC two-level switches, so the case tables can be read
+straight out of the DLL:
+
+| Switch | Index byte table | Jump table | Ids |
+| --- | --- | --- | --- |
+| builtins, `0x10003fad` | `0x10009a69` (indexed by `id - 2`) | `0x1000979d` | 2 to `0xF8` (247 slots) |
+| statements, [ExecStmt] `0x1001f1f7` | `0x1001fbd2` (indexed by `op - 1`) | `0x1001fa6e` | 1 to `0xE6` |
+
+66 builtin slots jump to `0x10009767`, an empty case, which leaves 181 real
+functions. Each handler pops its arguments off the VM stack (last argument
+first) and either calls an RTLIB32 export (`SpriteGetPosition`, `AudioMute`,
+`lstrcmpA`, ...), which names it outright, or builds a statement record on
+the stack and calls that statement's handler. So builtin `0xB8` fills a
+`0xB8` record and calls the `sprite_set_pos` handler, `0x85` fills a `0x10`
+(click) record, `0x81` a `0x6B` (key binding) record, and so on: most
+builtins are the call form of a statement and share its number or its
+handler. Statement handlers in turn are a small parser (resolving the
+variable flags with `0x10014e00`) followed by the implementation, which
+again usually calls a named export.
+
+The names, argument lists and record layouts live in one file,
+[web/src/names.js](../web/src/names.js). The web engine imports it (its
+"unimplemented" log and disassembler print names), `tools/r32script.py`
+parses it, and `python3 -I tools/r32script.py --names-md` regenerates
+[rtlib32-names.md](rtlib32-names.md) from it. `tests/test_r32names.py` checks
+that the three agree.
+
+A few runtime fields that several of them touch:
+
+| Field | Set by | Meaning |
+| --- | --- | --- |
+| `rt+0x3d43` | builtin `0x05` | script run with the active flag on window (de)activation |
+| `rt+0x3d47` | statement `0x04` | script run when the window gets the focus back; cleared on scene change |
+| `rt+0x3d53` | builtin `0xE9` | script run once at shutdown |
+| `rt+0x3deb` | builtins `0x69`, `0x6B` | key filter script, called before the key bindings |
+| `rt+0x3dfb` | statement `0x78`, builtin `0x83` | mouse filter script, called with 1 (down), 2 (up), 4 (move) |
+| `rt+0x3e0f` | statement `0x8A`, builtin `0xEC` | pause script (instead of `AudioPause`) |
+| `rt+0x3e13` | builtin `0x94` | script posted with the wave id whenever a wave starts |
+| `rt+0x3e23`, `rt+0xb80` | builtin `0xA5` | one-shot alarm: script and due time |
+| `rt+0x3cf7` | statement `0x72` | current source line, reported by `RtGetErrFile` |
+| `rt+0x3e27` | statement `0x3E` | statement trace on/off |
+| `rt+0x3d57` | builtin `0xAE` | sprite being dragged |
+| `rt+0x3d5b` | statement `0x2C` | text being edited (keys go to it) |
+| `rt+0xfe8 + 0x3c5 * n` | statements `0x5E`, `0x60`, `0x61`, `0x63` | input device state for player n (0 or 1) |
+
+What the menus, LAB and mission 1 hit: statements `0x4D`, `0x71`, `0xB8`,
+`0x8E`, `0xD2` and builtin `0xE7` were the only RTLIB32 ones the web engine
+did not implement yet; they are in now. G-Nome's scripts call 17 of the 181
+builtins in all (`python3 -I tools/r32script.py G-NOME.BIN --summary`).
 
 ## Disassembler
 
@@ -239,11 +294,12 @@ python3 -I tools/r32script.py game/g-nome/G-NOME/G-NOME.BIN --all > re-output/sc
 
 ## Open questions
 
-* Names for the 247 builtins (`builtin_0x52` is used 1,786 times; it calls a
-  method on a type 11 resource). The handlers are readable in
-  `re-output/rtlib32/functions/0x10003fad.c`, but Ghidra drops the `break`s,
-  so read them with the disassembly.
-* Names and fields for the ~90 fixed-size statements.
+* Some names are still guesses, marked with "?" in
+  [rtlib32-names.md](rtlib32-names.md): the input device type numbers
+  (statement `0x60`), builtin `0x5F`'s table, and builtin `0x0A`, which is
+  the same as `0x09` in this build.
+* Record layouts of statements G-Nome never uses (the input device ones,
+  `0x8F`/`0x91` sound options, `0x2C`'s second field) are only partly known.
 * The first `u32` of expression op `0D`. It ranges
   from 0 to 29 across the scripts, but the VM never reads it (maybe a
   compiler leftover such as a stack depth).

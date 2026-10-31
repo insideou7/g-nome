@@ -8,6 +8,8 @@
 // addresses into it. Globals start at GLOBAL_BASE. Script frames grow down
 // from the top: local k of the current frame is at fp - 4 * k.
 
+import { BUILTIN_NAMES } from "./names.js";
+
 export const LOCAL_BASE = 0x13fe; // variable ids >= this are frame locals
 export const EXTERN_BASE = 0xfa; // call ids >= this are plugin externs
 const MEM_WORDS = 1 << 20; // 4 MB
@@ -447,7 +449,7 @@ export class VM {
     }
     const f = this.builtins.get(fid);
     if (!f) {
-      this.noteUnknown("builtin", "0x" + fid.toString(16));
+      this.noteUnknown("builtin", `0x${fid.toString(16)} ${BUILTIN_NAMES[fid] || "?"}`);
       return 0;
     }
     return f(this, args);
