@@ -70,6 +70,16 @@ export class DebugPanel {
     });
   }
 
+  // A new engine after a restart.
+  attach(engine) {
+    this.close();
+    this.engine = engine;
+    this.debug = engine.debug;
+    this.debug.vehicle = load("g-nome.debug.vehicle", -1);
+    this.debug.onOpen = () => this.open();
+    this.used = null;
+  }
+
   // Called every animation frame with the frame's time.
   frame(t) {
     if (this.root.classList.contains("open") && !this.debug.shown) this.close();

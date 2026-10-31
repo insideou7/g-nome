@@ -166,35 +166,65 @@ if (gameUrl) {
   }
 }
 
-async function start(files) {
+// Every file is read once and kept, so a restart doesn't read them again.
+function cachedFiles(files) {
+  const cache = new Map();
+  return {
+    ...files,
+    read: (n) => {
+      const k = n.toUpperCase();
+      if (!cache.has(k)) cache.set(k, files.read(n).catch((e) => (cache.delete(k), Promise.reject(e))));
+      return cache.get(k);
+    },
+  };
+}
+
+async function start(rawFiles) {
+  const files = cachedFiles(rawFiles);
   const display = new Display($("screen"));
-  const audio = new Audio();
   const ini = new Ini(loadIni());
   ini.onChange = (d) => {
     try {
       localStorage.setItem("g-nome.ini", JSON.stringify(d));
     } catch {}
   };
-  const engine = new Engine(files, { log, display, audio, ini, trace: $("trace").checked });
-  log("loading game files...");
-  await engine.init();
+  const canvas = $("screen");
   const cursorCss = new Map();
-  engine.onCursor = (c) => {
-    const canvas = $("screen");
-    if (c === null) return void (canvas.style.cursor = "none");
-    if (c === "default") return void (canvas.style.cursor = "default");
-    if (!cursorCss.has(c)) {
-      const cv = document.createElement("canvas");
-      cv.width = c.width;
-      cv.height = c.height;
-      cv.getContext("2d").putImageData(new ImageData(c.rgba, c.width, c.height), 0, 0);
-      cursorCss.set(c, `url(${cv.toDataURL()}) ${c.hotX} ${c.hotY}, default`);
-    }
-    canvas.style.cursor = cursorCss.get(c);
-  };
-  engine.boot();
-  window.engine = engine; // for poking at it from the console
-  const panel = new DebugPanel(engine, $("stage"), $("screen"));
+  let engine = null, audio = null, panel = null;
+
+  // A fresh engine on the same files and screen. Runs at start, and again
+  // whenever the game quits (EXIT > Yes, the end of the campaign): the
+  // browser has nowhere to quit to, so the game starts over from the
+  // opening movie.
+  async function boot() {
+    if (audio) audio.ctx.close().catch(() => {}); // stops every sound of the last run
+    audio = new Audio();
+    display.fade = 1;
+    display.unfreeze();
+    display.underlay = null;
+    display.overlay = null;
+    engine = new Engine(files, { log, display, audio, ini, trace: $("trace").checked });
+    log("loading game files...");
+    await engine.init();
+    engine.onCursor = (c) => {
+      if (c === null) return void (canvas.style.cursor = "none");
+      if (c === "default") return void (canvas.style.cursor = "default");
+      if (!cursorCss.has(c)) {
+        const cv = document.createElement("canvas");
+        cv.width = c.width;
+        cv.height = c.height;
+        cv.getContext("2d").putImageData(new ImageData(c.rgba, c.width, c.height), 0, 0);
+        cursorCss.set(c, `url(${cv.toDataURL()}) ${c.hotX} ${c.hotY}, default`);
+      }
+      canvas.style.cursor = cursorCss.get(c);
+    };
+    engine.boot();
+    window.engine = engine; // for poking at it from the console
+    if (panel) panel.attach(engine);
+    else panel = new DebugPanel(engine, $("stage"), canvas);
+  }
+  await boot();
+
   // Development: ?mission=N starts campaign mission N after the boot, the way
   // the briefing's start button does (script 8317).
   const mission = Number(new URLSearchParams(location.search).get("mission"));
@@ -205,7 +235,6 @@ async function start(files) {
   }
   $("skip").disabled = false;
   $("skip").onclick = () => engine.input.keyDown(0x1b);
-  const canvas = $("screen");
   canvas.focus();
   canvas.addEventListener("keydown", (e) => {
     audio.resume();
@@ -226,12 +255,16 @@ async function start(files) {
   canvas.addEventListener("pointerup", (e) => engine.mouseUp(...pos(e), e.button));
   canvas.addEventListener("pointermove", (e) => engine.mouseMove(...pos(e)));
   let last = performance.now();
-  const frame = (t) => {
+  const frame = async (t) => {
     engine.tick(Math.min(100, t - last));
     panel.frame(t);
     last = t;
-    if (!engine.quit) requestAnimationFrame(frame);
-    else log("game quit");
+    if (engine.quit) {
+      log("game quit: starting over");
+      await boot();
+      last = performance.now();
+    }
+    requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
 }

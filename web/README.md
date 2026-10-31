@@ -68,6 +68,9 @@ To jump straight into a campaign mission, add `&mission=N` (N is the
 mission number, 1-22): `web/?game=/game/g-nome/G-NOME/&mission=1`. In a
 mission the arrow keys turn and Space fires once the movement code lands.
 
+When the game quits (EXIT, then Y, or the end of the campaign), it starts
+over from the opening movie, without reading the game files again.
+
 ## Debug menu
 
 OPTIONS has a DEBUG button in the first empty slot on the right. It opens a
