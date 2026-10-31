@@ -43,11 +43,11 @@ are both listed.
 
 | Type | Count | What it is | Extractor output |
 | --- | --- | --- | --- |
-| 1 | 1,240 | Bitmap (sprites, UI, portraits, maps) | `.png` for RLE bitmaps |
-| 2 | 835 | Texture: original `.BMP` path plus a bitmap. 211 are empty. | `.png` for RLE textures |
-| 4 | 333 | `FRME` chunk, animation frames | raw |
-| 7 | 647 | `MODL` chunk, 3D model | raw |
-| 8 | 154 | `MPRT` chunk, model part | raw |
+| 1 | 1,240 | Bitmap (sprites, UI, portraits, screens, maps) | `.png` |
+| 2 | 835 | List of textures, each with its original `.BMP` path. 211 are empty. | one `.png` per texture |
+| 4 | 333 | `FRME` chunk, probably animation frames | raw |
+| 7 | 647 | `MODL` chunk, 3D model | `.obj` + `.mtl` |
+| 8 | 154 | `MPRT` chunk, model part (same format as `MODL`) | `.obj` + `.mtl` |
 | 9 | 426 | `OB3D` chunk, 3D object definition | raw |
 | 10 | 57 | `OPRT` chunk, object part | raw |
 | 11 | 709 | Unknown structured records | raw |
@@ -67,7 +67,7 @@ slots. Colours check out by eye on UI art, photos and textures.
 ```
 u32 width
 u32 height
-u32 flags     0x80 = RLE (1,168 bitmaps); 0 = another packed format (72)
+u32 flags     0x80 = RLE (1,168 bitmaps); 0 = LZW packed (72)
 i32 x, y      hotspot / draw offset
 u32 id        the resource's own index
 ```
@@ -85,22 +85,77 @@ data is stored bottom row first. A row is a list of ops ending in `0x00`:
 Colour 0 is transparent. Every RLE row in the game decodes to exactly
 `width` pixels.
 
-Flag 0 bitmaps (including the 640x480 screens) use a bit-level compression
-that is not decoded yet; the extractor keeps them raw.
+### Packed bitmaps (flags 0)
+
+The 640x480 screens and other flag 0 bitmaps use RTLIB32's
+`DecompressBitmapData`. The output is `width x height` palette indices in
+rows padded to a multiple of 4 bytes, top row first.
+
+The stream is a list of blocks, each starting with a u16:
+
+| Top 3 bits | Low 13 bits | Block |
+| --- | --- | --- |
+| `0x0000` | size | stored bytes |
+| `0x4000`, `0x6000`, `0x8000` | size | LZW chunks with 10, 11 or 12 bit codes |
+| `0xE000` | | end of stream |
+
+An LZW block holds chunks of `u16 size` plus data. Each chunk starts with a
+fresh dictionary. Codes are fixed-width and read most significant bit first.
+Codes 0-255 are bytes and new strings are numbered from 256. The all-ones
+code (1023, 2047 or 4095) ends the chunk. There is no reset code: once the
+table is full it stops growing. Found by disassembling `DecompressBitmapData`
+(`0x10033DA5`) and its LZW routine (`0x100356C0`) in `RTLIB32.DLL`.
 
 ## Textures (type 2)
 
+A texture resource is a list of records, back to back:
+
 ```
-u32 kind       61 for the 590 textures that wrap a bitmap
-u32 size       payload size
+u32 kind       61
+u32 size       bytes in the rest of the record
 u32 path_len
 char path[path_len]   e.g. \7thlevel\gnome\src\data\bitmaps\mesoonbl.BMP
+bitmap         a type 1 bitmap, to the end of the record
 ```
 
-For kind 61 a type 1 bitmap follows the path. 559 of these are RLE and 31
-use the flag 0 format. Many textures stack two colour variants (a red team
-and a green team version) in one tall image. The 34 textures with other kind
-values are kept raw.
+590 resources hold 2,108 textures (1,215 RLE and 893 packed). They are
+saved as `png/texture/<index>-<BMP name>.png`. Many textures stack two colour
+variants (a red team and a green team version) in one tall image. The 34
+type 2 resources that do not start with kind 61 are something else and are
+kept raw.
+
+## Models (types 7 and 8)
+
+`MODL` and `MPRT` resources use the same format: the 4 byte tag, a u32, then
+a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
+2.0's RWX script commands, which `RWL20.DLL` also parses as text.
+
+| Op | Args | Meaning |
+| --- | --- | --- |
+| `0x1A` / `0x1B` | | model begin / end |
+| `0x06` / `0x07` | | clump begin / end |
+| `0x35` / `0x36` | | transform begin / end (push / pop) |
+| `0x34` | 16 floats | transform: 4x4 matrix for row vectors, translation in the last row |
+| `0x3B` | x, y, z | vertex |
+| `0x3C` | x, y, z | vertex with extras, then `0x12` u, v and `0x14` end |
+| `0x39` | 3 ints | triangle (1-based vertex indices within the clump) |
+| `0x23` | 4 ints | quad |
+| `0x1D` | n, n ints | polygon |
+| `0x2C` | r, g, b | colour |
+| `0x08` | 3 floats | surface (ambient, diffuse, specular) |
+| `0x1C` | float | opacity |
+| `0x2E` | int, path | texture. The path is only there when the int is not 0. It is NUL-terminated and padded to 4 bytes. |
+| `0x04`, `0x0D`, `0x0F`, `0x16`, `0x19`, `0x2D`, `0x32` | int | settings not identified yet |
+
+Every one of the 801 models parses to its exact end with this table. Each
+clump has its own vertex list. A transform applies to the clump that follows
+it, inside its parent clump's space. The extractor writes `obj/<index>.obj`
+and `.mtl` files whose materials point at the matching texture PNGs (every
+texture a model names is found). OBJ `v` is `1 - v`.
+
+Most models (the mechs, buildings and vehicles) assemble correctly. A few
+show parts spread apart, probably because the game poses them at runtime
+with `FRME` animation data that the extractor does not apply yet.
 
 ## Sounds (type 12)
 
@@ -128,8 +183,7 @@ decode to about 45 minutes of audio with no DC drift.
 
 ## Still unknown
 
-- The flag 0 bitmap compression (103 bitmaps and textures).
-- Type 11 records, and the `FRME`, `MODL`, `MPRT`, `OB3D` and `OPRT` chunk
-  layouts. These are probably RenderWare-related data read by `RENDER.R32`.
+- Type 11 records, and the `FRME`, `OB3D` and `OPRT` chunk layouts.
+- The int settings in models, and how `FRME` animations pose them.
 - Whether some scenes swap in another palette.
 - The script section, which `RTLIB32.DLL` runs.
