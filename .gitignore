@@ -7,3 +7,7 @@ game/
 .rea/
 re-output/
 .venv/
+
+# Output of tools/gnome_extract.py (derived from game assets)
+extracted/
+__pycache__/

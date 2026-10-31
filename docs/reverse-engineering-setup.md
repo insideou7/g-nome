@@ -17,6 +17,20 @@ G-NOME (7th Level, 1997) for Windows 95. Everything is 32-bit x86.
 
 `tools/inventory.py` prints this kind of table for any folder.
 
+## Extracting the assets
+
+`tools/gnome_extract.py` copies all 9,440 resources out of the packs and
+converts sounds to WAV and RLE bitmaps and textures to PNG:
+
+```sh
+python tools/gnome_extract.py game/g-nome/G-NOME extracted/
+```
+
+It writes `raw/`, `wav/`, `png/`, `bin-sections/` and a `manifest.csv` with
+one row per resource. `extracted/` is git-ignored. The formats are written up
+in [formats/g-nome-bin.md](formats/g-nome-bin.md). Tests:
+`python -m unittest discover tests`.
+
 ## Where the game files go
 
 Unzip the game into `game/` at the repo root. `game/` is git-ignored, so the
