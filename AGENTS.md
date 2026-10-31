@@ -41,3 +41,6 @@ Setup, the Ghidra backend and troubleshooting are in
 - `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
   mission 1 on the game files. Run it after engine changes; add a check
   when you fix a bug a player would see.
+- [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
+  actions they unlock, and the DEBUG button on the OPTIONS screen
+  (`web/src/debug.js`).

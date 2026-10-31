@@ -140,6 +140,11 @@ export class World {
     o.tickPos = o.pos.slice();
     o.lastUpdate = Math.round(this.time);
     this.loadBehaviours(o);
+    // Pick a level of detail now rather than on the first tick: the LOD
+    // scripts (2145, 2146) set property 79, the model copy that the unit's
+    // init script measures (SetModelDimensions) and the cockpit's own-unit
+    // view renders, and both run before that tick.
+    this.levelOfDetail(o, o.lastUpdate);
     return o;
   }
 

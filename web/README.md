@@ -68,6 +68,13 @@ To jump straight into a campaign mission, add `&mission=N` (N is the
 mission number, 1-22): `web/?game=/game/g-nome/G-NOME/&mission=1`. In a
 mission the arrow keys turn and Space fires once the movement code lands.
 
+## Debug menu
+
+OPTIONS has a DEBUG button in the first empty slot on the right. It opens a
+panel with a level select (any campaign mission, in any vehicle or as any
+soldier), a frame rate counter, and the game's own cheat codes. See
+[docs/cheats.md](../docs/cheats.md).
+
 ## Developer tools
 
 ```bash

@@ -166,7 +166,9 @@ export class Renderer {
     node.textureFrame = textureFrame;
     node.matrix = rotY(angle);
     let [dx, dy, dz] = dims || [0, 0, 0];
-    if (!dims) {
+    // No size given (the cockpit's own-unit view passes properties 55 and
+    // 56, which stay 0 until SetModelDimensions runs): use the model's bounds.
+    if (!dims || !(dx > 0 && (dy > 0 || dz > 0))) {
       const b = modelBounds(model, pose);
       dx = (b.max[0] - b.min[0]) * 1000; dy = (b.max[1] - b.min[1]) * 1000; dz = (b.max[2] - b.min[2]) * 1000;
     }
