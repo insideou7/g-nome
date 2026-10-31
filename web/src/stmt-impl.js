@@ -51,11 +51,25 @@ export const STATEMENTS = {
     const sprite = vm.resolve(u32(dv, p + 2), b[p + 0x21]);
     const script = vm.resolve(u32(dv, p + 6), b[p + 0x22]);
     const arg = vm.resolve(i32(dv, p + 10), b[p + 0x23]);
-    // Global switch: +0x20 turns every click handler off, +0x1f back on.
-    // The EXIT (Y/N) prompt (script 8312) uses it to make itself modal.
+    // Global form (0x1000a7ea / 0x1000a704): applies to every click region
+    // and every sprite's click handler. +0x20 turns them all off, +0x1f
+    // back on; with neither, every handler gets the script at +6, and
+    // script 0 removes all regions and clears the sprite handlers. The
+    // EXIT (Y/N) prompt (script 8312) uses it to make itself modal.
     if (b[p + 0x1e]) {
-      if (b[p + 0x20]) e.clicksOff = true;
-      else if (b[p + 0x1f]) e.clicksOff = false;
+      const off = b[p + 0x20] ? true : b[p + 0x1f] ? false : null;
+      if (off !== null) {
+        for (const r of e.clickRects) r.off = off;
+        for (const sp of e.sprites.list.values()) sp.clickOff = off;
+      } else if (!script) {
+        e.clickRects.length = 0;
+        for (const sp of e.sprites.list.values()) sp.click = null;
+      } else {
+        for (const r of e.clickRects) r.script = script;
+        // The original sets it on every sprite; only sprites that already
+        // take clicks are retargeted here, so others stay click-through.
+        for (const sp of e.sprites.list.values()) if (sp.click) sp.click.script = script;
+      }
       return;
     }
     if (sprite) {
