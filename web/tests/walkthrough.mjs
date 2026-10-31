@@ -432,10 +432,16 @@ const SECTIONS = {
     check(p.texts().length > 0, "the HUD shows its readouts", JSON.stringify(p.texts()));
     p.shot("battlefield");
     const at0 = w.cameraPose(1).at;
+    const view0 = w.view.camera?.view(); // the renderer's world-to-camera matrix
     await p.holdKey(VK.RIGHT, 30);
     await p.wait(2);
     const at1 = w.cameraPose(1).at;
     check(Math.hypot(at1[0] - at0[0], at1[2] - at0[2]) > 0.1, "holding Right turns the unit");
+    // Where the new forward direction was in the old view: the renderer draws
+    // camera +X on the left (as RenderWare does), so a turn to the right has
+    // x < 0. A mirrored 3D view would turn left when Right is held.
+    const x = view0 ? at1[0] * view0[0] + at1[1] * view0[4] + at1[2] * view0[8] : NaN;
+    check(x < -0.1, "Right turns the 3D view to the right (the view is not mirrored)", x.toFixed(2));
     p.shot("turned");
     await p.wait(150);
     check(w.shown && !p.engine.quit, "five more seconds run without leaving the mission");

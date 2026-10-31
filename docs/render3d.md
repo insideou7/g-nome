@@ -185,6 +185,28 @@ The LAB screens read their text from `LABTEXT.DAT` through RENDER.R32's
 file externs. Those now live in `web/src/anim/files.js` (from the animation
 work, with saves kept in localStorage).
 
+## Handedness (no mirroring)
+
+The camera draws its +X on the left of the screen, as RenderWare does
+(`soft.js`, `webgl.js`; `scene.js` builds camera X as `-right`, where
+`right = at x up`). Checked on 2026-10-31 that nothing comes out mirrored:
+
+- Steering: in mission 1, holding Right (the scripts' turn action) turns
+  the view to the right on screen. With a mirrored projection it would turn
+  left. The walkthrough checks this.
+- Radar: RadarDraw's decompiled formula puts an object along the unit's
+  `right` row on the left of the radar, which is where the 3D view draws it.
+- Model data: none of the 3,950 `transform` ops in the 801 models has a
+  negative determinant, so no part is stored mirrored. Of 75,605 FRME
+  matrices, only frames 16-23 of 4595 and 4597 and frames 18-21 of 4855 and
+  4858 have one. Those are tiny squash scales (|det| under 0.12) in the
+  animations themselves, and the original plays them the same way.
+- The WebGL and software backends draw the same picture (`render3d.html`).
+
+Textures cannot settle it: the crates (3822, 3826) show their texture the
+right way round on two sides and mirrored on the other two, whichever way
+the screen is flipped.
+
 ## Checking it
 
 - `web/tests/render3d.html?game=/game/g-nome/G-NOME/&models=2583&frame=2597`
@@ -215,6 +237,3 @@ the script swaps those pointers for RenderWare names.
   `0x16` (likely LightSampling), `0x19` are read but not used.
 - Ground textures look like noise in the menu palette; the mission palette
   presumably fixes them.
-- Whether screen-left really is +X (as in RenderWare 3) is not confirmed
-  against the original; if units come out mirrored, flip the sign in
-  `soft.js` and `webgl.js`.
