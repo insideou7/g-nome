@@ -53,6 +53,16 @@ export class Texts {
     this.engine.dirty = true;
     return true;
   }
+  setColor(id, color) {
+    const t = this.get(id);
+    if (!t) return false;
+    if (t.color !== color) {
+      t.color = color;
+      t.bitmap = null;
+      this.engine.dirty = true;
+    }
+    return true;
+  }
   // A bitmap like decodeBitmap's: {width, height, x, y, pixels}.
   bitmap(id) {
     const t = this.get(id);

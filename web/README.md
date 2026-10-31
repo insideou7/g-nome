@@ -104,6 +104,12 @@ panel with a level select (any campaign mission, in any vehicle or as any
 soldier), a frame rate counter, and the game's own cheat codes. See
 [docs/cheats.md](../docs/cheats.md).
 
+## Controls
+
+OPTIONS > INTERFACE is the game's own key mapping screen. Click a cell,
+press the key you want (Ctrl and Shift combinations work), then press
+Use/Save. The keys are kept in the browser and used in missions.
+
 ## Developer tools
 
 ```bash

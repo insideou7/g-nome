@@ -91,6 +91,10 @@ Design choices:
    - [x] main menu, GAME submenu, credits movie
    - [x] all five submenus; OPTIONS screens (key mapping, difficulty,
      sound, detail); NETWORK hosts and joins games (see below)
+   - [x] OPTIONS > INTERFACE key mapping works: click a cell, press a key
+     (or Clear / Use / Cancel), then Use/Save. The map is written to
+     `GKEY<n>.MAP` in browser storage and missions read it (see
+     docs/battlefield.md, Controls)
    - [x] OPTIONS > SOUND volume sliders for music and SFX/Dialogue (a port
      addition: the original only has On/Off), and CD music from ripped
      track files when the player has them (`src/music.js`,

@@ -239,7 +239,7 @@ async function start(rawFiles) {
   canvas.addEventListener("keydown", (e) => {
     audio.resume();
     const vk = vkFromEvent(e);
-    if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey) || engine.world?.shown)) e.preventDefault();
+    if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey, e.repeat) || engine.world?.shown)) e.preventDefault();
     // WM_CHAR, for typing into texts (statement 0x2c)
     const ch = { Enter: 13, Escape: 27, Backspace: 8 }[e.key] ?? (e.key.length === 1 && !e.ctrlKey ? e.key.charCodeAt(0) : 0);
     if (ch && engine.input.char(ch)) e.preventDefault();

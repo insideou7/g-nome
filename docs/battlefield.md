@@ -213,6 +213,20 @@ into action scripts; `CheckActionState` (`0x1000c631`) polls held actions.
 | 2545, 2547 | press bindings, same layout (`MapActionKeys(2544, 2545, 2547, column, mask)`) |
 | 2550-2553 | the key-map presets; `script_2554` splits the chosen one into 2545 and 2546 |
 
+OPTIONS > INTERFACE edits the key map (table 6323, rows of `{action, ?,
+device, key} x 3`, one per Mapping column). Clicking a cell (scripts
+6365/6369/6370 -> 6350) finds the row from the mouse position in globals
+5005/5006 (RTLIB keeps the last mouse position there, relative to the
+screen centre), shows the prompt sprite 6400 (sprite message 2: draw cels
+0 and 1 together) and calls `render.CaptureKey(6366)`. RENDER.R32's window
+procedure then sends the next key press to that script as `(device, key)`
+(device 1 with Ctrl held, 2 with Shift, else 0; 4 for a mouse button while
+`MouseOnOff(1)`), and a non-zero return ends the capture. Script 6344 names
+the key. Use/Save (6341) copies the map to the current one (G1856), writes
+`GKEY<G2100>.MAP` (script 2556) and splits it into 2545 and 2546
+(`script_2554`); the boot reads the file back. The browser keeps written
+files in localStorage (`web/src/anim/files.js`).
+
 Devices: 0 the key alone, 1 Ctrl+key, 2 Shift+key, 5 the key without
 modifiers, 4 a mouse button (1 left, 2 right, 3 middle; only while
 `MouseOnOff(1)`), 3 and 6 joystick axes and buttons. `CheckActionState`

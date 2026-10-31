@@ -153,18 +153,19 @@ export const STATEMENTS = {
     e.timers.set(i32(dv, p + 2), { script, ms, due: e.time + ms, repeat: !!b[p + 0x11] });
   },
   // 0xd9: run statement number var(+10) of the type 14 list +2
-  // (0x1001918d). Past the end: run script +6 if +0xe. +0xf: advance the
-  // variable, wrapping to 0.
+  // (0x100162e6 -> 0x1001918d). Past the end: run script +6 if +0xe. +0xf:
+  // advance the variable, wrapping to 0. +0x10 / +0x11: the list / script
+  // is a variable (INTERFACE keeps its row lists in G2102 and G2106).
   0xd9(vm, b, dv, p) {
     const e = vm.engine;
-    const list = vm.resolve(u32(dv, p + 2), 0);
+    const list = vm.resolve(u32(dv, p + 2), b[p + 0x10]);
     const stmts = e.statementList(list);
     if (!stmts.length) return 0;
     const v = u32(dv, p + 10);
     const n = vm.getVar(v) >>> 0;
     let ok = 1;
     if (n < stmts.length) ok = e.runStatement(stmts[n]);
-    else if (b[p + 0xe]) ok = vm.runScript(u32(dv, p + 6));
+    else if (b[p + 0xe]) ok = vm.runScript(vm.resolve(u32(dv, p + 6), b[p + 0x11]));
     if (b[p + 0xf]) vm.setVar(v, n + 1 >= stmts.length ? 0 : n + 1);
     return ok;
   },
@@ -245,6 +246,13 @@ export const STATEMENTS = {
       max: b[p + 0x12] || 255,
       digits: !!b[p + 0x13],
     });
+  },
+  // 0xc3: colour index +6 (flag +11) of the type 21 text +2 (flag +10)
+  // (0x1001617b -> 0x10021102). INTERFACE colours the row being rebound.
+  0xc3(vm, b, dv, p) {
+    const id = vm.resolve(u32(dv, p + 2), b[p + 10]);
+    const color = vm.resolve(u32(dv, p + 6), b[p + 11]);
+    return vm.engine.texts.setColor(id, color) ? 1 : 0;
   },
   // 0xc2: set the text of a type 21 resource +2 (flag +0xe) to string +10,
   // formatted with the number +6 (flag +0xf) if +0x10 (0x1002104e).
