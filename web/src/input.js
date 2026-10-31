@@ -37,7 +37,20 @@ export class Input {
 }
 
 // DOM KeyboardEvent.key/code -> Windows virtual-key code.
+// Numpad and punctuation keys go by e.code, so the throttle (numpad + and -)
+// and the twist keys (, and .) work whatever the keyboard layout.
+const CODE_VK = {
+  NumpadAdd: 0x6b, NumpadSubtract: 0x6d, NumpadMultiply: 0x6a, NumpadDivide: 0x6f, NumpadDecimal: 0x6e, NumpadEnter: 0x0d,
+  Semicolon: 0xba, Equal: 0xbb, Comma: 0xbc, Minus: 0xbd, Period: 0xbe, Slash: 0xbf, Backquote: 0xc0,
+  BracketLeft: 0xdb, Backslash: 0xdc, BracketRight: 0xdd, Quote: 0xde,
+};
+
 export function vkFromEvent(e) {
+  const code = e.code || "";
+  if (CODE_VK[code] !== undefined) return CODE_VK[code];
+  // Numpad digits: 0x60-0x69 with Num Lock on (key is a digit), else the
+  // arrow / navigation key the key stands for.
+  if (/^Numpad\d$/.test(code) && /^\d$/.test(e.key)) return 0x60 + Number(code.slice(6));
   const k = e.key;
   const map = { Escape: 0x1b, Enter: 0x0d, " ": 0x20, Tab: 0x09, Backspace: 0x08, ArrowLeft: 0x25, ArrowUp: 0x26, ArrowRight: 0x27, ArrowDown: 0x28, Delete: 0x2e, Insert: 0x2d, Home: 0x24, End: 0x23, PageUp: 0x21, PageDown: 0x22, Shift: 0x10, Control: 0x11, Alt: 0x12 };
   if (map[k] !== undefined) return map[k];

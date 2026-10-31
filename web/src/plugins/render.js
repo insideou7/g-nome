@@ -10,6 +10,7 @@ import { ScriptFiles } from "../anim/files.js";
 import { Hotspots } from "../anim/hotspots.js";
 import { motionExterns } from "../anim/motion.js";
 import { taskExterns } from "../anim/tasks.js";
+import { collisionExterns } from "../battlefield/collision.js";
 import { aimExterns } from "../battlefield/aim.js";
 import { combatExterns } from "../combat/externs.js";
 
@@ -31,6 +32,7 @@ export class RenderPlugin {
       ...this.files.externs(),
       ...motionExterns(engine),
       ...taskExterns(engine),
+      ...collisionExterns(engine),
       ...aimExterns(engine),
       ...combatExterns(engine),
       // Sound. Scripts identify a playing sound by its resource id.

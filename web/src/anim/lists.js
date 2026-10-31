@@ -5,6 +5,8 @@ export function listExterns(engine) {
   const lists = [null]; // index = list id
 
   const get = (id) => lists[id] || (lists[id] = []);
+  // For other modules (collisions read sector and hotspot lists).
+  engine.renderLists = { get: (id) => (id > 0 ? lists[id] || null : null) };
   return {
     // ListCreate(n): a list of n zeros; returns its id
     ListCreate(n) {

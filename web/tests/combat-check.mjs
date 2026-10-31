@@ -31,15 +31,22 @@ if (dir && existsSync(dir)) {
     return run(id);
   };
   e.boot();
-  const WALKER = 9565; // a class 141 walker 13 units ahead of the player
+  // The class 141 walker 13 units ahead of the player's start, found by
+  // class and place: object ids shift when level-of-detail scripts run.
+  let WALKER = 0;
   let dead = 0;
-  for (let i = 0; i < 1600 && !(dead && i > dead + 10); i++) {
+  for (let i = 0; i < 3000 && !(dead && i > dead + 10); i++) {
     if (i === 60) {
       for (const g of [2118, 2119]) e.vm.setGlobal(g, 1);
       e.vm.setGlobal(982, 0);
       e.run(8317);
     }
-    if (i === 290) e.world.get(e.vm.getGlobal(973)).setPosition([-49.96, 0, -4]);
+    if (i === 290) {
+      e.world.get(e.vm.getGlobal(973)).setPosition([-49.96, 0, -4]);
+      const near = (o) => Math.hypot(o.pos[0] + 49.88, o.pos[2] + 12.38) < 1;
+      WALKER = [...e.world.objects.values()].find((o) => near(o) && e.render3d.objects.getProperty(o.id, 0) === 141)?.id || 0;
+      assert.ok(WALKER, "found the walker");
+    }
     if (i >= 300 && i % 45 === 0) e.input.keyDown(49);
     if (i >= 300 && i % 45 === 2) e.input.keyUp(49);
     e.tick(1000 / 30);
