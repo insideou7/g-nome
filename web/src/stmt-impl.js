@@ -105,6 +105,39 @@ export const STATEMENTS = {
     vm.setVar(u32(dv, p + 0x10), r.right);
     vm.setVar(u32(dv, p + 0x14), r.bottom);
   },
+  // 0x4d: sprite position into two variables (0x100154f0 -> 0x10017bb6).
+  // +2 sprite (flag +6), +8 / +0xc variables x / y.
+  0x4d(vm, b, dv, p) {
+    const s = vm.engine.sprites.get(vm.resolve(u32(dv, p + 2), b[p + 6]));
+    vm.setVar(u32(dv, p + 8), s ? s.x : 0);
+    vm.setVar(u32(dv, p + 0xc), s ? s.y : 0);
+  },
+  // 0x71: drawing level of a sprite (0x100158e7 -> 0x100181b4).
+  // +2 sprite, +6 level, variable flags +10, +11.
+  0x71(vm, b, dv, p) {
+    const s = vm.engine.sprites.get(vm.resolve(u32(dv, p + 2), b[p + 10]));
+    if (!s) return;
+    s.level = vm.resolve(u32(dv, p + 6), b[p + 11]) | 0;
+    vm.engine.dirty = true;
+  },
+  // 0xb8: move a sprite (0x10016021 -> 0x1001866a). +2 sprite, +6 x,
+  // +10 y, variable flags +0xe, +0xf, +0x10. 0 if the sprite is missing.
+  0xb8(vm, b, dv, p) {
+    const s = vm.engine.sprites.get(vm.resolve(u32(dv, p + 2), b[p + 0xe]));
+    if (!s) return 0;
+    s.x = vm.resolve(i32(dv, p + 6), b[p + 0xf]) | 0;
+    s.y = vm.resolve(i32(dv, p + 10), b[p + 0x10]) | 0;
+    vm.engine.dirty = true;
+  },
+  // 0x8e / 0xd2: play / stop a CD audio track (AudioPlayCDTrack,
+  // AudioStopCD). The music is red book audio on the CD, which the browser
+  // never sees, so only remember the track.
+  0x8e(vm, b, dv, p) {
+    vm.engine.cdTrack = b[p + 2];
+  },
+  0xd2(vm) {
+    vm.engine.cdTrack = 0;
+  },
   // 0x6d: stop timer +2 (+6 set: stop all) (0x10021894).
   0x6d(vm, b, dv, p) {
     const t = vm.engine.timers;
@@ -171,7 +204,7 @@ export const STATEMENTS = {
     vm.setVar(id, v);
   },
   // 0x6b: bind a key to a script (0x1000b38c). +2 key (0 = all keys),
-  // +6 script, +0xc shift, +0xd ctrl, +0xe clear, +0xf disable, +0x10 on key up.
+  // +6 script, +0xc shift, +0xd ctrl, +0xe enable, +0xf disable, +0x10 on key up.
   0x6b(vm, b, dv, p) {
     vm.engine.input.bindKey(u32(dv, p + 2), u32(dv, p + 6), {
       shift: b[p + 0xc], ctrl: b[p + 0xd], clear: b[p + 0xe], disable: b[p + 0xf], up: b[p + 0x10],

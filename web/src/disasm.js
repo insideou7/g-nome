@@ -3,13 +3,14 @@
 // branches and switch case bodies are listed too.
 import { FIXED, hex } from "./statements.js";
 import { LOCAL_BASE, EXTERN_BASE } from "./vm.js";
+import { BUILTIN_NAMES, STATEMENT_NAMES } from "./names.js";
 
 const BIN = { 0x12: "+", 0x13: "-", 0x14: "*", 0x15: "/", 0x16: "%", 0x17: "==", 0x18: "<=", 0x19: "<", 0x1a: ">=", 0x1b: ">", 0x1c: "!=", 0x1d: "&&", 0x1e: "||", 0x1f: "&", 0x20: "|", 0x21: "^", 0x29: "<<", 0x2a: ">>" };
 const UN = { 0x0f: "-", 0x10: "!", 0x11: "~" };
 
 export const varName = (v) => (v >= LOCAL_BASE ? `L${v - LOCAL_BASE}` : `G${v}`);
 
-export function exprText(bin, b, dv, p, names = {}) {
+export function exprText(bin, b, dv, p, names = BUILTIN_NAMES) {
   const st = [];
   for (;;) {
     const op = b[p++];
@@ -42,7 +43,7 @@ export function exprText(bin, b, dv, p, names = {}) {
   return st.join(" ").replace(/ \|\| \((.*)\)$/, " || $1");
 }
 
-export function disassemble(bin, id, names) {
+export function disassemble(bin, id, names = BUILTIN_NAMES) {
   const b = bin.resident(id);
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const out = [];
@@ -89,7 +90,7 @@ export function disassemble(bin, id, names) {
       default:
         len = FIXED[op];
         if (!len) { out.push(`${at(0)}  ?? op ${op.toString(16)}`); return out; }
-        text = `op_${op.toString(16)} ${hex(b, p + 2, p + len)}`;
+        text = `${STATEMENT_NAMES[op] || "op_" + op.toString(16)} ${hex(b, p + 2, p + len)}`;
     }
     out.push(`${at(0)}  ${text}`);
     p += len;
