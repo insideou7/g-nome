@@ -45,11 +45,11 @@ are both listed.
 | --- | --- | --- | --- |
 | 1 | 1,240 | Bitmap (sprites, UI, portraits, screens, maps) | `.png` |
 | 2 | 835 | List of textures, each with its original `.BMP` path. 211 are empty. | one `.png` per texture |
-| 4 | 333 | `FRME` chunk, probably animation frames | raw |
-| 7 | 647 | `MODL` chunk, 3D model | `.obj` + `.mtl` |
-| 8 | 154 | `MPRT` chunk, model part (same format as `MODL`) | `.obj` + `.mtl` |
-| 9 | 426 | `OB3D` chunk, 3D object definition | raw |
-| 10 | 57 | `OPRT` chunk, object part | raw |
+| 4 | 333 | `FRME` animation clip ([animation.md](animation.md)) | glTF animations |
+| 7 | 647 | `MODL` chunk, 3D model | `.obj` + `.mtl`, `.gltf` |
+| 8 | 154 | `MPRT` chunk, model part (same format as `MODL`) | `.obj` + `.mtl`, `.gltf` |
+| 9 | 426 | `OB3D` object definition ([animation.md](animation.md)) | raw; properties in `manifest.csv` |
+| 10 | 57 | `OPRT` object part, same format as `OB3D` | raw; properties in `manifest.csv` |
 | 11 | 709 | Unknown structured records | raw |
 | 12 | 592 | Sound | `.wav` |
 | 13-21 | 4,447 | Slices of sounds (a 38 byte header slice, then data slices). All but 44 sit inside a type 12 range; `manifest.csv` names the parent. | raw |
@@ -128,7 +128,8 @@ kept raw.
 
 ## Models (types 7 and 8)
 
-`MODL` and `MPRT` resources use the same format: the 4 byte tag, a u32, then
+`MODL` and `MPRT` resources use the same format: the 4 byte tag, a u32
+(the number of tagged parts), then
 a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
 2.0's RWX script commands, which `RWL20.DLL` also parses as text.
 
@@ -147,7 +148,8 @@ a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
 | `0x08` | 3 floats | surface (ambient, diffuse, specular) |
 | `0x1C` | float | opacity |
 | `0x2E` | int, path | texture. The path is only there when the int is not 0. It is NUL-terminated and padded to 4 bytes. |
-| `0x04`, `0x0D`, `0x0F`, `0x16`, `0x19`, `0x2D`, `0x32` | int | settings not identified yet |
+| `0x2D` | int | tag: the clump's part number, used by FRME animations |
+| `0x04`, `0x0D`, `0x0F`, `0x16`, `0x19`, `0x32` | int | settings not identified yet |
 
 Every one of the 801 models parses to its exact end with this table. Each
 clump has its own vertex list. A transform applies to the clump that follows
@@ -155,9 +157,10 @@ it, inside its parent clump's space. The extractor writes `obj/<index>.obj`
 and `.mtl` files whose materials point at the matching texture PNGs (every
 texture a model names is found). OBJ `v` is `1 - v`.
 
-Most models (the mechs, buildings and vehicles) assemble correctly. A few
-show parts spread apart, probably because the game poses them at runtime
-with `FRME` animation data that the extractor does not apply yet.
+Most models (the mechs, buildings and vehicles) assemble correctly in their
+own transforms. A few have parts spread apart; the game always poses them
+with an `FRME` clip, so the extractor poses every model in its rest clip and
+also writes a `.gltf` with all its clips. See [animation.md](animation.md).
 
 ## Sounds (type 12)
 
@@ -185,7 +188,7 @@ decode to about 45 minutes of audio with no DC drift.
 
 ## Still unknown
 
-- Type 11 records, and the `FRME`, `OB3D` and `OPRT` chunk layouts.
-- The int settings in models, and how `FRME` animations pose them.
+- Type 11 records.
+- The int settings in models, and what the OB3D record kinds 1, 6 and 8 mean.
 - Whether some scenes swap in another palette.
 - The script section, which `RTLIB32.DLL` runs.

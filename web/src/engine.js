@@ -185,6 +185,7 @@ export class Engine {
     installStatements(this.vm, STATEMENTS);
     for (const [id, f] of Object.entries(BUILTINS)) this.vm.builtins.set(Number(id), f);
     installPlugins(this);
+    for (const p of this.plugins) if (p.preload) await p.preload();
     if (this.display) this.display.setPalette(this.palette);
   }
 
