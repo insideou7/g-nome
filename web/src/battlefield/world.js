@@ -329,18 +329,19 @@ export class World {
     return this.camera.pose((id, clump) => this.pose(id, clump, t));
   }
 
-  // XZToScreen: where an object appears, relative to the viewport centre.
+  // XZToScreen: where an object appears, relative to the centre of
+  // projection (the screen centre; see BattleCamera.screen).
   toScreen(id) {
     const p = this.pose(id, 0, 1);
     if (!p) return null;
     const cam = this.camera;
-    return project(this.cameraPose(1), cam.viewwindow, cam.viewport(), p.pos);
+    return project(this.cameraPose(1), cam.viewwindow, cam.screen(), p.pos);
   }
 
-  // ScreenToXZ: the ground point under a viewport pixel (centre-relative).
+  // ScreenToXZ: the ground point under a pixel (centre-relative).
   fromScreen(sx, sy) {
     const cam = this.camera;
-    return screenToGround(this.cameraPose(1), cam.viewwindow, cam.viewport(), sx, sy);
+    return screenToGround(this.cameraPose(1), cam.viewwindow, cam.screen(), sx, sy);
   }
 
 }

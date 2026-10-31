@@ -72,7 +72,7 @@ export class BattleView {
       });
     }
     const cam = w.camera;
-    const vp = cam.viewport();
+    const vp = cam.screen();
     this.camera ??= r3d.createCamera();
     const camera = Object.assign(this.camera, {
       position: pose.pos,
@@ -90,9 +90,11 @@ export class BattleView {
       background: cam.background,
       backdrop: this.backdrop(pose, vp),
     });
-    // Render the viewport inside a full-size canvas, so it lines up with
-    // the 640x480 screen when drawn at the Init3D origin.
-    return r3d.render(this.scene, camera, { ...vp, canvasWidth: cam.width, canvasHeight: cam.height });
+    // Project over the whole 640x480 screen and clip to the cropped
+    // viewport (see BattleCamera.screen), in a full-size canvas so it lines
+    // up with the screen when drawn at the Init3D origin.
+    const clip = cam.viewport();
+    return r3d.render(this.scene, camera, { ...vp, clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h }, canvasWidth: cam.width, canvasHeight: cam.height });
   }
 
   backdrop(pose, vp) {

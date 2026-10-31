@@ -46,6 +46,14 @@ const near = (a, b, e = 1e-6) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
   const bd = backdropPlacement(pose, 1328, 383, vp);
   assert.equal(bd.x, 0);
   assert.equal(bd.horizon, 240);
+  // ViewportCrop only clips: the 3D view is still projected over the whole
+  // screen, so the cockpit crosshair at the screen centre (320, 240) is
+  // where the camera looks (mission 1 crops 32, 69, 32, 141).
+  cam.crop = [32, 69, 32, 141];
+  assert.deepEqual(cam.screen(), { x: 0, y: 0, w: 640, h: 480 });
+  const top = project(pose, cam.viewwindow, cam.screen(), [0, 1 + cam.viewwindow[1] * 5, 5]);
+  near(top.y, -240, 1e-6);
+  cam.crop = [0, 0, 0, 0];
   // Attached camera follows the object, offset in the object's frame.
   const o = new WorldObject(7);
   o.setPosition([10, 0, 10]);
