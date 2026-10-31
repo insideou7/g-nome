@@ -4,6 +4,43 @@ export class Input {
   constructor(engine) {
     this.engine = engine;
     this.keys = new Map(); // key code -> {down, shift, ctrl, shiftCtrl, up, disabled}
+    this.edit = null; // text being typed into (rt+0x3d5b), see startEdit
+  }
+
+  // Statement 0x2c. The text shows a "_" caret while it is edited. Enter
+  // ends typing, Esc restores the old text; either way the text (without
+  // the caret) goes to string `str` and `script(enter ? 1 : 0, 0)` is
+  // queued (0x10021310). Backspace removes the last character, Delete
+  // clears it all. Key bindings are off meanwhile (0x1000a977).
+  startEdit({ text, script, str, max, digits }) {
+    if (this.edit) this.endEdit(false);
+    if (!text) return;
+    const t = this.engine.texts;
+    const old = t.get(text)?.text ?? "";
+    this.edit = { text, script, str, max, digits, saved: old };
+    t.setText(text, old + "_");
+  }
+  endEdit(cancel) {
+    const ed = this.edit;
+    const t = this.engine.texts;
+    this.edit = null;
+    const text = cancel ? ed.saved : (t.get(ed.text)?.text ?? "_").slice(0, -1);
+    t.setText(ed.text, text);
+    if (ed.str && !(ed.str & 0x8000)) this.engine.setString(ed.str, text);
+    if (ed.script) this.engine.runLater(ed.script, [cancel ? 0 : 1, 0]);
+  }
+  // A typed character (WM_CHAR, 0x10021413): 8 backspace, 13 enter, 27 esc.
+  char(c) {
+    const ed = this.edit;
+    if (!ed) return false;
+    const t = this.engine.texts;
+    const cur = (t.get(ed.text)?.text ?? "_").slice(0, -1);
+    if (c === 0x1b || c === 0x0d) this.endEdit(c === 0x1b);
+    else if (c === 8) t.setText(ed.text, cur.slice(0, -1) + "_");
+    else if (c >= 0x20 && c < 0x100 && (!ed.digits || (c >= 0x30 && c <= 0x39)) && cur.length < ed.max) {
+      t.setText(ed.text, cur + String.fromCharCode(c) + "_");
+    }
+    return true;
   }
   bindKey(key, script, f) {
     const set = (k) => {
@@ -22,6 +59,10 @@ export class Input {
   }
   // Windows virtual-key code.
   keyDown(vk, shift = false, ctrl = false) {
+    if (this.edit) {
+      if (vk === 0x2e) this.engine.texts.setText(this.edit.text, "_");
+      return true;
+    }
     this.engine.world?.controls.keyDown(vk);
     const r = this.keys.get(vk);
     if (!r || r.disabled) return false;

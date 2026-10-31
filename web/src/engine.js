@@ -42,13 +42,16 @@ const MAX_LOCALS = 32;
 
 export class Engine {
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
-  // opts: { log, trace, display, audio }
+  // opts: { log, trace, display, audio, ini, net }
+  // net: { providers } for NETGN (see plugins/netgn.js); browsers default to
+  // BroadcastChannel and, when web/tools/net-server.mjs serves the page, WebRTC
   constructor(files, opts = {}) {
     this.files = files;
     this.log = opts.log || console.log;
     this.traceOn = !!opts.trace;
     this.display = opts.display || null; // see display.js
     this.audio = opts.audio || null;
+    this.netOptions = opts.net || null;
     this.queue = [];
     this.time = 0;
     this.quit = false;
@@ -143,11 +146,21 @@ export class Engine {
   mouseUp(cx, cy, button = 0) {
     if (this.volumes.mouseUp()) return;
     this.world?.controls.mouseUp(button);
+    this.notePointer(cx, cy);
+  }
+
+  // RTLIB32's mouse handlers (0x1000af10, 0x100134e9) keep the last pointer
+  // position, relative to the screen centre, in globals 5005 and 5006. List
+  // screens (network providers and sessions, saves) read the row from it.
+  notePointer(cx, cy) {
+    this.vm?.setGlobal(5005, cx - ORIGIN_X);
+    this.vm?.setGlobal(5006, cy - ORIGIN_Y);
   }
 
   mouseDown(cx, cy, button = 0) {
     if (button === 0 && this.volumes.mouseDown(cx, cy)) return;
     this.world?.controls.mouseDown(button);
+    this.notePointer(cx, cy);
     if (this.debug.mouseDown(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
@@ -158,6 +171,7 @@ export class Engine {
     }
   }
   mouseMove(cx, cy) {
+    this.notePointer(cx, cy);
     this.debug.mouseMove(cx, cy);
     if (this.volumes.mouseMove(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;

@@ -233,6 +233,19 @@ export const STATEMENTS = {
   0xb4(vm, b, dv, p) {
     vm.engine.setPaletteResource(vm.resolve(u32(dv, p + 2), b[p + 6]));
   },
+  // 0x2c: type into a type 21 text (0x10015380 -> 0x10021160). +2 text, 0
+  // stops (flag +0x14), +6 script run when typing ends (flag +0x15), +10
+  // string that gets the result, +0x12 u8 maximum length (0 = 255), +0x13 u8
+  // digits only. See Input.startEdit.
+  0x2c(vm, b, dv, p) {
+    vm.engine.input.startEdit({
+      text: vm.resolve(u32(dv, p + 2), b[p + 0x14]),
+      script: vm.resolve(u32(dv, p + 6), b[p + 0x15]),
+      str: u32(dv, p + 10),
+      max: b[p + 0x12] || 255,
+      digits: !!b[p + 0x13],
+    });
+  },
   // 0xc2: set the text of a type 21 resource +2 (flag +0xe) to string +10,
   // formatted with the number +6 (flag +0xf) if +0x10 (0x1002104e).
   0xc2(vm, b, dv, p) {

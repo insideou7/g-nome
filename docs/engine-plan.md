@@ -42,7 +42,8 @@ src/plugins/render.js         RENDER.R32: sound, plus the 3D externs below
 src/battlefield/              world, camera, fixed-tick loop, mission view, controls,
                               aiming externs, mission state (engine.mission)
 src/render3d/                 models, textures, objects, WebGL renderer
-src/plugins/netgn.js          NETGN.R32 stub (no network providers)
+src/plugins/netgn.js          NETGN.R32: lobby and in-game messages (docs/netgn.md)
+src/net/                      DirectPlay stand-in and transports (tabs, relay, WebRTC)
 src/smacker.js                .SMK video/audio decoder
 src/binfile.js                G-NOME.BIN and pack access
 src/pe.js                     cursors from RTLIB32.DLL
@@ -89,7 +90,7 @@ Design choices:
    - [x] type 21 text objects (status line) drawn with a canvas font
    - [x] main menu, GAME submenu, credits movie
    - [x] all five submenus; OPTIONS screens (key mapping, difficulty,
-     sound, detail); NETWORK reports no providers (`netgn` stub)
+     sound, detail); NETWORK hosts and joins games (see below)
    - [x] OPTIONS > SOUND volume sliders for music and SFX/Dialogue (a port
      addition: the original only has On/Off), and CD music from ripped
      track files when the player has them (`src/music.js`,
@@ -135,8 +136,13 @@ Design choices:
      win and loss run through the fly-by and doors to the next briefing
 4. **Saves and settings**: `SGNOME*.SAV`, INI values (now kept in
    `localStorage`).
-5. Networking (`NETGN.R32`, DirectPlay) is out of scope; the scripts already
-   handle "network play not available".
+5. Networking (`NETGN.R32`, DirectPlay): done, see [netgn.md](netgn.md).
+   `src/plugins/netgn.js` implements all 57 externs over a small DirectPlay
+   stand-in (`src/net/dplay.js`). Players pick "Browser Tabs On This
+   Computer" (BroadcastChannel) or "Internet (WebRTC)", offered when the page
+   is served by `web/tools/net-server.mjs`. The NETWORK menus, lobby chat,
+   ready status and LAUNCH work; `web/tests/net-tabs.mjs` plays them in two
+   headless pages.
 
 ## Status of the boot path
 

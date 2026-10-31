@@ -240,6 +240,9 @@ async function start(rawFiles) {
     audio.resume();
     const vk = vkFromEvent(e);
     if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey) || engine.world?.shown)) e.preventDefault();
+    // WM_CHAR, for typing into texts (statement 0x2c)
+    const ch = { Enter: 13, Escape: 27, Backspace: 8 }[e.key] ?? (e.key.length === 1 && !e.ctrlKey ? e.key.charCodeAt(0) : 0);
+    if (ch && engine.input.char(ch)) e.preventDefault();
   });
   canvas.addEventListener("keyup", (e) => engine.input.keyUp(vkFromEvent(e)));
   const pos = (e) => {
@@ -255,16 +258,30 @@ async function start(rawFiles) {
   canvas.addEventListener("pointerup", (e) => engine.mouseUp(...pos(e), e.button));
   canvas.addEventListener("pointermove", (e) => engine.mouseMove(...pos(e)));
   let last = performance.now();
-  const frame = async (t) => {
+  let busy = false; // rebooting after a quit
+  const step = async () => {
+    if (busy) return;
+    const t = performance.now();
     engine.tick(Math.min(100, t - last));
     panel.frame(t);
     last = t;
     if (engine.quit) {
+      busy = true;
       log("game quit: starting over");
       await boot();
       last = performance.now();
+      busy = false;
     }
+  };
+  const frame = async () => {
+    if (!document.hidden) await step();
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+  // Hidden tabs get no animation frames, and network play needs every
+  // player's game to keep running: a worker's timer ticks it meanwhile.
+  try {
+    const src = URL.createObjectURL(new Blob(["setInterval(() => postMessage(0), 50)"], { type: "text/javascript" }));
+    new Worker(src).onmessage = () => document.hidden && step();
+  } catch {}
 }
