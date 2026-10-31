@@ -5,6 +5,14 @@
 //   0 = left/top), u32 ?.
 // The original renders through GDI into a bitmap; we use a canvas when there
 // is one and otherwise produce no pixels.
+//
+// The font comes from CreateFontIndirectA (0x100208a4) with lfHeight = the
+// height field and everything else 0, so the height is the cell height
+// (ascent + descent), not the em size a CSS font size gives. METRICS holds
+// each font's em size and ascent as fractions of its cell (from the fonts'
+// usWinAscent / usWinDescent); "System" falls back to Arial's.
+const ARIAL = { em: 2048 / 2288, ascent: 1854 / 2288 };
+const METRICS = { arial: ARIAL, "courier new": { em: 2048 / 2320, ascent: 1705 / 2320 } };
 
 export class Texts {
   constructor(engine) {
@@ -47,16 +55,19 @@ export class Texts {
     const Canvas = globalThis.OffscreenCanvas;
     let w = 1, h = 1, pixels = new Uint8Array(1);
     if (Canvas && t.text) {
-      const font = `${t.size}px "${t.font}", Arial, sans-serif`;
+      const m = METRICS[t.font.toLowerCase()] || ARIAL;
+      const font = `${t.size * m.em}px "${t.font}", Arial, sans-serif`;
       const probe = new Canvas(1, 1).getContext("2d");
       probe.font = font;
       w = Math.max(1, Math.ceil(probe.measureText(t.text).width));
+      // The bitmap keeps the old 1.2 x height and baseline, which line the
+      // titles up with their frames; only the glyphs got smaller.
       h = Math.max(1, Math.ceil(t.size * 1.2));
       const c = new Canvas(w, h).getContext("2d");
       c.font = font;
-      c.textBaseline = "top";
+      c.textBaseline = "alphabetic";
       c.fillStyle = "#fff";
-      c.fillText(t.text, 0, 1);
+      c.fillText(t.text, 0, Math.round(1 + t.size * m.ascent));
       const img = c.getImageData(0, 0, w, h).data;
       pixels = new Uint8Array(w * h);
       for (let i = 0; i < w * h; i++) if (img[i * 4 + 3] > 110) pixels[i] = t.color;
