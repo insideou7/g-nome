@@ -51,7 +51,13 @@ export const STATEMENTS = {
     const sprite = vm.resolve(u32(dv, p + 2), b[p + 0x21]);
     const script = vm.resolve(u32(dv, p + 6), b[p + 0x22]);
     const arg = vm.resolve(i32(dv, p + 10), b[p + 0x23]);
-    if (b[p + 0x1e]) return; // global click enable/disable: not needed yet
+    // Global switch: +0x20 turns every click handler off, +0x1f back on.
+    // The EXIT (Y/N) prompt (script 8312) uses it to make itself modal.
+    if (b[p + 0x1e]) {
+      if (b[p + 0x20]) e.clicksOff = true;
+      else if (b[p + 0x1f]) e.clicksOff = false;
+      return;
+    }
     if (sprite) {
       const s = e.sprites.get(sprite);
       if (!s) return;
