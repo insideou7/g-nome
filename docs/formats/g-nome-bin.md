@@ -37,9 +37,11 @@ u32 offset  into G-NOME.<pack as %03d>
 u32 size
 ```
 
-Every entry is in bounds and together they cover each pack with no gaps.
-Ranges do overlap, because a sound (type 12) and its slices (types 13-21)
-are both listed.
+Types 13 to 21 do not live in the packs at all: their offsets point into
+the script buffer (see the table). Types 1 to 12 are all in bounds and
+cover each pack exactly, with no gaps and no overlaps. (Read as pack
+offsets, types 13-21 seemed to sit inside sounds, so they were once taken
+for sound slices.)
 
 | Type | Count | What it is | Extractor output |
 | --- | --- | --- | --- |
@@ -52,15 +54,49 @@ are both listed.
 | 10 | 57 | `OPRT` object part, same format as `OB3D` | raw; properties in `manifest.csv` |
 | 11 | 709 | Integer table read by the scripts (see [Tables](#tables-type-11)) | raw |
 | 12 | 592 | Sound | `.wav` |
-| 13-21 | 4,447 | Slices of sounds (a 38 byte header slice, then data slices). All but 44 sit inside a type 12 range; `manifest.csv` names the parent. | raw |
+| 13-21 | 4,447 | Runtime resources in the script buffer (key 5, [rtlib32-engine.md](../rtlib32-engine.md)): their offsets are relative to it, not to a pack. 13 (17): a 14 byte `{u16 1, u32, u32 0, u32}` record named by sprite queue record 23, a cel drawn by a plugin callback; 14 (82): statement lists; 15 (290): bitmap references; 16 (66): sprite lists; 17 (14): palettes (below); 18 (95): sprite queues; 19 (2,342): scripts; 20 (913): sprites; 21 (628): text objects. | raw, from the script buffer |
 
 ## Palette
 
 Windows keeps palette slots 0-9 and 246-255 for its own colours, so the game
 stores the 236 colours for slots 10-245. Each is 4 bytes: R, G, B, flags.
-The palette section of `G-NOME.BIN` is one of these. The extractor renders
-every bitmap with it and the standard Windows system colours for the reserved
-slots. Colours check out by eye on UI art, photos and textures.
+The palette section of `G-NOME.BIN` is one of these, and so are the 14
+type 17 resources (2487-2509 odd ids, 2510 and 2511), which live in the
+script buffer.
+Statement `0xB4` (`set_palette`) loads one.
+
+### Which scenes swap palettes
+
+The menus, LAB and briefings load palette 2510, which is the same as the
+header palette. Palette 2511 is the same again and nothing uses it. Each
+mission world loads its own palette instead: script 2514 reads row `n` of
+table 2512 (one row per world, 16 rows) and calls `set_palette` with its
+column 1.
+
+| Column | Meaning |
+| --- | --- |
+| 0 | sky backdrop bitmap (`SetCameraBackdrop`), 1328 x 383 |
+| 1 | palette (always the backdrop's id + 1) |
+| 2 | fog depth |
+| 3-5 | fog colour r, g, b |
+| 6 | terrain type: 0 desert, 1 ice, 2 grass, 3 the dark rocky world |
+| 7 | the world's setup script |
+
+The 12 world palettes match the header in slots 10-185. Slots 186-215 are
+the terrain colours, the same for the three palettes of each terrain type.
+Slots 216-245 are the sky colours, different in every palette (for the
+desert: blue sky, grey sky, sunset). So every ground tile, tree and
+building texture that uses slots 186-215 looks like noise in the menu
+palette; its name starts with the terrain type's letter (`D`, `I`, `G`,
+`M`). Each terrain type also sets its own background colour in script 2514.
+
+The extractor renders every bitmap with the header palette and the
+standard Windows system colours for the reserved slots, except that a
+world's sky backdrop uses the palette after it, and a texture whose name
+starts with `D`, `I`, `G` or `M` and that uses the terrain slots uses the
+first palette of that terrain type (2487, 2493, 2499 or 2505). The browser
+engine needs no special case: it keeps the current palette and redraws
+textures when it changes.
 
 ## Bitmaps (type 1)
 
@@ -149,12 +185,26 @@ a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
 | `0x1C` | float | opacity |
 | `0x2E` | int, path | texture. The path is only there when the int is not 0. It is NUL-terminated and padded to 4 bytes. |
 | `0x2D` | int | tag: the clump's part number, used by FRME animations |
-| `0x04` | int | RwSetAxisAlignment |
-| `0x0D` | int | RwSetSurfaceGeometrySampling |
-| `0x0F` | int | RwSetHints |
-| `0x16` | int | RwSetSurfaceLightSampling |
-| `0x19` | int | RwSetSurfaceMaterialModes |
+| `0x04` | int | RwSetAxisAlignment: 1 none, 2 zorientx, 3 zorienty, 4 xyz (the clump turns to face the camera) |
+| `0x0D` | int | RwSetSurfaceGeometrySampling: 1 pointcloud, 2 wireframe, 4 solid |
+| `0x0F` | int | RwSetHints, bits: 1 container, 2 hs, 4 editable |
+| `0x16` | int | RwSetSurfaceLightSampling: 1 facet, 2 vertex |
+| `0x19` | int | RwSetSurfaceMaterialModes: 8 double-sided |
 | `0x32` | int | RwSetSurfaceTextureModes (1 lit, 2 foreshorten, 4 filter) |
+
+The int values are RenderWare 2.0's; they come from the RWX text parser in
+`RWL20.DLL`, which maps each keyword to the constant it passes (for example
+`solid` pushes 4 before calling `RwSetSurfaceGeometrySampling`, and the
+hints are a table at `0x100510d8`). In the 801 models:
+
+| Op | Values used |
+| --- | --- |
+| `0x04` | 4 (xyz) in 29 models: the explosion, shot, hit, smoke and fire sprites (1246-1876, 2532, 2535). Each is one textured square that RenderWare turns to face the camera. |
+| `0x0D` | always 4 (solid) |
+| `0x0F` | 0 (2,531 times), 6 = hs + editable (181, the animated units), 2 = hs (3) |
+| `0x16` | 1 facet (5,110), 2 vertex (6, in 3852 and 5895) |
+| `0x19` | always 8 (double-sided), 304 times |
+| `0x32` | 2 foreshorten (231, ground and walls), 0 (34, the sprites: not lit) |
 
 Op `n` calls entry `n - 1` of RENDER.R32's table of RWX functions
 (`FUN_100025e5`, replayed by `FUN_10003432`). The colour and surface ops were
@@ -220,6 +270,5 @@ tables check out this way.
 
 ## Still unknown
 
-- The int settings in models, and what the OB3D record kinds 1, 6 and 8 mean
-  (see [animation.md](animation.md)).
-- Whether some scenes swap in another palette.
+Nothing in the resource formats. Some header words (the `u16` and `u32`
+fields marked `?` in the sound header) are still unnamed.

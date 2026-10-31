@@ -153,10 +153,10 @@ count come records:
 
 | Record | Fields | Kept as |
 | --- | --- | --- |
-| 1 | a, b | entry kind 1 |
+| 1 | ms, script | entry kind 1: a timer script |
 | 2 | min, max (floats), resource type, resource id | entry kind 4 when the type is 7 (a model), 5 when it is 19 (a script). Distance ranges: levels of detail |
-| 6 | a, script | entry kind 6 (30 and an update script in every object seen) |
-| 8 | a | entry kind 8 |
+| 6 | ms, script | entry kind 6: the update script and its interval (first in every object) |
+| 8 | model | entry kind 8: a fixed model linked once |
 | 7 | x, n, values[n] | the property list; always last |
 
 `GetProperty(obj, p)` (`0x1001271e`) reads `values[p]`, zero past the end;
@@ -282,8 +282,9 @@ the script swaps those pointers for RenderWare names.
 
 ## Not done yet
 
-- Material settings ops `0x04` (AxisAlignment), `0x0D` (GeometrySampling),
-  `0x0F` (Hints), `0x16` (LightSampling: lighting is per face either way),
-  `0x19` (MaterialModes) are read but not used.
-- Ground textures look like noise in the menu palette; the mission palette
-  presumably fixes them.
+- Material settings ops `0x0D` (GeometrySampling, always solid), `0x0F`
+  (Hints), `0x16` (LightSampling: lighting is per face either way) and
+  `0x19` (MaterialModes, always double-sided) are read but not used. Op
+  `0x04` (AxisAlignment) is used: clumps with value 4 face the camera
+  (`clumpMatrices` takes the camera matrix). See
+  [g-nome-bin.md](formats/g-nome-bin.md).

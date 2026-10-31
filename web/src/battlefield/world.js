@@ -227,7 +227,10 @@ export class World {
     const d = Math.hypot(o.pos[0] - cam[0], o.pos[1] - cam[1], o.pos[2] - cam[2]) / this.camera.drawFar;
     for (let i = list.length - 1; i >= 0; i--) {
       const b = list[i];
-      if ((b.kind === 4 || b.kind === 5) && b.min <= d && d <= b.max) {
+      if (b.kind === 8) {
+        this.setModel(o.id, b.a);
+        o.lod = i;
+      } else if ((b.kind === 4 || b.kind === 5) && b.min <= d && d <= b.max) {
         if (b.kind === 4) this.setModel(o.id, b.value);
         else this.engine.callScript(b.value, [o.id]);
         o.lod = i;
@@ -238,7 +241,8 @@ export class World {
   // The object's behaviour records (OB3D/OPRT entries, +0xec): record 0 of
   // kind 6 is the update (interval, script); kind 1 is a timer script;
   // kinds 4 and 5 are level-of-detail ranges (a model, or a script that
-  // links one) chosen by distance in FUN_10029059.
+  // links one) chosen by distance in FUN_10029059; kind 8 is a fixed model
+  // that AddObject links once. See docs/formats/animation.md.
   /**
    * @param {any} o
    */

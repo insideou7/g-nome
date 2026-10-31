@@ -69,10 +69,21 @@ TYPE_NAMES = {
     10: "oprt",
     11: "type11",
     12: "sound",
-    # 13-21 are slices of sounds: a header piece plus ADPCM data pieces that
-    # the game streams. All but 44 of them sit inside a type 12 sound.
-    **{t: f"sound-part{t}" for t in range(13, 22)},
+    # 13-21 live in the BIN's script buffer, not in a pack (see
+    # docs/rtlib32-engine.md).
+    13: "type13",
+    14: "statement-list",
+    15: "bitmap-ref",
+    16: "sprite-list",
+    17: "palette",
+    18: "sprite-queue",
+    19: "script",
+    20: "sprite",
+    21: "text",
 }
+
+# Types whose offsets are relative to the script buffer (BIN key 5).
+SCRIPT_BUFFER_TYPES = range(13, 23)
 
 RAW_EXT = {1: "bmp7", 2: "tex7", 4: "frme", 7: "modl", 8: "mprt", 9: "ob3d",
            10: "oprt", 12: "7la"}
@@ -449,29 +460,25 @@ def texture_png_name(e: Entry, path: str) -> str:
     return f"{e.index:04d}-{stem}.png"
 
 
-def find_parents(entries: list) -> dict:
-    """Map each sound slice (types 13-21) to the type 12 sound that holds it."""
-    sounds = {}
-    for e in entries:
-        if e.type == 12:
-            sounds.setdefault(e.pack, []).append(e)
-    parents = {}
-    for e in entries:
-        if 13 <= e.type <= 21:
-            for s in sounds.get(e.pack, []):
-                if s.offset <= e.offset and e.offset + e.size <= s.offset + s.size:
-                    parents[e.index] = s.index
-                    break
-    return parents
-
-
 def extract(game: Path, out: Path, raw_only: bool = False) -> int:
     bin_path = find_file(game, "G-NOME.BIN")
     bin_data = bin_path.read_bytes()
     entries = read_index(bin_data)
     sections = bin_sections(bin_data)
     palette = palette_from_236(sections["palette"])
-    parents = find_parents(entries)
+    # Each world's sky backdrop (a type 1 bitmap) is followed by the type 17
+    # palette the world loads (script 2514), whose slots 186-245 hold that
+    # world's terrain and sky colours. Type 17 lives in the script buffer.
+    script_buf = sections.get("script", b"")
+    world_palettes = {
+        e.index - 1: palette_from_236(script_buf[e.offset:e.offset + e.size])
+        for e in entries if e.type == 17 and e.offset + e.size <= len(script_buf)}
+    # Ground, tree and building textures use the terrain slots 186-215,
+    # which only the four terrain types' palettes fill. Their names start
+    # with the terrain type: D desert, I ice, G grass, M the dark world
+    # (table 2512 column 6 = 0-3; the first palette of each type).
+    terrain_palettes = {k: world_palettes.get(v - 1) for k, v in
+                        (("D", 2487), ("I", 2493), ("G", 2499), ("M", 2505))}
     packs = Packs(game)
 
     out.mkdir(parents=True, exist_ok=True)
@@ -504,9 +511,14 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
                "size": e.size, "type": e.type, "type_name": e.type_name,
                "raw": "", "converted": "", "width": "", "height": "",
                "x": "", "y": "", "flags": "", "source_path": "",
-               "parent_sound": parents.get(e.index, ""), "note": ""}
+               "note": ""}
         try:
-            data = packs.read(e)
+            if e.type in SCRIPT_BUFFER_TYPES:
+                if e.offset + e.size > len(script_buf):
+                    raise ValueError(f"#{e.index} runs past the script buffer")
+                data = script_buf[e.offset:e.offset + e.size]
+            else:
+                data = packs.read(e)
         except (OSError, ValueError) as exc:
             row["note"] = f"read error: {exc}"
             rows.append(row)
@@ -528,8 +540,11 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
                 if not raw_only:
                     rel = Path("png") / "bitmap" / f"{e.index:04d}.png"
                     (out / rel).parent.mkdir(parents=True, exist_ok=True)
-                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm), palette)
+                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm),
+                              world_palettes.get(e.index, palette))
                     row["converted"] = rel.as_posix()
+                    if e.index in world_palettes:
+                        row["note"] = f"drawn with palette {e.index + 1}"
             elif e.type == 2 and data:
                 records = texture_records(data)
                 if not records:
@@ -539,11 +554,20 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
                     bm = records[0][1]
                     row.update(width=bm.width, height=bm.height, flags=hex(bm.flags))
                 done = []
+                worlds = set()
                 for path, bm in records if not raw_only else []:
                     rel = Path("png") / "texture" / texture_png_name(e, path)
                     (out / rel).parent.mkdir(parents=True, exist_ok=True)
-                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm), palette)
+                    pixels = bitmap_pixels(bm)
+                    pal = palette
+                    first = bmp_name(path)[:1].upper()
+                    if terrain_palettes.get(first) and any(186 <= v <= 215 for v in pixels):
+                        pal = terrain_palettes[first]
+                        worlds.add(first)
+                    write_png(out / rel, bm.width, bm.height, pixels, pal)
                     done.append(rel.as_posix())
+                if worlds and not row["note"]:
+                    row["note"] = "terrain colours of world " + "/".join(sorted(worlds))
                 row["converted"] = ";".join(done)
             elif e.type in (7, 8) and not raw_only:
                 name = f"{e.index:04d}"
