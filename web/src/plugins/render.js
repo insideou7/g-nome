@@ -2,6 +2,7 @@
 // input options and hotspots. Only the calls the menus need so far; the 3D
 // externs are stubs that log once (see docs/engine-plan.md, milestone 3).
 import { decodeSound } from "../sound.js";
+import { battlefieldExterns } from "../battlefield/externs.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -41,8 +42,19 @@ export class RenderPlugin {
       EnableJoystick: ok,
       MapActionKeys: ok,
       SetPauseScript: ok,
-      Pause3D: ok,
+      // World, camera and view: web/src/battlefield/
+      ...battlefieldExterns(engine),
     };
+  }
+
+  // Once per display frame: run the battlefield's fixed ticks.
+  service(ms) {
+    this.engine.world?.advance(ms);
+  }
+
+  // DeleteCopy (builtin 0x22) of an object in the scene removes it.
+  onDeleteCopy(id) {
+    this.engine.world?.remove(id);
   }
 
   sound(id) {

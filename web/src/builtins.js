@@ -43,6 +43,7 @@ export const BUILTINS = {
     if (!e.dynamic.has(id)) return 0;
     e.dynamic.delete(id);
     if (e.sprites.list.delete(id)) e.dirty = true;
+    for (const p of e.plugins) p.onDeleteCopy?.(id);
     return 1;
   },
   // 0x44: table header field 10 + k (dimension sizes)
