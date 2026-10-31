@@ -33,3 +33,6 @@ Setup, the Ghidra backend and troubleshooting are in
   animations.
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
   (scope, architecture, milestones, status).
+- `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
+  mission 1 on the game files. Run it after engine changes; add a check
+  when you fix a bug a player would see.

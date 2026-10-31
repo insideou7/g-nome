@@ -49,6 +49,8 @@ tools/run-headless.mjs        run the engine in Node and list what is missing
 tools/disasm.mjs              disassemble scripts
 tools/shot.mjs                run it in headless Chromium and take screenshots
 tests/smacker-check.mjs       compare the SMK decoder with FFmpeg
+tests/walkthrough.mjs         play the menus, LAB and mission 1 headless and
+                              check every screen (tests/player.mjs drives it)
 ```
 
 Design choices:

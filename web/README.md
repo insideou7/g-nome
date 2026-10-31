@@ -39,6 +39,12 @@ node web/tools/run-headless.mjs game/g-nome/G-NOME --ticks 2200
 # ...in mission 1, with a summary of the 3D world and camera
 node web/tools/run-headless.mjs game/g-nome/G-NOME --ticks 300 --mission 1 --world
 
+# Automated play-through: menus, options, network, LAB, EXIT prompt,
+# campaign briefing and mission 1 (about 15 s; exits 1 on a failure)
+node web/tests/walkthrough.mjs game/g-nome/G-NOME
+# ...one section, with a PNG of each screen it visits
+node web/tests/walkthrough.mjs game/g-nome/G-NOME --only lab --shots /tmp/walk
+
 # Battlefield checks (maths; plus mission 1 when given the game folder)
 node web/tests/battlefield-check.mjs game/g-nome/G-NOME
 
@@ -58,3 +64,8 @@ node web/tests/motion-check.mjs
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK
 ```
+
+`web/tests/player.mjs` is the headless player the walkthrough uses: it boots
+the engine in Node, clicks and presses keys at screen coordinates, and reads
+back click regions, visible text, sprites and the screen (with the 3D view).
+New tests can drive the game the same way.
