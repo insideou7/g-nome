@@ -137,7 +137,8 @@ export class Renderer {
 
   // Draw a scene. viewport: {x, y, w, h} or {x, y, width, height}, in
   // pixels of a canvas of size {canvasWidth, canvasHeight} (default: just
-  // big enough). Returns the WebGL canvas, or a SoftTarget {width, height,
+  // big enough), optionally clipped to viewport.clip {x, y, width, height}
+  // (WebGL only). Returns the WebGL canvas, or a SoftTarget {width, height,
   // rgba} from the software backend.
   // opts.backend: "webgl" | "soft" (default: webgl when available).
   render(scene, camera, viewport, opts = {}) {

@@ -189,7 +189,7 @@ object's position and orientation between the last two ticks.
 | `SetCameraPitch(a)`, `SetCameraYaw(a)` | `0x10009f15`, `0x10009fed` | extra tilt and pan, applied every frame after the clump matrix (`FUN_10006198`: pan, then tilt) |
 | `SetCameraClipping(near, far)` | `0x10009e99` | near and far planes; the scripts use 10 and 3000, 5000 or 7000 by detail level |
 | `SetCameraViewwindow(w, h)` | `0x10009f73` | half extents of the view at distance 1, `/ 100`; `Init3D` sets 0.61 x 0.457 |
-| `ViewportCrop(l, t, r, b)` | `0x1000a8c2` | margins around the 3D view |
+| `ViewportCrop(l, t, r, b)` | `0x1000a8c2` | margins around the 3D view; the viewwindow shrinks with the viewport and `RwSetCameraViewOffset((r - l) vw.x / W, (t - b) vw.y / H)` keeps the centre of projection at the screen centre, so the crop only clips the full-screen view (the cockpit crosshair sits at 320, 240) |
 | `SetBackgroundColor(r, g, b)` | `0x10009a20` | clear colour |
 | `SetFogDepthColor(d, r, g, b)` | `0x1000a108` | depth cue distance and colour; d <= 0 turns it off |
 | `SetCameraBackdrop(bitmap, 1)` | `0x10009c68` | panorama behind the scene |

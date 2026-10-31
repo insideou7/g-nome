@@ -81,6 +81,16 @@ export class BattleCamera {
     const [l, t, r, b] = this.crop;
     return { x: l, y: t, w: this.width - l - r, h: this.height - t - b };
   }
+
+  // The whole render target. ViewportCrop (0x1000a8c2) shrinks the
+  // viewwindow with the viewport (same pixels per unit) and sets
+  // RwSetCameraViewOffset so the centre of projection stays at the centre
+  // of the screen: the crop only clips the full-screen projection. So the
+  // 3D view is drawn, projected and placed as if uncropped, and clipped to
+  // viewport(). The cockpit crosshair at 320, 240 depends on it.
+  screen() {
+    return { x: 0, y: 0, w: this.width, h: this.height };
+  }
 }
 
 // RenderWare camera vectors from an object-style basis. The camera's "look

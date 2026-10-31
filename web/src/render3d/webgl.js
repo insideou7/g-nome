@@ -139,7 +139,8 @@ export class WebGLBackend {
   }
 
   // Draw into the viewport {x, y, width, height} of a canvas `cw` x `ch`
-  // (default: just the viewport). Returns the canvas.
+  // (default: just the viewport), clipped to vp.clip {x, y, width, height}
+  // when given. Returns the canvas.
   render(scene, camera, vp) {
     const gl = this.gl, u = this.u;
     const cw = vp.canvasWidth || vp.x + vp.width || vp.width, ch = vp.canvasHeight || vp.y + vp.height || vp.height;
@@ -148,7 +149,9 @@ export class WebGLBackend {
     const x = vp.x || 0, y = ch - (vp.y || 0) - vp.height; // GL origin is bottom left
     gl.viewport(x, y, vp.width, vp.height);
     gl.enable(gl.SCISSOR_TEST);
-    gl.scissor(x, y, vp.width, vp.height);
+    // vp.clip: draw only this part of the viewport (same coordinates).
+    const c = vp.clip || { x: vp.x || 0, y: vp.y || 0, width: vp.width, height: vp.height };
+    gl.scissor(c.x, ch - c.y - c.height, c.width, c.height);
     const bg = rgb01(camera.background);
     gl.clearColor(bg ? bg[0] : 0, bg ? bg[1] : 0, bg ? bg[2] : 0, bg ? 1 : 0);
     gl.depthMask(true);
