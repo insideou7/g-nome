@@ -7,6 +7,9 @@
 
 // The header's frame count, clamped to the data (resource 4733 claims 71
 // frames and holds 70).
+/**
+ * @param {any} bytes
+ */
 export function frameCount(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const n = dv.getUint32(4, true);
@@ -16,9 +19,15 @@ export function frameCount(bytes) {
 
 // Returns a pose: an array indexed by clump index, holding a local matrix
 // (Float32Array(16)) for each clump the frame moves.
+/**
+ * @param {any} model
+ * @param {any} bytes
+ * @param {number} frame
+ */
 export function poseFromFrame(model, bytes, frame) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const n = dv.getUint32(4, true), frames = frameCount(bytes);
+  /** @type {any} */
   const pose = [];
   if (!frames) return pose;
   const f = Math.max(0, Math.min(frames - 1, frame | 0));

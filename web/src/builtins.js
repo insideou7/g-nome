@@ -2,10 +2,17 @@
 // The original is a 247-case switch at 0x10003fad. Each entry is
 // fn(vm, args) -> int. G-Nome's scripts use 17 of the ids; names and
 // arguments for all of them are in names.js.
+/** @import { VM } from "./vm.js" */
+
 
 // Type 11 resources are integer tables: a 60-byte header (u32 data pointer,
 // u32 data bytes, ?, u32 resource id, u32 number of dimensions, u32 stride
 // per dimension, ...) and then int32 data. Element = data[sum(stride*idx)].
+/**
+ * @param {string | undefined} a
+ * @param {string | undefined} b
+ * @param {boolean} nocase
+ */
 function strcmp(a, b, nocase) {
   if (a === undefined || b === undefined) return 0;
   if (nocase) {
@@ -15,6 +22,10 @@ function strcmp(a, b, nocase) {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * @param {VM} vm
+ * @param {number} id
+ */
 export function table(vm, id) {
   const e = vm.engine;
   let t = e.tables.get(id);
@@ -35,6 +46,10 @@ export function table(vm, id) {
   return t;
 }
 
+/**
+ * @param {any} t
+ * @param {any} idx
+ */
 function tableIndex(t, idx) {
   if (idx.length !== t.strides.length) return -1;
   let o = 0;
@@ -42,6 +57,7 @@ function tableIndex(t, idx) {
   return o >= 0 && o < t.data.length ? o : -1;
 }
 
+/** @type {Record<number, Builtin>} */
 export const BUILTINS = {
   // 0x19: copy a resource (ResCopyResource); returns the new id
   0x19(vm, [id]) {

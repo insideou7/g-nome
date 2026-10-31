@@ -17,6 +17,7 @@
 
 import { table } from "./builtins.js";
 import { ORIGIN_X, ORIGIN_Y } from "./sprites.js";
+/** @import { Engine } from "./engine.js" */
 
 const KEY_MAP = 6323;
 const ROW_SIZE = 8;
@@ -31,6 +32,10 @@ const COLUMN_X = [268, 345, 422];
 const CELL_W = 72;
 
 // A binding as one string per input, or null when it is empty or a joystick.
+/**
+ * @param {number} device
+ * @param {any} key
+ */
 function inputKey(device, key) {
   if (!key && !device) return null;
   if (device === 3 || device === 6) return null;
@@ -38,8 +43,12 @@ function inputKey(device, key) {
 }
 
 export class KeyConflicts {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
+    /** @type {any} */
     this.cells = []; // [{row, col}] in conflict, over the whole table
     this.sig = "";
     this.wasShown = false;
@@ -48,11 +57,14 @@ export class KeyConflicts {
   get shown() {
     const e = this.engine;
     if (!e.vm || e.fadedOut || e.display?.frozen || e.world?.shown) return false;
-    if (e.plugins?.some((p) => p.ownsScreen)) return false;
-    return e.clickRects.some((r) => r.script === CELL_SCRIPT && !r.off);
+    if (e.plugins?.some((/** @type {any} */ p) => p.ownsScreen)) return false;
+    return e.clickRects.some((/** @type {any} */ r) => r.script === CELL_SCRIPT && !r.off);
   }
 
   // Modes (bits 0-3) in which an action can be active.
+  /**
+   * @param {number} action
+   */
   modes(action) {
     const t = table(this.engine.vm, ACTIONS);
     if (!t) return 0xf;
@@ -80,7 +92,7 @@ export class KeyConflicts {
     const out = [];
     for (const list of byInput.values()) {
       for (const a of list) {
-        if (list.some((b) => b.action !== a.action && a.modes & b.modes)) out.push({ row: a.row, col: a.col });
+        if (list.some((/** @type {any} */ b) => b.action !== a.action && a.modes & b.modes)) out.push({ row: a.row, col: a.col });
       }
     }
     return out;
@@ -91,7 +103,7 @@ export class KeyConflicts {
     const shown = this.shown;
     if (shown) {
       this.cells = this.find();
-      const sig = `${this.engine.vm.getGlobal(FIRST_ROW)}:${this.cells.map((c) => `${c.row}.${c.col}`).join(",")}`;
+      const sig = `${this.engine.vm.getGlobal(FIRST_ROW)}:${this.cells.map((/** @type {any} */ c) => `${c.row}.${c.col}`).join(",")}`;
       if (sig !== this.sig && this.engine.display) this.engine.display.dirty = true;
       this.sig = sig;
     }
@@ -117,6 +129,9 @@ export class KeyConflicts {
   }
 
   // Drawn over the presented frame (Display.overlay).
+  /**
+   * @param {any} ctx
+   */
   draw(ctx, fade = 1) {
     if (!this.shown || !this.cells.length) return;
     ctx.save();

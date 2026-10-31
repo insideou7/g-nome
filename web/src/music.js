@@ -4,17 +4,25 @@
 // inside it, named like TRACK02.OGG, Track 02.mp3 or 02.wav, and they play
 // here. Scripts pick and time the tracks themselves (scripts 313-316), and
 // skip them while CD Music is off (global 2115), so this only plays and stops.
+/** @import { Engine } from "./engine.js" */
+
 
 const EXT = "(?:OGG|MP3|WAV|FLAC|OPUS|M4A)";
 // "TRACK02.OGG", "G-NOME TRACK 02.MP3", "02.WAV", "MUSIC/Track 2 (G-Nome).flac"
 const TRACK_NAME = new RegExp(`^(?:MUSIC/)?(?:[^/]*TRACK[ _-]*|)0*(\\d{1,2})(?:[^/\\d][^/]*)?\\.${EXT}$`, "i");
 
+/**
+ * @param {string} name
+ */
 export function trackNumber(name) {
   const m = TRACK_NAME.exec(name);
   return m ? Number(m[1]) : 0;
 }
 
 export class CdMusic {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.track = 0; // last track the scripts asked for (0 = stopped)
@@ -23,6 +31,9 @@ export class CdMusic {
   }
 
   // File names to try for a track.
+  /**
+   * @param {number} track
+   */
   candidates(track) {
     const files = this.engine.files;
     if (!this.found) {
@@ -46,6 +57,9 @@ export class CdMusic {
     return !!this.found?.size;
   }
 
+  /**
+   * @param {number} track
+   */
   async play(track) {
     this.stop();
     this.track = track;

@@ -13,6 +13,7 @@
 
 import { ORIGIN_X, ORIGIN_Y } from "./sprites.js";
 import { table } from "./builtins.js";
+/** @import { Engine } from "./engine.js" */
 
 export const CHEATS = [
   { code: "Range Goes Gory", effect: "Most of the below at once: every Ctrl-key cheat, all missions, and the Swiss Throat and Mother Mourn Us extras", keys: "" },
@@ -42,6 +43,7 @@ const OPTIONS_SCRIPT = 8380; // INTERFACE button's click script: the OPTIONS scr
 const SLOT = { l: 557, t: 147, r: 640, b: 183 }; // first blue slot on the right, screen pixels
 
 // A 7x11 face like the menu buttons' (2-pixel strokes).
+/** @type {Record<string, string[]>} */
 const GLYPHS = {
   D: ["######.", "#######", "##...##", "##...##", "##...##", "##...##", "##...##", "##...##", "##...##", "#######", "######."],
   E: ["#######", "#######", "##.....", "##.....", "##.....", "######.", "######.", "##.....", "##.....", "#######", "#######"],
@@ -52,6 +54,10 @@ const GLYPHS = {
 
 // Campaign mission N starts the way the briefing's start button does
 // (script 8317 finds the row of table 6984 whose column 0 is global 2119).
+/**
+ * @param {Engine} engine
+ * @param {any} n
+ */
 export function startMission(engine, n) {
   // the real path goes through the briefing, which has already put the menu
   // away; hide whatever is still up
@@ -65,9 +71,13 @@ export function startMission(engine, n) {
 }
 
 export class Debug {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.hot = false;
+    /** @type {any} */
     this.onOpen = null; // set by the browser shell: opens the panel
     this.colors = null;
     this.vehicle = -1; // catalog row (table 5843) to start missions in, -1 = the mission's own
@@ -76,13 +86,21 @@ export class Debug {
   // Is the OPTIONS screen up?
   get shown() {
     const e = this.engine;
-    return e.clickRects.some((r) => r.script === OPTIONS_SCRIPT && !r.off) && !e.world?.shown && !e.plugins.some((p) => p.ownsScreen);
+    return e.clickRects.some((/** @type {any} */ r) => r.script === OPTIONS_SCRIPT && !r.off) && !e.world?.shown && !e.plugins.some((/** @type {any} */ p) => p.ownsScreen);
   }
 
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   hit(cx, cy) {
     return this.shown && cx >= SLOT.l && cx < SLOT.r && cy >= SLOT.t && cy < SLOT.b;
   }
 
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   mouseMove(cx, cy) {
     const hot = this.hit(cx, cy);
     if (hot !== this.hot) {
@@ -92,6 +110,10 @@ export class Debug {
   }
 
   // true when the click was ours
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   mouseDown(cx, cy) {
     if (!this.hit(cx, cy)) return false;
     this.onOpen?.();
@@ -102,7 +124,7 @@ export class Debug {
   palette() {
     if (this.colors) return this.colors;
     const pal = this.engine.palette;
-    const near = (r, g, b) => {
+    const near = (/** @type {number} */ r, /** @type {number} */ g, /** @type {number} */ b) => {
       let best = 1, bd = Infinity;
       for (let i = 1; i < 256; i++) {
         const d = (pal[i * 3] - r) ** 2 + (pal[i * 3 + 1] - g) ** 2 + (pal[i * 3 + 2] - b) ** 2;
@@ -110,12 +132,15 @@ export class Debug {
       }
       return best;
     };
-    const isBlue = (i) => pal[i * 3 + 2] > pal[i * 3] + 40 && pal[i * 3 + 2] > pal[i * 3 + 1] + 30;
+    const isBlue = (/** @type {number} */ i) => pal[i * 3 + 2] > pal[i * 3] + 40 && pal[i * 3 + 2] > pal[i * 3 + 1] + 30;
     this.colors = { black: near(0, 0, 0), dark: near(0, 74, 0), mid: near(0, 152, 0), shade: near(0, 197, 0), bright: near(0, 255, 0), isBlue };
     return this.colors;
   }
 
   // Draw the button over the blue slot: black screen, green DEBUG.
+  /**
+   * @param {number[]} pixels
+   */
   draw(pixels) {
     if (!this.shown) return;
     const c = this.palette();
@@ -134,7 +159,7 @@ export class Debug {
     const word = "DEBUG", gw = 7, gap = 2, gh = 11;
     const tw = word.length * gw + (word.length - 1) * gap;
     const x0 = Math.round((minX + maxX + 1 - tw) / 2), y0 = Math.round((minY + maxY + 1 - gh) / 2);
-    const on = (x, y) => {
+    const on = (/** @type {number} */ x, /** @type {number} */ y) => {
       const ch = Math.floor(x / (gw + gap)), gx = x % (gw + gap);
       if (x < 0 || y < 0 || y >= gh || ch >= word.length || gx >= gw) return false;
       return GLYPHS[word[ch]][y][gx] === "#";
@@ -151,6 +176,9 @@ export class Debug {
   // --- the actions behind the panel ---
 
   // Type a cheat code into the game's own check (script 5996 reads string 7).
+  /**
+   * @param {string} code
+   */
   cheat(code) {
     const e = this.engine;
     const before = e.vm.getGlobal(1857);
@@ -185,7 +213,7 @@ export class Debug {
     try {
       lab = await e.files.read("LABTEXT.DAT");
     } catch {}
-    const name = (o) => {
+    const name = (/** @type {number} */ o) => {
       if (!lab || o < 0 || o >= lab.length) return "";
       let s = "";
       for (let i = 1; i <= lab[o] && lab[o + i]; i++) s += String.fromCharCode(lab[o + i]);
@@ -208,14 +236,22 @@ export class Debug {
   }
 
   // Start campaign mission n, then put the player in catalog row `vehicle`.
+  /**
+   * @param {number} n
+   */
   startMission(n, vehicle = this.vehicle) {
     startMission(this.engine, n);
     if (vehicle >= 0) this.swapVehicle(vehicle);
   }
 
   // A unit's property, through RENDER.R32's externs.
+  /**
+   * @param {number} id
+   * @param {number} p
+   * @param {number} [v]
+   */
   prop(id, p, v) {
-    const r = this.engine.plugins.find((x) => x.name === "render");
+    const r = this.engine.plugins.find((/** @type {any} */ x) => x.name === "render");
     if (v === undefined) return r.externs.GetProperty.call(r, id, p);
     r.externs.SetProperty.call(r, id, p, v);
   }
@@ -225,11 +261,14 @@ export class Debug {
   // - a vehicle (class 100-230): script_2240(pilot, vehicle, 1), the
   //   "climb into an empty vehicle" path, which ends in script_2088;
   // - on foot: script_2088(unit) switches control, and the old unit leaves.
+  /**
+   * @param {number} row
+   */
   swapVehicle(row) {
     const e = this.engine, vm = e.vm;
     const player = vm.getGlobal(973);
-    const o = e.world?.objects.get(player);
-    if (!player || !o) return e.log("debug: no player unit to swap");
+    const world = e.world, o = world?.objects.get(player);
+    if (!player || !world || !o) return e.log("debug: no player unit to swap");
     const cat = table(vm, 5843);
     const [res, init, kind, cls] = cat.data.slice(row * 5, row * 5 + 4);
     const yaw = o.heading(); // hundredths of a degree
@@ -245,7 +284,7 @@ export class Debug {
     e.callScript(2286, [id, 100, 100]);
     // keep its update script in property 65, as the placement code does
     // (script_1736): script_2088 reinstalls it from there
-    e.callScript(1736, [id, e.world.objects.get(id)?.updateScript || 0]);
+    e.callScript(1736, [id, world.objects.get(id)?.updateScript || 0]);
     this.prop(id, 113, this.prop(player, 113)); // same side (IFF)
     if (cls >= 100 && cls < 231) {
       // the pilot: the player on foot, or whoever drives the player's vehicle
@@ -257,10 +296,10 @@ export class Debug {
       }
       this.prop(id, 77, 0); // empty and unlocked (2043 leaves -1)
       e.callScript(2240, [pilot, id, 1]);
-      if (pilot !== player) e.world.remove(player);
+      if (pilot !== player) world.remove(player);
     } else {
       e.callScript(2088, [id]);
-      e.world.remove(player);
+      world.remove(player);
     }
     e.log(`debug: now in catalog row ${row} (object ${vm.getGlobal(973)})`);
   }

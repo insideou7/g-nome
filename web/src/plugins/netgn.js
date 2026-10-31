@@ -9,6 +9,7 @@
 // RTLIB32 string ids.
 import { DirectPlay, SYS } from "../net/dplay.js";
 import { BroadcastBus, RtcBus, ServerBus } from "../net/buses.js";
+/** @import { Engine } from "../engine.js" */
 
 const MAX_BUF = 0x400; // NETGN caps its message buffer at 1 KB
 const LISTEN_BUF = 0x144; // NetDPListen's buffer (0x10014310)
@@ -60,6 +61,9 @@ function defaultProviders() {
 
 export class NetPlugin {
   // engine.netOptions: { providers: [{name, open() -> bus, available?}] }
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.name = "netgn";
@@ -67,9 +71,11 @@ export class NetPlugin {
     this.dp = null;
     this.bus = null;
     this.maxPlayers = 0; // ctx[0xf]
+    /** @type {any} */
     this.slots = []; // ctx[0x11]: player table, 1-based indices for the scripts
     this.local = 0; // ctx[0x12]: our dpid
     this.host = 0; // ctx[0x19]
+    /** @type {any} */
     this.sessionTable = []; // FUN_100011de: session index -> guid, kept across refreshes
     this.lastHeard = new Map(); // dpid -> time of their last message (+0x1d)
     this.msg = new Uint8Array(LISTEN_BUF); // the last NetDPListen message
@@ -77,7 +83,8 @@ export class NetPlugin {
     this.sent = new Map(); // net id -> last update sent (0x1001aa10, 0x36 bytes each)
     this.maxLatency = 0; // ctx[0x17]
 
-    const n = (f) => (...a) => f.apply(this, a);
+    const n = (/** @type {any} */ f) => (/** @type {any} */ ...a) => f.apply(this, a);
+    /** @type {Externs} */
     this.externs = {
       DPIsValidVersion: () => 1,
       DPCheckForConnect: () => 0, // not started from a lobby program
@@ -143,7 +150,7 @@ export class NetPlugin {
   }
 
   get providers() {
-    return this.providerList.filter((p) => p.available !== false);
+    return this.providerList.filter((/** @type {any} */ p) => p.available !== false);
   }
 
   service() {
@@ -161,27 +168,53 @@ export class NetPlugin {
   dv() {
     return new DataView(this.msg.buffer);
   }
+  /**
+   * @param {number} addr
+   * @param {number} v
+   */
   store(addr, v) {
     if (addr) this.vm().store(addr, v | 0);
   }
+  /**
+   * @param {number} addr
+   */
   load(addr) {
     return addr ? this.vm().load(addr) : 0;
   }
+  /**
+   * @param {number} addr
+   * @param {number} n
+   */
   readBytes(addr, n) {
     return this.vm().u8.slice(addr, addr + Math.max(0, n));
   }
+  /**
+   * @param {number} addr
+   * @param {Uint8Array} bytes
+   */
   writeBytes(addr, bytes) {
     if (addr) this.vm().u8.set(bytes, addr);
   }
+  /**
+   * @param {number} id
+   */
   str(id) {
     return this.engine.getString(id) ?? "";
   }
+  /**
+   * @param {number} id
+   * @param {string} s
+   */
   setStr(id, s) {
     this.engine.setString(id, s);
   }
   // RtRunMsg: run a script right away with arguments, in a frame 32 locals
   // below the caller's (the call record's nlocals byte is set to 0x20).
   // Returns 1 unless the script returned 0.
+  /**
+   * @param {any} script
+   * @param {any} args
+   */
   runMsg(script, args) {
     const vm = this.vm();
     const saved = vm.retval;
@@ -201,6 +234,10 @@ export class NetPlugin {
   // DPEnumProviders(nameStr, script): script(major, minor) per provider with
   // its name in nameStr; stops when the script returns 0. The original adds
   // "MPath MPlayer" last (the Mplayer service, long gone); this does not.
+  /**
+   * @param {number} nameStr
+   * @param {any} script
+   */
   enumProviders(nameStr, script) {
     let n = 0;
     for (const p of this.providers) {
@@ -216,10 +253,15 @@ export class NetPlugin {
   // 2 modem, 3 IPX, 4 other; 5 = Mplayer, the scripts then quit), 0 on
   // failure. Type 3 makes the scripts refresh the session list by
   // themselves.
+  /**
+   * @param {number} nameStr
+   * @param {number} index
+   * @param {number} maxPlayers
+   */
   init(nameStr, index, maxPlayers) {
     const name = this.str(nameStr);
     const list = this.providers;
-    const p = name ? list.find((q) => q.name === name) : list[index];
+    const p = name ? list.find((/** @type {any} */ q) => q.name === name) : list[index];
     if (!p) return 0;
     this.deinit();
     this.maxPlayers = maxPlayers || 8;
@@ -247,6 +289,11 @@ export class NetPlugin {
   // `timeout` ms for answers; here the list is what hosts answered to
   // earlier requests (the scripts ask every 3 s). Returns how many sessions
   // it reported (FUN_100019cb counts them; the scripts draw that many rows).
+  /**
+   * @param {number} nameStr
+   * @param {any} timeout
+   * @param {any} script
+   */
   enumSessions(nameStr, timeout, script) {
     if (!this.dp) return 0;
     let count = 0;
@@ -262,6 +309,10 @@ export class NetPlugin {
   }
 
   // DPCreateSession(nameStr, passwordStr)
+  /**
+   * @param {number} nameStr
+   * @param {any} pwStr
+   */
   createSession(nameStr, pwStr) {
     if (!this.dp) return 0;
     this.dp.createSession(this.str(nameStr).slice(0, 20), this.maxPlayers, this.str(pwStr));
@@ -273,6 +324,10 @@ export class NetPlugin {
 
   // DPJoinSession(index, passwordStr): join, then register the session's
   // players (EnumPlayers with FUN_10001aeb).
+  /**
+   * @param {number} index
+   * @param {any} pwStr
+   */
   joinSession(index, pwStr) {
     const guid = this.sessionTable[index];
     if (!this.dp || !guid || !this.dp.joinSession(guid, this.str(pwStr))) return 0;
@@ -292,6 +347,12 @@ export class NetPlugin {
 
   // DPEnumInSession(?, nameStr, longStr, script): register every player in
   // the session; script(dpid, count) for each when script is not 0.
+  /**
+   * @param {any} unused
+   * @param {number} nameStr
+   * @param {any} longStr
+   * @param {any} script
+   */
   enumInSession(unused, nameStr, longStr, script) {
     if (!this.dp) return 0;
     let count = 0;
@@ -307,6 +368,11 @@ export class NetPlugin {
 
   // DPEnumPlayers(nameStr, longStr, script): script(dpid, index) for every
   // registered player. Returns how many.
+  /**
+   * @param {number} nameStr
+   * @param {any} longStr
+   * @param {any} script
+   */
   enumPlayers(nameStr, longStr, script) {
     if (!this.dp) return 0;
     let n = 0;
@@ -323,6 +389,10 @@ export class NetPlugin {
   }
 
   // DPCreatePlayer(nameStr, longStr, ?, ?): our player; returns its dpid.
+  /**
+   * @param {number} nameStr
+   * @param {any} longStr
+   */
   createPlayer(nameStr, longStr) {
     if (!this.dp) return 0;
     const dpid = this.dp.createPlayer(this.str(nameStr), this.str(longStr));
@@ -340,6 +410,11 @@ export class NetPlugin {
   }
 
   // DPGetPlayerInfo(dpid, &index, nameStr)
+  /**
+   * @param {number} dpid
+   * @param {any} indexAddr
+   * @param {number} nameStr
+   */
   getPlayerInfo(dpid, indexAddr, nameStr) {
     const i = this.index(dpid);
     this.store(indexAddr, i);
@@ -348,6 +423,9 @@ export class NetPlugin {
   }
 
   // FUN_10001d11: 1-based slot of a player, -1 if unknown, 0 for dpid 0.
+  /**
+   * @param {number} dpid
+   */
   index(dpid) {
     if (!dpid) return 0;
     const i = this.slots.indexOf(dpid);
@@ -355,6 +433,9 @@ export class NetPlugin {
   }
 
   // FUN_10001493 / FUN_100015b8: add or free a slot.
+  /**
+   * @param {number} dpid
+   */
   register(dpid) {
     if (!dpid || this.slots.includes(dpid)) return 0;
     const i = this.slots.indexOf(0);
@@ -363,6 +444,9 @@ export class NetPlugin {
     this.lastHeard.set(dpid, this.now());
     return i + 1;
   }
+  /**
+   * @param {number} dpid
+   */
   unregister(dpid) {
     const i = this.slots.indexOf(dpid);
     if (i >= 0) this.slots[i] = 0;
@@ -370,6 +454,13 @@ export class NetPlugin {
 
   // DPSendMsg(to, flags, type, buf, len): u32 (type << 8 | 0xf), then len
   // bytes. to 0 = everyone. Flag 1 = guaranteed (all messages are here).
+  /**
+   * @param {number | undefined} to
+   * @param {any} flags
+   * @param {number} type
+   * @param {any} buf
+   * @param {number} len
+   */
   sendScriptMsg(to, flags, type, buf, len) {
     if (!this.local) return 0;
     const b = new Uint8Array(4 + Math.min(Math.max(0, len), MAX_BUF - 4));
@@ -380,12 +471,21 @@ export class NetPlugin {
 
   // NetDPSendMsg(to, flags, buf, len): like DPSendMsg, but the type is the
   // buffer's first word, which it rewrites in place to (type << 8 | 0xf).
+  /**
+   * @param {number | undefined} to
+   * @param {any} flags
+   * @param {any} buf
+   * @param {number} len
+   */
   sendRawMsg(to, flags, buf, len) {
     if (!this.local) return 0;
     this.store(buf, (this.load(buf) << 8) | 0xf);
     return this.send(this.readBytes(buf, Math.min(len, MAX_BUF)), to);
   }
 
+  /**
+   * @param {Uint8Array} bytes
+   */
   send(bytes, to = 0) {
     if (!this.dp || !this.local) return 0;
     return this.dp.send(this.local, to, bytes) ? 1 : 0;
@@ -395,6 +495,14 @@ export class NetPlugin {
   // message for our player (from *from only, when it is not 0). System
   // messages copy their DPMSG struct from its second word; player messages
   // their data after the type word. Returns 0 when there is none.
+  /**
+   * @param {any} sysAddr
+   * @param {any} fromAddr
+   * @param {any} typeAddr
+   * @param {any} buf
+   * @param {any} lenAddr
+   * @param {any} copy
+   */
   receive(sysAddr, fromAddr, typeAddr, buf, lenAddr, copy) {
     this.store(typeAddr, 0);
     if (!this.dp || !this.local) return 0;
@@ -441,16 +549,22 @@ export class NetPlugin {
   }
 
   // The next queued message, optionally only from one player.
+  /**
+   * @param {any} from
+   */
   next(from) {
     if (!this.dp) return null;
     const q = this.dp.queue;
-    const i = from ? q.findIndex((m) => m.from === from) : q.length ? 0 : -1;
+    const i = from ? q.findIndex((/** @type {any} */ m) => m.from === from) : q.length ? 0 : -1;
     return i < 0 ? null : q.splice(i, 1)[0];
   }
 
   // DirectPlay's system message structs: DPMSG_CREATEPLAYERORGROUP and
   // DPMSG_DESTROYPLAYERORGROUP start {type, playerType (1 = player), dpid};
   // pointers (data, names) are 0.
+  /**
+   * @param {any} sys
+   */
   sysBytes(sys) {
     const b = new Uint8Array(0x30);
     const dv = new DataView(b.buffer);
@@ -464,12 +578,22 @@ export class NetPlugin {
   }
 
   // DPBufToStr(str, buf, n) / DPStrToBuf(buf, str, n): copy up to 255 bytes.
+  /**
+   * @param {any} strId
+   * @param {any} buf
+   * @param {number} n
+   */
   bufToStr(strId, buf, n) {
     const b = this.readBytes(buf, Math.min(n, 255));
     const end = b.indexOf(0);
     this.setStr(strId, String.fromCharCode(...(end < 0 ? b : b.subarray(0, end))));
     return 0;
   }
+  /**
+   * @param {any} buf
+   * @param {any} strId
+   * @param {number} n
+   */
   strToBuf(buf, strId, n) {
     const s = this.str(strId);
     const b = new Uint8Array(Math.min(n, 255));
@@ -484,6 +608,9 @@ export class NetPlugin {
   // return its kind (0 when there is none, 1 for nothing to do). System
   // messages become kinds 0xc (joined, from = the new dpid), 0xd (left) and
   // 0x17 (we are host now).
+  /**
+   * @param {any} fromAddr
+   */
   listen(fromAddr) {
     if (!this.dp) return 0;
     const m = this.dp.receive();
@@ -517,6 +644,10 @@ export class NetPlugin {
 
   // NetDPGetMsg(buf, &len): copy the listen buffer, with the first word
   // shifted back to the script's message type. Returns the full length.
+  /**
+   * @param {any} buf
+   * @param {any} lenAddr
+   */
   getMsg(buf, lenAddr) {
     const n = Math.min(this.load(lenAddr) >>> 0, this.msgLen);
     this.store(lenAddr, n);
@@ -527,6 +658,14 @@ export class NetPlugin {
 
   // NetDPProcessMessage(obj, p3, p4, p5, p6, from) (FUN_1000562f): apply the
   // listened message to obj. The property numbers say where its values go.
+  /**
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   * @param {any} p5
+   * @param {any} p6
+   * @param {number | undefined} from
+   */
   process(obj, p3, p4, p5, p6, from) {
     const m = this.msg;
     const dv = this.dv();
@@ -607,6 +746,15 @@ export class NetPlugin {
 
   // NetDPSendCreDO(obj, owner, target, type, indx, reliable, idProp):
   // a new object (a shot, a dropped item) at obj's place.
+  /**
+   * @param {any} obj
+   * @param {any} owner
+   * @param {any} target
+   * @param {number} type
+   * @param {number} indx
+   * @param {any} reliable
+   * @param {any} idProp
+   */
   sendCreate(obj, owner, target, type, indx, reliable, idProp) {
     const b = new Uint8Array(0x2c);
     const dv = new DataView(b.buffer);
@@ -622,6 +770,17 @@ export class NetPlugin {
 
   // NetDPSendDamage(obj, tag, health, armor, parent, shieldProp, idProp,
   // instanceProp, reliable)
+  /**
+   * @param {any} obj
+   * @param {number} tag
+   * @param {number} health
+   * @param {number} armor
+   * @param {number} parent
+   * @param {any} p7
+   * @param {any} p8
+   * @param {any} p9
+   * @param {any} reliable
+   */
   sendDamage(obj, tag, health, armor, parent, p7, p8, p9, reliable) {
     const b = new Uint8Array(0xd);
     const dv = new DataView(b.buffer);
@@ -638,6 +797,14 @@ export class NetPlugin {
   }
 
   // NetDPSendDestObj(obj, idProp, instanceProp, seed, killer, flagProp)
+  /**
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   * @param {any} seed
+   * @param {any} killer
+   * @param {any} p7
+   */
   sendDestroy(obj, p3, p4, seed, killer, p7) {
     this.send(this.killMsg(this.prop(obj, p7) ? KIND.DESTROY : KIND.DESTROY0, obj, p3, p4, seed, killer));
     return 0;
@@ -645,11 +812,26 @@ export class NetPlugin {
 
   // NetDPSendPleaseKill(obj, idProp, instanceProp, killer, flagProp): ask
   // the host to destroy it.
+  /**
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   * @param {any} killer
+   * @param {any} p6
+   */
   sendPleaseKill(obj, p3, p4, killer, p6) {
     this.send(this.killMsg(this.prop(obj, p6) ? KIND.PLEASE_KILL : KIND.PLEASE_KILL + 1, obj, p3, p4, 0, killer));
     return 0;
   }
 
+  /**
+   * @param {number} kind
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   * @param {number} a
+   * @param {number} b7
+   */
   killMsg(kind, obj, p3, p4, a, b7) {
     const b = new Uint8Array(0xb);
     const dv = new DataView(b.buffer);
@@ -662,6 +844,13 @@ export class NetPlugin {
   }
 
   // {kind, a.idProp, b.idProp, u32 our dpid, a.instanceProp}
+  /**
+   * @param {number} kind
+   * @param {any} a
+   * @param {any} bObj
+   * @param {any} p4
+   * @param {any} [p5]
+   */
   pairMsg(kind, a, bObj, p4, p5) {
     const b = new Uint8Array(8);
     b[0] = kind;
@@ -674,24 +863,48 @@ export class NetPlugin {
 
   // NetDPSendSteal(thief, victim, idProp, instanceProp): the host decides
   // at once (STOLE to everyone); others ask the host. Returns 1 on the host.
+  /**
+   * @param {any} a
+   * @param {any} bObj
+   * @param {any} p4
+   * @param {any} p5
+   */
   sendSteal(a, bObj, p4, p5) {
     const msg = this.pairMsg(this.host ? KIND.STOLE : KIND.STEAL, a, bObj, p4, p5);
     this.send(msg);
     return this.host ? 1 : 0;
   }
 
+  /**
+   * @param {any} a
+   * @param {any} bObj
+   * @param {any} p4
+   * @param {any} p5
+   */
   sendStole(a, bObj, p4, p5) {
     this.send(this.pairMsg(KIND.STOLE, a, bObj, p4, p5));
     return 1;
   }
 
   // NetDPSendEject(a, b, idProp): returns 1 when we are not the host.
+  /**
+   * @param {any} a
+   * @param {any} bObj
+   * @param {any} p4
+   */
   sendEject(a, bObj, p4) {
     this.send(this.pairMsg(KIND.EJECT, a, bObj, p4));
     return this.host ? 0 : 1;
   }
 
   // NetDPSendHitched(a, b, value, idProp, instanceProp)
+  /**
+   * @param {any} a
+   * @param {any} bObj
+   * @param {number} value
+   * @param {any} p5
+   * @param {any} p6
+   */
   sendHitched(a, bObj, value, p5, p6) {
     const b = new Uint8Array(8);
     b[0] = KIND.HITCHED;
@@ -704,6 +917,11 @@ export class NetPlugin {
   }
 
   // NetDPSendIFF(obj, iffProp, idProp): the side the object is on.
+  /**
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   */
   sendIFF(obj, p3, p4) {
     const b = new Uint8Array(4);
     b[0] = KIND.IFF;
@@ -714,6 +932,9 @@ export class NetPlugin {
   }
 
   // NetDPSendUpdDO(obj): position and orientation, unaligned after the kind.
+  /**
+   * @param {any} obj
+   */
   sendUpdateDO(obj) {
     const b = new Uint8Array(0x25);
     b[0] = KIND.DO;
@@ -725,6 +946,14 @@ export class NetPlugin {
   // NetDPSendUpdNDO(obj, p3, p4, p5, idProp, flagProp): a unit's state.
   // Picks the smallest message that says it (see docs/netgn.md) and keeps
   // a copy per net id for NetDPDelta.
+  /**
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   * @param {any} p5
+   * @param {any} p6
+   * @param {any} p7
+   */
   sendUpdate(obj, p3, p4, p5, p6, p7) {
     const b = new Uint8Array(0x2e);
     const dv = new DataView(b.buffer);
@@ -781,6 +1010,10 @@ export class NetPlugin {
     return 0;
   }
 
+  /**
+   * @param {number} id
+   * @param {Uint8Array} b
+   */
   remember(id, b) {
     const prev = this.sent.get(id);
     this.sent.set(id, { bytes: b.slice(), at: this.now(), iff: prev?.iff ?? 0 });
@@ -790,6 +1023,14 @@ export class NetPlugin {
   // from what we last sent (dead reckoning along the last heading), and the
   // last send is older than the slowest player's latency. Sends IFF when
   // that property changed.
+  /**
+   * @param {any} obj
+   * @param {any} p3
+   * @param {any} p4
+   * @param {any} p5
+   * @param {any} p6
+   * @param {any} p7
+   */
   delta(obj, p3, p4, p5, p6, p7) {
     const id = this.prop(obj, p7) & 0xff;
     const now = this.now();
@@ -812,7 +1053,7 @@ export class NetPlugin {
     const v3 = this.prop(obj, p3) << 16 >> 16;
     const lastSpeed = s.getInt16(2, true);
     const t = (now - last.at) * 0.001 * (lastSpeed / SPEED_SCALE);
-    const near = (a, b) => Math.abs(a - b) <= 0.1;
+    const near = (/** @type {number} */ a, /** @type {number} */ b) => Math.abs(a - b) <= 0.1;
     let changed =
       Math.abs((this.prop(obj, p5) << 16 >> 16) - s.getInt16(0x2c, true)) > 200 ||
       Math.abs((this.prop(obj, p4) << 16 >> 16) - s.getInt16(0x2a, true)) > 200 ||
@@ -828,23 +1069,45 @@ export class NetPlugin {
 
   // -------------------------------------------------- objects and props
 
+  /**
+   * @param {any} obj
+   * @param {number} p
+   */
   prop(obj, p) {
     return this.engine.render3d?.objects?.getProperty(obj, p) ?? 0;
   }
+  /**
+   * @param {number} obj
+   * @param {number} p
+   * @param {number} v
+   */
   setProp(obj, p, v) {
     this.engine.render3d?.objects?.setProperty(obj, p, v);
     return 0;
   }
+  /**
+   * @param {any} obj
+   */
   speed100(obj) {
     const o = this.engine.world?.get(obj);
     return o ? Math.trunc(o.speed * SPEED_SCALE) : 0;
   }
+  /**
+   * @param {any} obj
+   * @param {number} v
+   */
   setSpeed(obj, v) {
     const o = this.engine.world?.get(obj);
     if (o) o.speed = v;
   }
 
   // Position at `p`, then at and right (the object's +0x30 and +0x3c).
+  /**
+   * @param {DataView} dv
+   * @param {number} p
+   * @param {number} a
+   * @param {any} obj
+   */
   putTransform(dv, p, a, obj) {
     const o = this.engine.world?.get(obj);
     const pos = o ? o.pos : [0, 0, 0];
@@ -858,7 +1121,13 @@ export class NetPlugin {
   }
 
   // up defaults to at x right, as NETGN computes the third row.
-  /** @param {number[] | null} [up] */
+  /**
+   * @param {number[] | null} [up]
+   * @param {any} obj
+   * @param {number[]} pos
+   * @param {number[]} at
+   * @param {number[]} right
+   */
   setTransform(obj, pos, at, right, up = null) {
     const o = this.engine.world?.get(obj);
     if (!o) return;
@@ -868,12 +1137,24 @@ export class NetPlugin {
   }
 }
 
+/**
+ * @param {DataView} dv
+ * @param {number} p
+ */
 function f32(dv, p) {
   return dv.getFloat32(p, true);
 }
+/**
+ * @param {DataView} dv
+ * @param {number} p
+ */
 function vec(dv, p) {
   return [f32(dv, p), f32(dv, p + 4), f32(dv, p + 8)];
 }
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 function cross(a, b) {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }

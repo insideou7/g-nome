@@ -30,6 +30,10 @@ export class BattleCamera {
 
   // SetCamera(x, y, z, ax, ay, az): position and look-at direction; up is
   // recomputed from the camera's right vector (RwCrossProduct(right, at)).
+  /**
+   * @param {number[]} pos
+   * @param {number[]} at
+   */
   place(pos, at) {
     this.attach = null;
     this.pos = pos;
@@ -43,6 +47,11 @@ export class BattleCamera {
     return this.far * this.viewDistance;
   }
 
+  /**
+   * @param {number} id
+   * @param {number} clump
+   * @param {number[]} offset
+   */
   attachTo(id, clump, offset) {
     this.attach = { id, clump, offset };
   }
@@ -51,6 +60,9 @@ export class BattleCamera {
   // returns {pos, basis} of the object (interpolated when drawing).
   // Per-frame order is FUN_10006198: clump matrix, translate by the offset
   // in clump space, pan by yaw, then tilt by pitch.
+  /**
+   * @param {any} objectPose
+   */
   pose(objectPose) {
     let pos = this.pos, basis = this.basis;
     if (this.attach) {
@@ -96,6 +108,9 @@ export class BattleCamera {
 // RenderWare camera vectors from an object-style basis. The camera's "look
 // right" is at x up, which for an unrotated camera (at = +Z) is -X: points
 // with +X are drawn on the left.
+/**
+ * @param {any} basis
+ */
 function view(basis) {
   const at = normalize(basis.at);
   const up = normalize(basis.up);
@@ -104,6 +119,12 @@ function view(basis) {
 
 // Project a world point for a camera pose. Returns screen pixels relative to
 // the viewport centre (the scripts' convention) and the depth along `at`.
+/**
+ * @param {any} pose
+ * @param {number[]} vw
+ * @param {any} vp
+ * @param {number[]} p
+ */
 export function project(pose, vw, vp, p) {
   const d = sub(p, pose.pos);
   const z = dot(d, pose.at);
@@ -115,6 +136,13 @@ export function project(pose, vw, vp, p) {
 
 // The ray through a pixel (relative to the viewport centre), and where it
 // meets the ground plane y = 0 (ScreenToXZ intersects with y = 0).
+/**
+ * @param {any} pose
+ * @param {number[]} vw
+ * @param {any} vp
+ * @param {number} sx
+ * @param {number} sy
+ */
 export function screenToGround(pose, vw, vp, sx, sy) {
   const dir = normalize(add(pose.at, add(scale(pose.right, (sx / (vp.w / 2)) * vw[0]), scale(pose.up, (-sy / (vp.h / 2)) * vw[1]))));
   if (Math.abs(dir[1]) < 1e-9) return null;
@@ -127,6 +155,12 @@ export function screenToGround(pose, vw, vp, sx, sy) {
 // FUN_10005bd1: the bitmap covers half a turn (2 x width per 360 degrees)
 // and its bottom edge sits at the horizon, which moves 2.25 x half the view
 // height per unit of at.y.
+/**
+ * @param {any} pose
+ * @param {number} bitmapW
+ * @param {number} bitmapH
+ * @param {any} vp
+ */
 export function backdropPlacement(pose, bitmapW, bitmapH, vp) {
   const flat = normalize([pose.at[0], 0, pose.at[2]]);
   let a = Math.acos(Math.max(-1, Math.min(1, flat[2])));

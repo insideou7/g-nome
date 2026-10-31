@@ -3,6 +3,8 @@
 // and leaves the levels to the Windows mixer, so this panel is the browser
 // port's own addition: two sliders under the game's toggles, one per audio
 // bus (audio.js). Levels are saved with the INI settings.
+/** @import { Engine } from "./engine.js" */
+
 
 const SECTION = "browser";
 // While the SOUND page is up, G2056 holds its close script (6948, set by
@@ -24,10 +26,14 @@ const BAR_H = 8;
 const GRAB = 8; // extra pixels around a bar that still grab it
 
 export class VolumePanel {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.drag = null; // slider being dragged
     this.wasShown = false;
+    /** @type {Record<string, number>} */
     this.levels = {};
     for (const s of SLIDERS) {
       const v = parseInt(engine.ini.get(SECTION, s.key), 10);
@@ -39,14 +45,21 @@ export class VolumePanel {
   get shown() {
     const e = this.engine;
     if (!e.vm || e.fadedOut || e.display?.frozen) return false;
-    if (e.plugins?.some((p) => p.ownsScreen)) return false;
+    if (e.plugins?.some((/** @type {any} */ p) => p.ownsScreen)) return false;
     return e.vm.getGlobal(PAGE_GLOBAL) === PAGE_CLOSE_SCRIPT && !!e.sprites.get(PAGE_SPRITE)?.visible;
   }
 
   // 0..100
+  /**
+   * @param {number} bus
+   */
   level(bus) {
     return this.levels[bus];
   }
+  /**
+   * @param {string} bus
+   * @param {number} v
+   */
   setLevel(bus, v) {
     const s = SLIDERS.find((x) => x.bus === bus);
     if (!s) return;
@@ -58,19 +71,33 @@ export class VolumePanel {
     if (this.engine.display) this.engine.display.dirty = true;
   }
 
+  /**
+   * @param {any} s
+   */
   barTop(s) {
     return s.y + LABEL_H;
   }
   // The slider at canvas pixel (x, y), if any.
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   hit(x, y) {
     return SLIDERS.find((s) => x >= X0 - GRAB && x < X0 + WIDTH + GRAB && y >= this.barTop(s) - GRAB && y < this.barTop(s) + BAR_H + GRAB);
   }
+  /**
+   * @param {number} x
+   */
   dragTo(x) {
     if (!this.drag) return;
     this.setLevel(this.drag.bus, ((x - X0) * 100) / WIDTH);
   }
 
   // Mouse handlers: true when the panel took the event.
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   mouseDown(x, y) {
     if (!this.shown) return false;
     const s = this.hit(x, y);
@@ -79,6 +106,9 @@ export class VolumePanel {
     this.dragTo(x);
     return true;
   }
+  /**
+   * @param {number} x
+   */
   mouseMove(x) {
     if (!this.drag) return false;
     if (!this.shown) this.drag = null;
@@ -101,6 +131,9 @@ export class VolumePanel {
 
   // Drawn over the presented frame (Display.overlay), in the colours of the
   // page's headings (cyan) and toggles (green).
+  /**
+   * @param {any} ctx
+   */
   draw(ctx, fade = 1) {
     if (!this.shown) return;
     ctx.save();

@@ -19,13 +19,23 @@ import { KeyConflicts } from "./key-conflicts.js";
 
 // 7THLEVEL.INI stand-in: section -> key -> value. Persisted by the shell.
 export class Ini {
+  /** @param {Record<string, Record<string, string>>} [data] */
   constructor(data = {}) {
     this.data = data;
     /** @type {((data: object) => void) | undefined} */ this.onChange;
   }
+  /**
+   * @param {string} section
+   * @param {string} key
+   */
   get(section, key) {
     return this.data[section.toLowerCase()]?.[key.toLowerCase()];
   }
+  /**
+   * @param {string} section
+   * @param {string} key
+   * @param {any} v
+   */
   set(section, key, v) {
     (this.data[section.toLowerCase()] ||= {})[key.toLowerCase()] = String(v);
     this.onChange?.(this.data);
@@ -54,11 +64,27 @@ export class Engine {
   /** @type {any[]} */ plugins;
   /** @type {Uint8Array} */ palette;
   /** @type {Map<number, any>} */ cursors;
+  /** A resource's bytes by id. @type {(id: number) => Uint8Array} */ res;
+  // Set by RENDER.R32's plugin (plugins/render.js) when installPlugins runs.
+  /** @type {import("./anim/animation.js").AnimationSystem} */ animation;
+  /** @type {import("./anim/hotspots.js").Hotspots} */ hotspots;
+  /** @type {import("./battlefield/collision.js").Collision} */ collision;
+  /** @type {import("./battlefield/mission.js").Mission} */ mission;
+  /** The 3D state install3D builds (render3d/externs.js). @type {any} */ render3d;
+  /** @type {{ get(id: number): any }} */ renderLists;
+  /** @type {(o: any, dt: number) => void} */ spinStep;
+  /** Builtins 0xe2 and 0xe7 set these; nothing reads them yet. @type {number | undefined} */ flag94dd;
+  /** @type {number | undefined} */ spriteSync;
 
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
   // opts: { log, trace, display, audio, ini, storage, net }
   // net: { providers } for NETGN (see plugins/netgn.js); browsers default to
   // BroadcastChannel and, when web/tools/net-server.mjs serves the page, WebRTC
+  /**
+   * @param {any} files
+   * @param {{ log?: (...args: any[]) => void, trace?: boolean, viewDistance?: number, display?: any, audio?: any,
+   *   ini?: Ini, storage?: any, net?: any }} [opts]
+   */
   constructor(files, opts = {}) {
     this.files = files;
     this.log = opts.log || console.log;
@@ -70,6 +96,7 @@ export class Engine {
     this.display = opts.display || null; // see display.js
     this.audio = opts.audio || null;
     this.netOptions = opts.net || null;
+    /** @type {any} */
     this.queue = [];
     this.time = 0;
     this.quit = false;
@@ -88,11 +115,14 @@ export class Engine {
     this.nextDynamic = 0;
     this.sprites = new Sprites(this);
     this.texts = new Texts(this);
+    /** @type {any} */
     this.clickRects = []; // statement 0x10: {l, t, r, b, script, arg, off}
+    /** @type {any} */
     this.hoverRects = []; // statement 0x0e: {l, t, r, b, enter, enterArg, leave, leaveArg, sprite}
     this.hover = -1;
     this.dirty = true;
     this.timers = new Map(); // statement 0xc4: id -> {script, ms, due, repeat}
+    /** @type {any} */
     this.fades = []; // queued palette fades {to, ms}
     this.fadedOut = false;
     this.lists = new Map(); // type 14 statement lists
@@ -101,7 +131,7 @@ export class Engine {
     this.volumes = new VolumePanel(this); // OPTIONS > SOUND sliders
     this.keyConflicts = new KeyConflicts(this); // OPTIONS > INTERFACE conflict marks
     if (this.display) {
-      this.display.overlay = (ctx, fade) => {
+      this.display.overlay = (/** @type {any} */ ctx, /** @type {number | undefined} */ fade) => {
         this.volumes.draw(ctx, fade);
         this.keyConflicts.draw(ctx, fade);
       };
@@ -115,6 +145,9 @@ export class Engine {
 
   // Run one statement outside any script (sprite queue record 21, type 14
   // statement lists).
+  /**
+   * @param {any} bytes
+   */
   runStatement(bytes) {
     try {
       const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -126,6 +159,9 @@ export class Engine {
   }
 
   // A type 14 resource: statements back to back (0x1001e9b0).
+  /**
+   * @param {number} id
+   */
   statementList(id) {
     let l = this.lists.get(id);
     if (!l) {
@@ -178,18 +214,30 @@ export class Engine {
   // globals 5005 and 5006 (rt+0x8c63/0x8c67, set by the window procedure at
   // 0x100134b6 on every mouse message). List and key-map scripts read them
   // to tell which row was clicked.
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   setMousePos(cx, cy) {
     this.vm?.setGlobal(G_MOUSE_X, cx - ORIGIN_X);
     this.vm?.setGlobal(G_MOUSE_Y, cy - ORIGIN_Y);
   }
 
   // Mouse, in canvas pixels (0..639, 0..479).
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   mouseUp(cx, cy, button = 0) {
     this.setMousePos(cx, cy);
     if (this.volumes.mouseUp()) return;
     this.world?.controls.mouseUp(button);
   }
 
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   mouseDown(cx, cy, button = 0) {
     this.setMousePos(cx, cy);
     if (button === 0 && this.volumes.mouseDown(cx, cy)) return;
@@ -206,6 +254,10 @@ export class Engine {
       if (!r.off && x >= r.l && x < r.r && y >= r.t && y < r.b) return this.runLater(r.script, [0, r.arg]);
     }
   }
+  /**
+   * @param {number} cx
+   * @param {number} cy
+   */
   mouseMove(cx, cy) {
     this.setMousePos(cx, cy);
     // A key capture also sees mouse moves, as (0, 0): after the prompt's
@@ -231,6 +283,9 @@ export class Engine {
   }
 
   // Builtin 0x19 (ResCopyResource): a new id that behaves like `id`.
+  /**
+   * @param {number} id
+   */
   copyResource(id) {
     const n = this.nextDynamic++ + this.bin.count;
     this.dynamic.set(n, this.dynamic.get(id) ?? id);
@@ -246,7 +301,7 @@ export class Engine {
     }
     const binBytes = await this.files.read("G-NOME.BIN");
     const packs = new Map();
-    this.bin = new BinFile(binBytes, (n) => packs.get(n));
+    this.bin = new BinFile(binBytes, (/** @type {any} */ n) => packs.get(n));
     // Load every pack up front (~75 MB) so resource access is synchronous,
     // like the original's.
     const needed = new Set();
@@ -255,9 +310,9 @@ export class Engine {
       const name = `G-NOME.${String(n).padStart(3, "0")}`;
       packs.set(n, await this.files.read(name));
     }
-    this.bin.readPack = (n) => packs.get(n);
+    this.bin.readPack = (/** @type {any} */ n) => packs.get(n);
     this.nextDynamic = 0;
-    this.res = (id) => {
+    this.res = (/** @type {number} */ id) => {
       if (this.dynamic.has(id)) id = this.dynamic.get(id);
       if (this.bin.isResident(id)) return this.bin.resident(id);
       const p = packs.get(this.bin.pack(id));
@@ -266,7 +321,7 @@ export class Engine {
     this.palette = palette256(this.bin.palette);
     this.vm = new VM(this.bin, {
       log: this.log,
-      trace: this.traceOn ? (id, pos, op) => this.log(`  [${id}+${pos.toString(16)}] op ${op.toString(16)}`) : null,
+      trace: this.traceOn ? (/** @type {number} */ id, /** @type {any} */ pos, /** @type {any} */ op) => this.log(`  [${id}+${pos.toString(16)}] op ${op.toString(16)}`) : null,
     });
     this.vm.engine = this;
     installStatements(this.vm, STATEMENTS);
@@ -290,6 +345,10 @@ export class Engine {
   // From inside a running script (an extern calling back into scripts) the
   // new frame goes below the caller's locals, and the caller's result is
   // kept, as statement-level calls do.
+  /**
+   * @param {number} id
+   * @param {any} args
+   */
   callScript(id, args) {
     const vm = this.vm;
     const nested = vm.depth > 0;
@@ -305,6 +364,9 @@ export class Engine {
     }
   }
 
+  /**
+   * @param {number} id
+   */
   run(id) {
     try {
       return this.vm.runScript(id);
@@ -316,6 +378,9 @@ export class Engine {
   }
 
   // One frame of the message loop.
+  /**
+   * @param {number} ms
+   */
   tick(ms) {
     this.time += ms;
     const q = this.queue;
@@ -333,6 +398,7 @@ export class Engine {
     }
   }
 
+  /** @param {{ msg: number, wparam: any, lparam: any }} m */
   dispatch({ msg, wparam, lparam }) {
     switch (msg) {
       case MSG.RUN_PENDING: // 0x10023f41
@@ -356,20 +422,34 @@ export class Engine {
 
   // String ids (0x100227ee): 0x8000 | offset is a constant in the .BIN's
   // string table; smaller ids are 255-character slots scripts can write.
+  /**
+   * @param {number} id
+   */
   getString(id) {
     if (!id) return undefined;
     if (id & 0x8000) return this.bin.string(id & 0x7fff);
     return this.strings.get(id) ?? "";
   }
+  /**
+   * @param {number} id
+   * @param {any} s
+   */
   setString(id, s) {
     if (id && !(id & 0x8000)) this.strings.set(id, s.slice(0, 255));
   }
 
   // Run a script from the message loop with arguments (RtRunMsg).
+  /**
+   * @param {number} id
+   * @param {number[]} [args]
+   */
   runLater(id, args = []) {
     this.post(MSG.RUN_SCRIPT, id, args);
   }
 
+  /**
+   * @param {number} id
+   */
   setPaletteResource(id) {
     if (this.bin.type(id) !== 17) return this.log(`palette: ${id} is not a palette`);
     const p = this.bin.resident(id);
@@ -378,6 +458,12 @@ export class Engine {
   }
 
   // Statement 0xa4. mode 0: bitmap resource, 1: solid colour, 2: none.
+  /**
+   * @param {any} mode
+   * @param {any} res
+   * @param {any} alt
+   * @param {any} color
+   */
   setBackground(mode, res, alt, color) {
     this.background = { mode, bitmap: res, color };
     this.dirty = true;
@@ -386,10 +472,14 @@ export class Engine {
   // Statement 0x1b (0x100226c8, 0x10022d83): 0 leaves the cursor alone,
   // 1 is the Windows arrow, 4 hides it, 2-3 and 5-9 are RTLIB32.DLL's
   // cursors 1001-1007. Calls onCursor(cursor or "default" or null).
+  /**
+   * @param {number} mode
+   */
   setCursor(mode) {
     if (this.traceOn) this.log(`cursor mode ${mode}`);
     this.cursorMode = mode;
     if (!mode || !this.onCursor) return;
+    /** @type {Record<number, number>} */
     const ids = { 2: 1001, 3: 1002, 5: 1003, 6: 1004, 7: 1005, 8: 1006, 9: 1007 };
     if (mode === 1) this.onCursor("default");
     else if (ids[mode]) this.onCursor(this.cursors.get(ids[mode]) || "default");
@@ -401,6 +491,10 @@ export class Engine {
   // means 100), one per frame, and the script waits for it. Here scripts
   // carry on, so a fade-out freezes the last frame while it darkens and the
   // next fade-in reveals whatever the scripts drew meanwhile.
+  /**
+   * @param {boolean} fadeIn
+   * @param {number} speed
+   */
   fade(fadeIn, speed) {
     if (fadeIn === !this.fadedOut) return; // already there (flag +0x94b1)
     this.fadedOut = !fadeIn;
@@ -414,6 +508,9 @@ export class Engine {
   }
 
   // Advance queued fades by `ms`.
+  /**
+   * @param {number} ms
+   */
   serviceFades(ms) {
     const d = this.display;
     while (d && this.fades.length && ms > 0) {

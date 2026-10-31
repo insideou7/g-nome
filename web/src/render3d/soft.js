@@ -17,12 +17,19 @@ export const FRONT = 1;
 export const CULL = false;
 
 export class SoftTarget {
+  /**
+   * @param {number} width
+   * @param {number} height
+   */
   constructor(width, height) {
     this.width = width;
     this.height = height;
     this.rgba = new Uint8ClampedArray(width * height * 4);
     this.depth = new Float32Array(width * height);
   }
+  /**
+   * @param {number[]} bg
+   */
   clear(bg) {
     this.depth.fill(Infinity);
     if (bg) {
@@ -36,6 +43,12 @@ export class SoftTarget {
 // Draw `scene` seen from `camera` into `target` (a SoftTarget).
 // textureOf(material, node) returns a Texture or null; rgbOf(texture) gives
 // its RGBA texels (the renderer caches them per palette).
+/**
+ * @param {any} scene
+ * @param {any} camera
+ * @param {any} target
+ * @param {{ textureOf: (material: any, node: any) => any, rgbaOf: (texture: any) => Uint8Array }} fns
+ */
 export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
   target.clear(rgb01(camera.background));
   const fog = camera.fogRange();
@@ -50,7 +63,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
     const useDepth = node.depth !== false;
     const model = node.model;
     const worlds = clumpMatrices(model, node.matrix, node.pose, node.instance?.joints);
-    model.clumps.forEach((clump, ci) => {
+    model.clumps.forEach((/** @type {any} */ clump, /** @type {number} */ ci) => {
       if (node.clumpHidden[ci]) return;
       const w = worlds[ci];
       const mv = mul(w, view);
@@ -114,6 +127,10 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
 }
 
 // Sutherland-Hodgman against z = near. Input: 3 vertices of 5 floats.
+/**
+ * @param {Float32Array} buf
+ * @param {number} near
+ */
 function clipNear(buf, near) {
   const inp = [0, 1, 2].map((i) => Array.from(buf.subarray(i * 5, i * 5 + 5)));
   if (inp.every((p) => p[2] >= near)) return inp;
@@ -130,6 +147,20 @@ function clipNear(buf, near) {
   return out;
 }
 
+/**
+ * @param {any} T
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {any} c
+ * @param {any} light
+ * @param {number[]} color
+ * @param {any} tex
+ * @param {any} texel
+ * @param {number} frame
+ * @param {number} alpha
+ * @param {any} fog
+ * @param {boolean} useDepth
+ */
 function raster(T, a, b, c, light, color, tex, texel, frame, alpha, fog, useDepth) {
   const W = T.width, H = T.height;
   const minX = Math.max(0, Math.floor(Math.min(a[0], b[0], c[0]))), maxX = Math.min(W - 1, Math.ceil(Math.max(a[0], b[0], c[0])));

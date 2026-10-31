@@ -20,6 +20,11 @@ const MAX_DEPTH = 30;
 
 // Statements 0x59 and 0x5a compare two values (0x10017f36): op bit 1 ==,
 // 2 >, 4 <, 8 |, 0x10 &, 0x20 %; none of them: a != 0. 0x80 negates.
+/**
+ * @param {number} op
+ * @param {number} a
+ * @param {number} b
+ */
 function compare(op, a, b) {
   let r;
   if (op & 1) r = a === b;
@@ -36,6 +41,10 @@ function compare(op, a, b) {
 export class ScriptError extends Error {}
 
 export class VM {
+  /**
+   * @param {any} bin
+   * @param {{ log?: (...args: any[]) => void, trace?: ((id: number, pos: number, op: number) => void) | null, maxSteps?: number }} [opts]
+   */
   constructor(bin, opts = {}) {
     this.bin = bin;
     this.mem = new Int32Array(MEM_WORDS);
@@ -48,8 +57,11 @@ export class VM {
     this.abort = 0; // rt+0x3ccf: non-zero stops every running script
     this.current = 0; // rt+0x3e2b: id of the running script
     this.heap = HEAP_BASE;
+    /** @type {Map<number, Builtin>} */
     this.builtins = new Map(); // id -> fn(vm, args) -> int
+    /** @type {Builtin[]} */
     this.externs = []; // index -> fn(vm, args) -> int
+    /** @type {Map<number, (vm: VM, b: Uint8Array, dv: DataView, p: number) => {len: number, ok: number}>} */
     this.statements = new Map(); // op -> fn(vm, buf, pos, dv) -> {len, ok}
     this.log = opts.log || (() => {});
     this.trace = opts.trace || null; // fn(scriptId, pos, op)
@@ -63,34 +75,65 @@ export class VM {
 
   // ------------------------------------------------------------ memory
 
+  /**
+   * @param {number} id
+   */
   addrOf(id) {
     return id < LOCAL_BASE ? GLOBAL_BASE + 4 * id : this.fp - 4 * (id - LOCAL_BASE);
   }
+  /**
+   * @param {number} addr
+   */
   load(addr) {
     if (addr & 3 || addr <= 0 || addr >= MEM_WORDS * 4) throw new ScriptError(`bad load from ${addr}`);
     return this.mem[addr >> 2];
   }
+  /**
+   * @param {number} addr
+   * @param {number} v
+   */
   store(addr, v) {
     if (addr & 3 || addr <= 0 || addr >= MEM_WORDS * 4) throw new ScriptError(`bad store to ${addr}`);
     this.mem[addr >> 2] = v;
   }
+  /**
+   * @param {number} id
+   */
   getVar(id) {
     return this.mem[this.addrOf(id) >> 2];
   }
+  /**
+   * @param {number} id
+   * @param {number} v
+   */
   setVar(id, v) {
     this.mem[this.addrOf(id) >> 2] = v;
   }
+  /**
+   * @param {number} id
+   */
   getGlobal(id) {
     return this.mem[(GLOBAL_BASE >> 2) + id];
   }
+  /**
+   * @param {number} id
+   * @param {number} v
+   */
   setGlobal(id, v) {
     this.mem[(GLOBAL_BASE >> 2) + id] = v;
   }
   // Statement operands are a u32 plus an "is a variable" flag (0x10014e00).
+  /**
+   * @param {number} v
+   * @param {number} isVar
+   */
   resolve(v, isVar) {
     return isVar ? this.getVar(v >>> 0) : v;
   }
   // Allocate zeroed bytes on the VM heap; returns a byte address.
+  /**
+   * @param {number} bytes
+   */
   alloc(bytes) {
     const a = this.heap;
     this.heap += (bytes + 7) & ~7;
@@ -98,17 +141,27 @@ export class VM {
     return a;
   }
   // Copy bytes into VM memory (for pointers that natively pointed at data).
+  /**
+   * @param {Uint8Array} bytes
+   */
   allocBytes(bytes) {
     const a = this.alloc(bytes.length + 1);
     this.u8.set(bytes, a);
     return a;
   }
+  /**
+   * @param {number} addr
+   */
   cstring(addr) {
     let s = "";
     for (let i = addr; this.u8[i]; i++) s += String.fromCharCode(this.u8[i]);
     return s;
   }
 
+  /**
+   * @param {string} kind
+   * @param {string} id
+   */
   noteUnknown(kind, id) {
     const k = `${kind}:${id}`;
     const n = (this.unknown.get(k) || 0) + 1;
@@ -118,6 +171,9 @@ export class VM {
 
   // ------------------------------------------------------------ scripts
 
+  /**
+   * @param {number} id
+   */
   scriptBytes(id) {
     let s = this.scriptCache.get(id);
     if (!s) {
@@ -130,6 +186,9 @@ export class VM {
   }
 
   // [RunScript] 0x1001fcfe. Returns the status (0 = stop everything).
+  /**
+   * @param {number} id
+   */
   runScript(id) {
     if (this.abort) return 0;
     if (this.bin.type(id) !== 19) {
@@ -150,6 +209,9 @@ export class VM {
   }
 
   // [ExecScript] 0x1001fdc6
+  /**
+   * @param {number} id
+   */
   execScript(id) {
     const { b, dv } = this.scriptBytes(id);
     let pos = 0;
@@ -165,6 +227,12 @@ export class VM {
   }
 
   // [ExecStmt] 0x1001f1f7. Returns {ok, len}: len is how far to move.
+  /**
+   * @param {number} id
+   * @param {Uint8Array} b
+   * @param {DataView} dv
+   * @param {number} pos
+   */
   execStmt(id, b, dv, pos) {
     const op = dv.getUint16(pos, true);
     if (this.trace) this.trace(id, pos, op);
@@ -258,6 +326,11 @@ export class VM {
 
   // Push a frame below the caller's `nlocals` locals, put args in L0..,
   // run the script, pop the frame. Returns the status; result in retval.
+  /**
+   * @param {number} script
+   * @param {number} nlocals
+   * @param {any} args
+   */
   callScript(script, nlocals, args) {
     const savedFp = this.fp;
     const newFp = this.fp - 4 * nlocals;
@@ -273,6 +346,10 @@ export class VM {
   // Run a script from inside a plugin call (RtRunMsg with a type 1 message)
   // and return what it returned. Its frame goes below any locals the
   // calling script can have (at most 255), so they survive the call.
+  /**
+   * @param {any} script
+   * @param {any} args
+   */
   callValue(script, args) {
     const saved = this.retval;
     this.retval = 0;
@@ -287,6 +364,11 @@ export class VM {
   // ------------------------------------------------------------ expressions
 
   // [EvalExpr] 0x10003330. Returns the first value pushed.
+  /**
+   * @param {Uint8Array} b
+   * @param {DataView} dv
+   * @param {number} p
+   */
   evalExpr(b, dv, p) {
     const st = this.stack;
     const base = this.sp;
@@ -489,6 +571,10 @@ export class VM {
     }
   }
 
+  /**
+   * @param {number} fid
+   * @param {number[]} args
+   */
   callFunction(fid, args) {
     if (fid >= EXTERN_BASE) {
       const i = fid - EXTERN_BASE;

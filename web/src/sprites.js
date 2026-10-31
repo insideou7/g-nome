@@ -26,9 +26,10 @@
 
 import { decodeBitmap } from "./bitmap.js";
 import { WIDTH, HEIGHT } from "./display.js";
+/** @import { Engine } from "./engine.js" */
 
 const EMPTY = { width: 1, height: 1, x: 0, y: 0, pixels: new Uint8Array(1) };
-const drawable = (t) => t === 1 || t === 15 || t === 21;
+const drawable = (/** @type {number} */ t) => t === 1 || t === 15 || t === 21;
 
 // The runtime's queue callback (0x1001effb) stores the id of the sprite whose
 // queue is running in global 5017 before it runs a record 20 or 21. Script
@@ -41,15 +42,22 @@ export const ORIGIN_Y = HEIGHT / 2;
 
 // Queue record sizes by message type (filled in at 0x10039e0b).
 // A type 2 record has 0xe + 4 x count bytes (count at +6, up to 10 cels).
+/** @type {Record<number, number>} */
 const SIZES = { 1: 0x16, 2: 0x2e, 3: 2, 4: 2, 5: 0x3c, 6: 0xe, 7: 0x16, 8: 2, 9: 0x2c, 10: 0xe, 11: 8, 12: 0xe, 13: 6, 14: 6, 15: 8, 16: 0x12, 17: 0xc, 18: 6, 19: 6, 20: 2, 21: 6, 22: 0x22, 23: 0x10 };
 
 export class Sprites {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.list = new Map(); // resource id -> sprite
     this.bitmaps = new Map(); // resource id -> decoded bitmap
   }
 
+  /**
+   * @param {number} id
+   */
   bitmap(id) {
     if (this.engine.bin.type(id) === 15) {
       const r = this.engine.res(id);
@@ -65,6 +73,9 @@ export class Sprites {
   }
 
   // The sprite for a type 20 resource, created on first use (0x100123f3).
+  /**
+   * @param {number} id
+   */
   get(id) {
     let s = this.list.get(id);
     if (s) return s;
@@ -102,6 +113,10 @@ export class Sprites {
   }
 
   // Builtin 0xce: [type, ...args], applied now.
+  /**
+   * @param {number} id
+   * @param {any} msg
+   */
   send(id, msg) {
     const s = this.get(id);
     if (!s) return 0;
@@ -132,7 +147,7 @@ export class Sprites {
         // type 2 queue record: cel numbers at +0xe, count at +6, the last
         // argument at +2; 0x10042800 draws it). The INTERFACE key prompt
         // uses it for its box (cel 0) and the joystick choice text (cel 1).
-        const cels = a.slice(0, -1).map((c) => c | 0).filter((c) => c >= 0 && c < s.cels.length);
+        const cels = a.slice(0, -1).map((/** @type {number} */ c) => c | 0).filter((/** @type {number} */ c) => c >= 0 && c < s.cels.length);
         if (!cels.length) break;
         s.layers = cels;
         s.cel = cels[0];
@@ -143,7 +158,7 @@ export class Sprites {
       case 9: // line: x1, y1, steps, steps-are-pixels, relative (0x1003ec3c)
       case 10: { // step: x, y, relative (0x1003edba; needs all three)
         if (type === 10 && a.length < 3) return 0;
-        const v = (i) => a[i] | 0;
+        const v = (/** @type {number} */ i) => a[i] | 0;
         // A sent motion replaces the queue (0x1003e606) and runs at once.
         s.queue = null;
         s.anim = null;
@@ -182,11 +197,19 @@ export class Sprites {
 
   // SpriteSetSpeed (0x10035caa) and SpriteSetMotion (0x10035c02): set an
   // interval and restart its clock from now.
+  /**
+   * @param {any} s
+   * @param {number} ms
+   */
   setSpeed(s, ms) {
     s.speed = ms;
     s.moveAt = this.engine.time + ms;
   }
 
+  /**
+   * @param {any} s
+   * @param {number} ms
+   */
   setMotion(s, ms) {
     s.delay = ms;
     s.celAt = this.engine.time + ms;
@@ -194,6 +217,12 @@ export class Sprites {
 
   // 0x10036cc1: the cels from..to cycle (backwards when to < from) and
   // `cur` is shown, or `from` when cur is outside them. Out of range: no-op.
+  /**
+   * @param {any} s
+   * @param {number} cur
+   * @param {number} from
+   * @param {number} to
+   */
   setRange(s, cur, from, to) {
     const n = s.cels.length;
     if (from >>> 0 >= n || to >>> 0 >= n) return false;
@@ -205,6 +234,9 @@ export class Sprites {
   }
 
   // 0x10036f00: the next cel of the range, wrapping to `from`.
+  /**
+   * @param {any} s
+   */
   cycleCel(s) {
     const { from, to } = s.range;
     let c = s.cel + (to >= from ? 1 : -1);
@@ -215,6 +247,15 @@ export class Sprites {
 
   // Record 5 set up (0x1003a042): a quadratic curve from the sprite's
   // position through (x1, y1) at its midpoint to (x2, y2), in `steps` steps.
+  /**
+   * @param {any} s
+   * @param {number} x1
+   * @param {number} y1
+   * @param {number} x2
+   * @param {number} y2
+   * @param {number} steps
+   * @param {boolean} rel
+   */
   startCurve(s, x1, y1, x2, y2, steps, rel) {
     if (rel) {
       x1 += s.x; y1 += s.y; x2 += s.x; y2 += s.y;
@@ -224,6 +265,14 @@ export class Sprites {
 
   // Record 9 set up: a line from the sprite's position to (x1, y1). With
   // `pixels`, `steps` is the step length instead (0x10039e82).
+  /**
+   * @param {any} s
+   * @param {number} x1
+   * @param {number} y1
+   * @param {number} steps
+   * @param {boolean} pixels
+   * @param {boolean} rel
+   */
   startLine(s, x1, y1, steps, pixels, rel) {
     if (rel) {
       x1 += s.x; y1 += s.y;
@@ -238,9 +287,12 @@ export class Sprites {
 
   // One service of a motion record (0x10043fb0, 0x10043bf0, 0x10043e0a).
   // Returns true when it is finished.
+  /**
+   * @param {any} s
+   */
   runPath(s) {
     const now = this.engine.time, p = s.path;
-    const due = (at) => (s.keepTime && at ? at : now);
+    const due = (/** @type {any} */ at) => (s.keepTime && at ? at : now);
     // While the sprite moves, its cel range cycles at the motion rate.
     if (s.range && s.range.from !== s.range.to && now >= s.celAt) {
       s.celAt = due(s.celAt) + (s.delay ?? 0);
@@ -270,6 +322,11 @@ export class Sprites {
 
   // Statement 0xb9 (0x10018f65): give a sprite a queue (type 18), or clear
   // it (queue 0). `hide` hides the sprite first.
+  /**
+   * @param {number} id
+   * @param {any} queueId
+   * @param {any} hide
+   */
   setQueue(id, queueId, hide) {
     const s = this.get(id);
     if (!s) return;
@@ -290,6 +347,12 @@ export class Sprites {
   }
 
   // Cels out of range start nothing (0x10036cc1). Returns true if started.
+  /**
+   * @param {any} s
+   * @param {number} from
+   * @param {number} to
+   * @param {number} delay
+   */
   startAnim(s, from, to, delay) {
     if (from >>> 0 >= s.cels.length || to >>> 0 >= s.cels.length) return false;
     s.delay = delay;
@@ -301,10 +364,17 @@ export class Sprites {
   }
 
   // Advance every sprite by `ms` (SpriteAnimate).
+  /**
+   * @param {number} ms
+   */
   tick(ms) {
     for (const s of this.list.values()) this.step(s, ms);
   }
 
+  /**
+   * @param {any} s
+   * @param {number} ms
+   */
   step(s, ms) {
     if (s.path) {
       if (!this.runPath(s)) return;
@@ -347,7 +417,7 @@ export class Sprites {
       }
       q.pos += size;
       this.engine.dirty = true;
-      const val = (o, flag) => (q.b[p + flag] ? this.engine.vm.getVar(dv.getUint32(p + o, true)) | 0 : dv.getInt32(p + o, true));
+      const val = (/** @type {number} */ o, /** @type {number} */ flag) => (q.b[p + flag] ? this.engine.vm.getVar(dv.getUint32(p + o, true)) | 0 : dv.getInt32(p + o, true));
       switch (type) {
         case 6: { // loop (0x1003a527): +2 counter, +6 count, +10 target offset; 0 loops forever
           const n = dv.getInt32(p + 2, true);
@@ -479,6 +549,9 @@ export class Sprites {
   }
 
   // Bounds of the current cel, in script coordinates (SpriteGetBounds).
+  /**
+   * @param {any} s
+   */
   bounds(s) {
     const id = s.cels[Math.min(s.cel, s.cels.length - 1)];
     if (id === undefined || !drawable(this.engine.bin.type(id))) return { left: s.x, top: s.y, right: s.x, bottom: s.y };
@@ -492,10 +565,16 @@ export class Sprites {
   }
 
   // The cels a sprite shows: its current one, or a message 2 layer list.
+  /**
+   * @param {any} s
+   */
   shownCels(s) {
-    return s.layers ? s.layers.map((c) => s.cels[c]) : [s.cels[Math.min(s.cel, s.cels.length - 1)]];
+    return s.layers ? s.layers.map((/** @type {number} */ c) => s.cels[c]) : [s.cels[Math.min(s.cel, s.cels.length - 1)]];
   }
 
+  /**
+   * @param {any} pixels
+   */
   draw(pixels) {
     for (const s of this.visibleSorted()) {
       // The cockpit radar (battlefield/radar.js) paints its sprite's bounds;
@@ -514,6 +593,10 @@ export class Sprites {
   }
 
   // Top-most pickable sprite whose opaque pixel is at (x, y) (script coords).
+  /**
+   * @param {number} x
+   * @param {number} y
+   */
   pick(x, y) {
     const list = this.visibleSorted().reverse();
     for (const s of list) {
@@ -532,20 +615,44 @@ export class Sprites {
 
 // SpriteLinePoint (0x100373ca -> 0x10042ff0): point i of n along a line,
 // each coordinate rounded half away from zero.
+/**
+ * @param {number} i
+ * @param {number} n
+ * @param {number} x0
+ * @param {number} y0
+ * @param {number} x1
+ * @param {number} y1
+ */
 export function linePoint(i, n, x0, y0, x1, y1) {
   const h = n >>> 1;
-  const f = (d) => (d >= 0 ? Math.floor((d * i + h) / n) : Math.trunc((d * i - h) / n));
+  const f = (/** @type {number} */ d) => (d >= 0 ? Math.floor((d * i + h) / n) : Math.trunc((d * i - h) / n));
   return [x0 + f(x1 - x0), y0 + f(y1 - y0)];
 }
 
 // 0x10042f50: point i of n on the quadratic curve from (x0, y0) to (x2, y2)
 // that passes through (x1, y1) halfway; t is in 1/1024ths.
+/**
+ * @param {number} i
+ * @param {number} n
+ * @param {number} x0
+ * @param {number} y0
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} x2
+ * @param {number} y2
+ */
 export function curvePoint(i, n, x0, y0, x1, y1, x2, y2) {
   const t = Math.floor((i * 0x400 + (n >>> 1)) / n), k = t * (0x400 - t);
-  const f = (a0, a1, a2) => a0 + (Math.floor((t * t * (a2 - a0) + k * (4 * (a1 - a0) - (a2 - a0))) / 0x100000) | 0);
+  const f = (/** @type {number} */ a0, /** @type {number} */ a1, /** @type {number} */ a2) => a0 + (Math.floor((t * t * (a2 - a0) + k * (4 * (a1 - a0) - (a2 - a0))) / 0x100000) | 0);
   return [f(x0, x1, x2), f(y0, y1, y2)];
 }
 
+/**
+ * @param {any} dst
+ * @param {any} b
+ * @param {number} x0
+ * @param {number} y0
+ */
 export function blit(dst, b, x0, y0, flipX = false, flipY = false) {
   const { width: w, height: h, pixels } = b;
   for (let y = 0; y < h; y++) {

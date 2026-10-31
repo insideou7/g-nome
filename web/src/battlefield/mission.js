@@ -7,6 +7,8 @@
 //   engine.mission.win()      run the "objectives complete" script (2245)
 //   engine.mission.lose()     destroy the player's unit (script 2242)
 //   engine.mission.destroyEnemies()  destroy every hostile unit, one by one
+/** @import { Engine } from "../engine.js" */
+
 
 // Globals (see docs/missions.md).
 const G = {
@@ -21,6 +23,7 @@ const G = {
   SPOTTED: 988, // hook: script_G988(target, unit) when a guard picks a target
 };
 const NO_HOOK = new Set([0, 12, 14, 15, 16, 17, 18]); // script 13's empty defaults
+/** @type {Record<number, string>} */
 const OUTCOMES = { 0: "playing", 1: "lost", 2: "won", 3: "failed" };
 const MAX_UNITS = 150;
 
@@ -35,6 +38,9 @@ export const PROP = {
 };
 
 export class Mission {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
   }
@@ -43,6 +49,10 @@ export class Mission {
     return this.engine.vm;
   }
 
+  /**
+   * @param {number} id
+   * @param {number} p
+   */
   prop(id, p) {
     return this.engine.render3d?.objects?.getProperty(id, p) ?? 0;
   }
@@ -50,7 +60,7 @@ export class Mission {
   // The ids in the unit list (G1816), skipping empty slots.
   units() {
     const list = this.vm.getGlobal(G.UNITS);
-    const get = this.engine.plugins?.find((p) => p.name === "render")?.externs?.ListGetElem;
+    const get = this.engine.plugins?.find((/** @type {any} */ p) => p.name === "render")?.externs?.ListGetElem;
     if (!list || !get) return [];
     const out = [];
     for (let i = 0; i < MAX_UNITS; i++) {
@@ -61,6 +71,10 @@ export class Mission {
   }
 
   // script_2080(a, b): 1 when a and b are on different sides.
+  /**
+   * @param {any} a
+   * @param {any} b
+   */
   hostile(a, b) {
     return !!this.engine.callScript(2080, [a, b]);
   }
@@ -75,12 +89,12 @@ export class Mission {
 
   status() {
     const vm = this.vm;
-    const hook = (g) => {
+    const hook = (/** @type {number} */ g) => {
       const s = vm.getGlobal(g);
       return NO_HOOK.has(s) ? 0 : s;
     };
-    const tasks = this.engine.plugins?.find((p) => p.name === "render")?.externs;
-    const task = (id) => {
+    const tasks = this.engine.plugins?.find((/** @type {any} */ p) => p.name === "render")?.externs;
+    const task = (/** @type {number} */ id) => {
       const row = this.prop(id, PROP.TASK);
       return row >= 0 && tasks?.getTaskField ? tasks.getTaskField(id, row, 0) : 0;
     };
@@ -98,6 +112,9 @@ export class Mission {
   // Script 2242 is how the game destroys a unit: the player's own unit ends
   // the mission (2243(1)), anything else goes through the death handler
   // 2278, which runs the mission's G985 hook.
+  /**
+   * @param {number} id
+   */
   destroy(id) {
     if (!id || !this.engine.world?.get(id)) return 0;
     return this.engine.callScript(2242, [id]);

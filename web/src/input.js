@@ -1,10 +1,14 @@
 // Keyboard and mouse: key bindings set by statement 0x6b, click handling.
 
 import { table } from "./builtins.js";
+/** @import { Engine } from "./engine.js" */
 const SHIFT = 0x10, CTRL = 0x11;
 const KEYMAP_CAPTURE = 6366; // OPTIONS > INTERFACE's capture script
 
 export class Input {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.keys = new Map(); // key code -> {down, shift, ctrl, shiftCtrl, up, disabled}
@@ -18,6 +22,7 @@ export class Input {
   // the caret) goes to string `str` and `script(enter ? 1 : 0, 0)` is
   // queued (0x10021310). Backspace removes the last character, Delete
   // clears it all. Key bindings are off meanwhile (0x1000a977).
+  /** @param {{ text: number, script: number, str: number, max: number, digits: number }} edit */
   startEdit({ text, script, str, max, digits }) {
     if (this.edit) this.endEdit(false);
     if (!text) return;
@@ -26,6 +31,9 @@ export class Input {
     this.edit = { text, script, str, max, digits, saved: old };
     t.setText(text, old + "_");
   }
+  /**
+   * @param {boolean} cancel
+   */
   endEdit(cancel) {
     const ed = this.edit;
     if (!ed) return;
@@ -37,6 +45,9 @@ export class Input {
     if (ed.script) this.engine.runLater(ed.script, [cancel ? 0 : 1, 0]);
   }
   // A typed character (WM_CHAR, 0x10021413): 8 backspace, 13 enter, 27 esc.
+  /**
+   * @param {number} c
+   */
   char(c) {
     const ed = this.edit;
     if (!ed) return false;
@@ -49,8 +60,13 @@ export class Input {
     }
     return true;
   }
+  /**
+   * @param {number} key
+   * @param {any} script
+   * @param {any} f
+   */
   bindKey(key, script, f) {
-    const set = (k) => {
+    const set = (/** @type {number} */ k) => {
       const r = this.keys.get(k) || {};
       if (f.clear) r.disabled = false;
       else if (f.disable) r.disabled = true;
@@ -70,9 +86,16 @@ export class Input {
   // held, 2 with Shift, else 0; 4 for a mouse button while the mouse is on.
   // A non-zero return ends the capture. OPTIONS > INTERFACE uses it to
   // rebind a game function.
+  /**
+   * @param {number} script
+   */
   capture(script) {
     this.captureScript = script;
   }
+  /**
+   * @param {number} device
+   * @param {number} key
+   */
   captured(device, key) {
     const script = this.captureScript;
     if (!script) return false;
@@ -94,6 +117,9 @@ export class Input {
   // G2096), store {device 0, key} in table 6323 at row G2101, mapping G2103,
   // and close the prompt (script 6368(1)). battlefield/controls.js then
   // treats the binding as "this key is held".
+  /**
+   * @param {number} vk
+   */
   bindModifier(vk) {
     const e = this.engine, vm = e.vm;
     if (this.captureScript !== KEYMAP_CAPTURE || !vm.getGlobal(2107)) return;
@@ -111,6 +137,9 @@ export class Input {
 
   // Windows virtual-key code. `repeat`: auto-repeat, which the capture
   // ignores (lParam bit 30).
+  /**
+   * @param {number} vk
+   */
   keyDown(vk, shift = false, ctrl = false, repeat = false) {
     if (this.edit) {
       if (vk === 0x2e) this.engine.texts.setText(this.edit.text, "_");
@@ -130,6 +159,9 @@ export class Input {
     if (s) this.engine.runLater(s, [vk]);
     return !!s;
   }
+  /**
+   * @param {number} vk
+   */
   keyUp(vk) {
     if (this.captureScript && vk && vk === this.lonelyModifier) this.bindModifier(vk);
     this.lonelyModifier = 0;
@@ -142,6 +174,7 @@ export class Input {
 // DOM KeyboardEvent.key/code -> Windows virtual-key code.
 // Numpad and punctuation keys go by e.code, so the throttle (numpad + and -)
 // and the twist keys (, and .) work whatever the keyboard layout.
+/** @type {Record<string, number>} */
 const CODE_VK = {
   CapsLock: 0x14, Pause: 0x13, NumLock: 0x90, ScrollLock: 0x91, ContextMenu: 0x5d,
   NumpadAdd: 0x6b, NumpadSubtract: 0x6d, NumpadMultiply: 0x6a, NumpadDivide: 0x6f, NumpadDecimal: 0x6e, NumpadEnter: 0x0d,
@@ -149,6 +182,9 @@ const CODE_VK = {
   BracketLeft: 0xdb, Backslash: 0xdc, BracketRight: 0xdd, Quote: 0xde,
 };
 
+/**
+ * @param {any} e
+ */
 export function vkFromEvent(e) {
   const code = e.code || "";
   if (CODE_VK[code] !== undefined) return CODE_VK[code];
@@ -156,6 +192,7 @@ export function vkFromEvent(e) {
   // arrow / navigation key the key stands for.
   if (/^Numpad\d$/.test(code) && /^\d$/.test(e.key)) return 0x60 + Number(code.slice(6));
   const k = e.key;
+  /** @type {Record<string, number>} */
   const map = { Escape: 0x1b, Enter: 0x0d, " ": 0x20, Tab: 0x09, Backspace: 0x08, ArrowLeft: 0x25, ArrowUp: 0x26, ArrowRight: 0x27, ArrowDown: 0x28, Delete: 0x2e, Insert: 0x2d, Home: 0x24, End: 0x23, PageUp: 0x21, PageDown: 0x22, Shift: 0x10, Control: 0x11, Alt: 0x12 };
   if (map[k] !== undefined) return map[k];
   if (/^F\d+$/.test(k)) return 0x6f + Number(k.slice(1));

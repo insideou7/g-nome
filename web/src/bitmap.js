@@ -3,6 +3,9 @@
 //   u32 width, u32 height, u32 flags (0x80 = RLE, else packed), i32 x, i32 y
 //   (hotspot), u32 resource id, then the body. Colour 0 is transparent.
 
+/**
+ * @param {Uint8Array} bytes
+ */
 export function parseBitmap(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return {
@@ -16,13 +19,16 @@ export function parseBitmap(bytes) {
 }
 
 // Returns {width, height, x, y, pixels: Uint8Array(width * height)}.
+/**
+ * @param {Uint8Array} bytes
+ */
 export function decodeBitmap(bytes) {
-  const bm = parseBitmap(bytes);
-  bm.pixels = bm.flags & 0x80 ? decodeRle(bm) : decodePacked(bm);
-  delete bm.body;
-  return bm;
+  const { body, ...bm } = parseBitmap(bytes);
+  const src = { width: bm.width, height: bm.height, body };
+  return { ...bm, pixels: bm.flags & 0x80 ? decodeRle(src) : decodePacked(src) };
 }
 
+/** @param {{ width: number, height: number, body: Uint8Array }} bm */
 function decodeRle({ width: w, height: h, body }) {
   const out = new Uint8Array(w * h);
   for (let r = 0; r < h; r++) {
@@ -48,6 +54,7 @@ function decodeRle({ width: w, height: h, body }) {
 
 // Packed bitmaps: DIB rows padded to 4 bytes, bottom row first. (Text on
 // the main menu backdrop, resource 8400, reads upside down otherwise.)
+/** @param {{ width: number, height: number, body: Uint8Array }} bm */
 function decodePacked({ width: w, height: h, body }) {
   const raw = decompressPacked(body);
   const stride = (w + 3) & ~3;
@@ -56,11 +63,15 @@ function decodePacked({ width: w, height: h, body }) {
   return out;
 }
 
+/** @type {Record<number, number>} */
 const LZW_BITS = { 0x4000: 10, 0x6000: 11, 0x8000: 12 };
 
 // RTLIB32's DecompressBitmapData stream: blocks with a u16 header (top 3
 // bits method, low 13 bits size). 0 = stored, 0x4000/0x6000/0x8000 = LZW
 // chunks (u16 size + data) with 10/11/12-bit codes, 0xE000 = end.
+/**
+ * @param {Uint8Array} body
+ */
 export function decompressPacked(body) {
   const parts = [];
   let total = 0;
@@ -98,6 +109,10 @@ export function decompressPacked(body) {
 
 // Fixed-width MSB-first codes; 0-255 are bytes, new strings from 256, the
 // all-ones code ends the chunk, no reset.
+/**
+ * @param {any} data
+ * @param {number} bits
+ */
 function lzwChunk(data, bits) {
   const end = (1 << bits) - 1;
   const prefix = new Int32Array(end);
@@ -114,7 +129,7 @@ function lzwChunk(data, bits) {
     acc &= (1 << nacc) - 1;
     return c;
   };
-  const string = (c) => {
+  const string = (/** @type {number} */ c) => {
     const s = [];
     while (c > 0xff) {
       s.push(suffix[c]);

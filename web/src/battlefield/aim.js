@@ -11,25 +11,30 @@ import { UNIT } from "./world.js";
 import { add, sub, scale, dot, cross, normalize } from "./math.js";
 import { motionOf, approachAngle } from "../anim/motion.js";
 import { mul, rotX, rotY, rotZ } from "../render3d/math.js";
+/** @import { Engine } from "../engine.js" */
 
 const DEG = 180 / Math.PI;
-const clamp1 = (x) => Math.max(-1, Math.min(1, x));
+const clamp1 = (/** @type {number} */ x) => Math.max(-1, Math.min(1, x));
 const ftol = Math.trunc; // __ftol truncates
 
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function aimExterns(engine) {
   const world = () => engine.world;
-  const obj = (id) => engine.world?.get(id) || null;
+  const obj = (/** @type {number} */ id) => engine.world?.get(id) || null;
   const props = () => engine.render3d?.objects;
-  const getProp = (id, p) => props()?.getProperty(id, p) ?? 0;
-  const setProp = (id, p, v) => props()?.setProperty(id, p, v);
+  const getProp = (/** @type {number} */ id, /** @type {number} */ p) => props()?.getProperty(id, p) ?? 0;
+  const setProp = (/** @type {number} */ id, /** @type {number} */ p, /** @type {number} */ v) => props()?.setProperty(id, p, v);
   // The ModelInstance and model.clumps index of clump tag k, or null.
-  const clumpOf = (id, k) => {
+  const clumpOf = (/** @type {number} */ id, /** @type {number} */ k) => {
     const inst = engine.render3d?.objectModel?.(id);
     const ci = inst ? inst.clump(k) : -1;
     return ci >= 0 ? { inst, ci } : null;
   };
   // RwGetClumpLTM: position and axes of a clump in the world.
-  const ltm = (id, k) => world()?.pose(id, k, 1) ?? null;
+  const ltm = (/** @type {number} */ id, /** @type {number} */ k) => world()?.pose(id, k, 1) ?? null;
 
   return {
     // RotateSubClump(id, clump, z, x, y) 0x10016374 -> FUN_10005580: set the

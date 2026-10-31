@@ -11,18 +11,26 @@
 // Device: 0 key alone, 1 Ctrl+key, 2 Shift+key, 5 key without modifiers,
 // 4 mouse button (1 left, 2 right, 3 middle), 3 and 6 joysticks.
 import { table } from "../builtins.js";
+/** @import { Engine } from "../engine.js" */
 
 const CTRL = 0x11, SHIFT = 0x10;
 
 export class Controls {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.down = new Set(); // virtual keys held
     this.buttons = new Set(); // mouse buttons held: 1 left, 2 right, 3 middle
     this.mouse = false; // MouseOnOff
+    /** @type {any} */
     this.map = null; // MapActionKeys: {actions, events: [ids], column, mask}
   }
 
+  /**
+   * @param {number} id
+   */
   rows(id) {
     const t = table(this.engine.vm, id);
     if (!t) return [];
@@ -36,6 +44,11 @@ export class Controls {
   }
 
   // actions[action][col], or 0
+  /**
+   * @param {number} actions
+   * @param {number} action
+   * @param {number} col
+   */
   action(actions, action, col) {
     const t = table(this.engine.vm, actions);
     if (!t) return 0;
@@ -43,6 +56,10 @@ export class Controls {
     return o >= 0 && o < t.data.length ? t.data[o] : 0;
   }
 
+  /**
+   * @param {any} device
+   * @param {number} key
+   */
   held(device, key) {
     const ctrl = this.down.has(CTRL), shift = this.down.has(SHIFT);
     switch (device) {
@@ -65,6 +82,13 @@ export class Controls {
 
   // CheckActionState(actions, binds, action, column, mask): 1 held, 0 bound
   // but not held, -1 not bound or not allowed here
+  /**
+   * @param {number} actions
+   * @param {number} binds
+   * @param {number} action
+   * @param {number} column
+   * @param {number} mask
+   */
   check(actions, binds, action, column, mask) {
     if (!this.action(actions, action, column) || !(mask & this.action(actions, action, 1))) return -1;
     let r = -1;
@@ -79,6 +103,10 @@ export class Controls {
 
   // A press: run the scripts of the actions bound to it (the window
   // procedure's loop over both event tables). Repeats are ignored.
+  /**
+   * @param {string} device
+   * @param {number} key
+   */
   press(device, key) {
     const m = this.map;
     if (!m) return;
@@ -94,28 +122,46 @@ export class Controls {
     }
   }
 
+  /**
+   * @param {number} vk
+   */
   keyDown(vk) {
     const repeat = this.down.has(vk);
     this.down.add(vk);
     if (!repeat) this.press("key", vk);
   }
 
+  /**
+   * @param {number} vk
+   */
   keyUp(vk) {
     this.down.delete(vk);
   }
 
   // button: DOM numbering (0 left, 1 middle, 2 right)
+  /**
+   * @param {number} button
+   */
   mouseDown(button) {
     const b = [1, 3, 2][button] || 1;
     this.buttons.add(b);
     if (this.mouse) this.press("mouse", b);
   }
 
+  /**
+   * @param {number} button
+   */
   mouseUp(button) {
     this.buttons.delete([1, 3, 2][button] || 1);
   }
 }
 
+/**
+ * @param {number} dev
+ * @param {boolean} ctrl
+ * @param {boolean} shift
+ * @param {number} key
+ */
 function matchesKey(dev, ctrl, shift, key) {
   if (key === CTRL || key === SHIFT) return dev === 0 || dev === 5;
   return (dev === 0 && !ctrl && !shift) || (dev === 1 && ctrl && !shift) || (dev === 2 && shift && !ctrl) || (dev === 5 && !ctrl && !shift);

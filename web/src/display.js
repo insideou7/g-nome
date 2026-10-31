@@ -19,14 +19,22 @@ export class Display {
     this.dirty = true;
     // 3D view drawn under the sprites: {canvas, x, y}. Where it is set,
     // colour 0 (transparent in every bitmap) shows the 3D view instead.
+    /** @type {any} */
     this.underlay = null;
     this.layer = null; // offscreen canvas for the sprite layer
+    /** @type {any} */
     this.overlay = null; // (ctx, brightness 0..1) => void, after each frame
   }
+  /**
+   * @param {any} rgb768
+   */
   setPalette(rgb768, first = 0, count = 256) {
     this.palette.set(rgb768.subarray(first * 3, (first + count) * 3), first * 3);
     this.dirty = true;
   }
+  /**
+   * @param {number} color
+   */
   clear(color) {
     this.pixels.fill(color);
     this.dirty = true;

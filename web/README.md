@@ -191,8 +191,27 @@ cd web && npm ci && npm run typecheck
 `.github/workflows/typecheck.yml` runs the same check on pull requests that
 touch `web/`. The settings started lenient (`strict` off) and are tightened
 one flag at a time, fixing what each one finds. On now: `noImplicitThis`,
-`strictBindCallApply`, `strictFunctionTypes`, `noFallthroughCasesInSwitch`
-and `strictNullChecks`. `noImplicitAny` is next (about 2200 errors).
+`strictBindCallApply`, `strictFunctionTypes`, `noFallthroughCasesInSwitch`,
+`strictNullChecks` and `noImplicitAny`. Full `strict` is next: 28 errors
+(`useUnknownInCatchVariables` and `strictPropertyInitialization`).
+
+How to satisfy `noImplicitAny`:
+
+- Every function parameter needs a type: `/** @param {number} id */` above
+  the function, or `(/** @type {number} */ id) => ...` inline.
+- The function tables have shared types in `globals.d.ts`: `Externs` (plugin
+  externs, whose arguments are 32-bit script values), `Builtin` and
+  `Statement`. Annotate the table (`/** @returns {Externs} */` on a
+  function that builds one, `/** @type {Externs} */` on an object) and its
+  entries need no annotations of their own.
+- An object used as a lookup table needs an index type:
+  `/** @type {Record<number, string>} */`.
+- Engine subsystems that plugins install (`engine.render3d`,
+  `engine.animation`, ...) are declared as fields of `Engine`; add new ones
+  there.
+- `any` is allowed where the real type is a large untyped object (the
+  battlefield's world objects, render3d state). Replacing those with real
+  types is the follow-up work.
 
 How to satisfy the null checks:
 

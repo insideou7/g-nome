@@ -5,12 +5,21 @@ import { FIXED, hex } from "./statements.js";
 import { LOCAL_BASE, EXTERN_BASE } from "./vm.js";
 import { BUILTIN_NAMES, STATEMENT_NAMES } from "./names.js";
 
+/** @type {Record<number, string>} */
 const BIN = { 0x12: "+", 0x13: "-", 0x14: "*", 0x15: "/", 0x16: "%", 0x17: "==", 0x18: "<=", 0x19: "<", 0x1a: ">=", 0x1b: ">", 0x1c: "!=", 0x1d: "&&", 0x1e: "||", 0x1f: "&", 0x20: "|", 0x21: "^", 0x29: "<<", 0x2a: ">>" };
+/** @type {Record<number, string>} */
 const UN = { 0x0f: "-", 0x10: "!", 0x11: "~" };
 
-export const varName = (v) => (v >= LOCAL_BASE ? `L${v - LOCAL_BASE}` : `G${v}`);
+export const varName = (/** @type {number} */ v) => (v >= LOCAL_BASE ? `L${v - LOCAL_BASE}` : `G${v}`);
 
+/**
+ * @param {any} bin
+ * @param {number[]} b
+ * @param {DataView} dv
+ * @param {number} p
+ */
 export function exprText(bin, b, dv, p, names = BUILTIN_NAMES) {
+  /** @type {any} */
   const st = [];
   for (;;) {
     const op = b[p++];
@@ -43,10 +52,15 @@ export function exprText(bin, b, dv, p, names = BUILTIN_NAMES) {
   return st.join(" ").replace(/ \|\| \((.*)\)$/, " || $1");
 }
 
+/**
+ * @param {any} bin
+ * @param {number} id
+ */
 export function disassemble(bin, id, names = BUILTIN_NAMES) {
   const b = bin.resident(id);
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const out = [];
+  /** @type {[number, number][]} */
   const tables = [];
   let p = 0;
   while (p < b.length) {
@@ -54,7 +68,7 @@ export function disassemble(bin, id, names = BUILTIN_NAMES) {
     if (t) { p = t[1]; continue; }
     const op = dv.getUint16(p, true);
     let len, text;
-    const at = (d) => (p + d).toString(16).padStart(4, "0");
+    const at = (/** @type {number} */ d) => (p + d).toString(16).padStart(4, "0");
     switch (op) {
       case 0x68: len = 6; text = `goto ${at(dv.getInt32(p + 2, true))}`; break;
       case 0x5b: case 0xe3:
@@ -98,6 +112,10 @@ export function disassemble(bin, id, names = BUILTIN_NAMES) {
   return out;
 }
 
+/**
+ * @param {number[]} b
+ * @param {number} p
+ */
 function exprEnd(b, p) {
   for (;;) {
     const op = b[p++];

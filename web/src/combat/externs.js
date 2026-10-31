@@ -5,7 +5,12 @@ import { CombatHost } from "./host.js";
 import { projectileExterns } from "./projectiles.js";
 import { damageExterns } from "./damage.js";
 import { effectExterns } from "./effects.js";
+/** @import { Engine } from "../engine.js" */
 
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function combatExterns(engine) {
   const host = new CombatHost(engine);
   return { ...projectileExterns(host), ...damageExterns(host), ...effectExterns(host) };

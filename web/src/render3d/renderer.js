@@ -11,8 +11,12 @@ import { WebGLBackend } from "./webgl.js";
 import { poseFromFrame } from "./frames.js";
 import { rotY, translation, mul, identity } from "./math.js";
 import { modelBounds } from "./model.js";
+/** @import { Engine } from "../engine.js" */
 
 export class Renderer {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine, { webgl = true } = {}) {
     this.engine = engine;
     this.textures = new TextureStore(engine);
@@ -35,6 +39,9 @@ export class Renderer {
   // Parsed MODL/MPRT for a resource id (copies resolve to their source).
   // Models are shared; per-instance state (pose, opacity, texture frame)
   // lives on the scene node.
+  /**
+   * @param {number} id
+   */
   loadModel(id) {
     const e = this.engine;
     const src = e.dynamic?.get(id) ?? id;
@@ -50,10 +57,18 @@ export class Renderer {
   }
 
   // A model built from raw arrays; see meshModel in scene.js.
+  /**
+   * @param {any} spec
+   */
   createMesh(spec) {
     return meshModel(spec);
   }
 
+  /**
+   * @param {any} model
+   * @param {number} frmeId
+   * @param {number} index
+   */
   frame(model, frmeId, index) {
     if (!frmeId) return null;
     const e = this.engine;
@@ -71,6 +86,10 @@ export class Renderer {
 
   // --- textures and palette -------------------------------------------
 
+  /**
+   * @param {any} material
+   * @param {any} node
+   */
   textureOf(material, node) {
     if (node && node.textureOverride) return node.textureOverride;
     const t = material.texture;
@@ -87,6 +106,9 @@ export class Renderer {
   }
 
   // RGBA texels of a texture under the current palette (index 0 clear).
+  /**
+   * @param {any} tex
+   */
   rgbaOf(tex) {
     const key = this.paletteKey();
     let c = this.texels.get(tex);
@@ -125,6 +147,9 @@ export class Renderer {
   }
 
   // RGBA -> palette indices; pixels with alpha 0 become 0 (transparent).
+  /**
+   * @param {any} rgba
+   */
   toIndexed(rgba, out = new Uint8Array(rgba.length / 4)) {
     const lut = this.quantizer();
     for (let i = 0, o = 0; o < out.length; i += 4, o++) {
@@ -141,14 +166,20 @@ export class Renderer {
   // (WebGL only). Returns the WebGL canvas, or a SoftTarget {width, height,
   // rgba} from the software backend.
   // opts.backend: "webgl" | "soft" (default: webgl when available).
+  /**
+   * @param {Scene} scene
+   * @param {Camera} camera
+   * @param {any} viewport
+   * @param {{ backend?: "webgl" | "soft", target?: SoftTarget }} [opts]
+   */
   render(scene, camera, viewport, opts = {}) {
     const width = viewport.width ?? viewport.w, height = viewport.height ?? viewport.h;
     const useGL = (opts.backend || (this.gl ? "webgl" : "soft")) === "webgl" && this.gl;
     if (useGL && this.gl) return this.gl.render(scene, camera, { ...viewport, width, height });
     const target = opts.target && opts.target.width === width && opts.target.height === height ? opts.target : new SoftTarget(width, height);
     return renderSoft(scene, camera, target, {
-      textureOf: (m, n) => this.textureOf(m, n),
-      rgbaOf: (t) => this.rgbaOf(t),
+      textureOf: (/** @type {any} */ m, /** @type {any} */ n) => this.textureOf(m, n),
+      rgbaOf: (/** @type {any} */ t) => this.rgbaOf(t),
     });
   }
 
@@ -160,6 +191,10 @@ export class Renderer {
   //   - camera at height dimY/2, backed off until the model fits
   //     (width = sqrt(x^2 + z^2) * 1.05, height = y * 1.05), then turned
   //     180 degrees to face it; background colour 0 (transparent)
+  /**
+   * @param {any} model
+   * @param {{ pose?: any, textureFrame?: number, dims: number[], angle?: number, width: number, height: number, instance?: any }} opts
+   */
   renderPreview(model, { pose = null, textureFrame = 0, dims, angle = 0, width, height, instance = null }) {
     const scene = new Scene();
     const node = scene.add(instance || model);

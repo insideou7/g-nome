@@ -19,7 +19,8 @@
     "strictBindCallApply": true,
     "strictFunctionTypes": true,
     "noFallthroughCasesInSwitch": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "noImplicitAny": true
   },
   "include": ["src/**/*.js", "src/**/*.d.ts"]
 }

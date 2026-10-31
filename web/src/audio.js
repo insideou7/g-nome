@@ -5,9 +5,10 @@
 
 export class Audio {
   constructor() {
-    this.ctx = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
+    this.ctx = new (globalThis.AudioContext || /** @type {any} */ (globalThis).webkitAudioContext)();
     this.next = 0;
     this.sources = new Set();
+    /** @type {Record<string, GainNode>} */
     this.buses = {};
     for (const name of ["music", "effects"]) {
       const g = this.ctx.createGain();
@@ -24,11 +25,20 @@ export class Audio {
     if (this.ctx.state !== "running") this.ctx.resume();
   }
   // volume 0..1. Squared so the slider feels even to the ear.
+  /**
+   * @param {string} bus
+   * @param {number} volume
+   */
   setVolume(bus, volume) {
     const g = this.buses[bus];
     if (g) g.gain.value = Math.max(0, Math.min(1, volume)) ** 2;
   }
   // Interleaved Int16 samples.
+  /**
+   * @param {any} samples
+   * @param {number} channels
+   * @param {number} rate
+   */
   queue(samples, channels, rate) {
     const frames = samples.length / channels;
     if (!frames) return;
@@ -47,6 +57,9 @@ export class Audio {
     src.onended = () => this.sources.delete(src);
   }
   // One-shot or looping sound effect. Returns a handle.
+  /**
+   * @param {any} snd
+   */
   play(snd, { loop = false, volume = 1, pan = 0 } = {}) {
     const frames = snd.samples.length / snd.channels;
     if (!frames) return null;
@@ -70,6 +83,9 @@ export class Audio {
     src.start();
     return src;
   }
+  /**
+   * @param {AudioBufferSourceNode | null} src
+   */
   stopSound(src) {
     try {
       src?.stop();
@@ -77,6 +93,9 @@ export class Audio {
   }
   // CD music: an encoded audio file (OGG, MP3, WAV, FLAC...) the browser
   // decodes. Replaces any track already playing.
+  /**
+   * @param {any} bytes
+   */
   async playMusic(bytes) {
     this.stopMusic();
     const token = this.musicToken;

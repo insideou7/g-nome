@@ -14,8 +14,12 @@ import { collisionExterns } from "../battlefield/collision.js";
 import { aimExterns } from "../battlefield/aim.js";
 import { combatExterns } from "../combat/externs.js";
 import { radarExterns } from "../battlefield/radar.js";
+/** @import { Engine } from "../engine.js" */
 
 export class RenderPlugin {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.name = "render";
@@ -26,6 +30,7 @@ export class RenderPlugin {
     this.anim = engine.animation = new AnimationSystem(engine);
     this.files = new ScriptFiles(engine, engine.storage ?? globalThis.localStorage);
     this.hotspots = engine.hotspots = new Hotspots(engine);
+    /** @type {Externs} */
     this.externs = {
       ...this.hotspots.externs(),
       ...animationExterns(this.anim),
@@ -77,6 +82,9 @@ export class RenderPlugin {
 
   // Once per display frame: run the battlefield's fixed ticks, then draw
   // the 3D view under the sprites.
+  /**
+   * @param {number} ms
+   */
   service(ms) {
     const e = this.engine, w = e.world;
     if (!w) return;
@@ -96,10 +104,16 @@ export class RenderPlugin {
   }
 
   // DeleteCopy (builtin 0x22) of an object in the scene removes it.
+  /**
+   * @param {number} id
+   */
   onDeleteCopy(id) {
     this.engine.world?.remove(id);
   }
 
+  /**
+   * @param {number} id
+   */
   sound(id) {
     let s = this.cache.get(id);
     if (!s && this.engine.bin.type(id) === 12) {
@@ -109,6 +123,11 @@ export class RenderPlugin {
     return s;
   }
 
+  /**
+   * @param {number} id
+   * @param {number} volume
+   * @param {number} loop
+   */
   play(id, volume, loop, pan = 0) {
     const e = this.engine;
     const s = this.sound(id);
@@ -123,6 +142,9 @@ export class RenderPlugin {
     return id;
   }
 
+  /**
+   * @param {number} id
+   */
   stop(id) {
     const src = this.playing.get(id);
     if (src) this.engine.audio?.stopSound(src);

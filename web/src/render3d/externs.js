@@ -14,6 +14,10 @@ import { Lights } from "./lights.js";
 // own RenderWare clump, so opacity, double-siding and texture swaps are per
 // copy. SceneNodes built from an instance share these arrays.
 export class ModelInstance {
+  /**
+   * @param {number} id
+   * @param {any} model
+   */
   constructor(id, model) {
     this.id = id;
     this.model = model;
@@ -26,12 +30,18 @@ export class ModelInstance {
     this.textureFrame = 0;
   }
   // Script clump number -> index into model.clumps (-1 if none).
+  /**
+   * @param {number} k
+   */
   clump(k) {
     if (!k) return this.model.roots[0] ?? -1;
     return this.model.tagged[k] ?? -1;
   }
 }
 
+/**
+ * @param {any} plugin
+ */
 export function install3D(plugin) {
   const engine = plugin.engine;
   const renderer = new Renderer(engine);
@@ -45,9 +55,12 @@ export function install3D(plugin) {
     instances: new Map(), // model copy id -> ModelInstance
     createScene: () => renderer.createScene(),
     createCamera: () => renderer.createCamera(),
-    render: (scene, camera, viewport, opts) => renderer.render(scene, camera, viewport, opts),
+    render: (/** @type {any} */ scene, /** @type {any} */ camera, /** @type {any} */ viewport, /** @type {any} */ opts) => renderer.render(scene, camera, viewport, opts),
     // What an object (OB3D/OPRT copy) draws: the ModelInstance of its
     // linked model (LinkModel, else property 39), or null.
+    /**
+     * @param {number} id
+     */
     objectModel(id) {
       const o = this.objects.get(id);
       if (!o) return null;
@@ -56,6 +69,9 @@ export function install3D(plugin) {
     },
     // A type 1 bitmap as ImageData (or {width, height, data} in Node) in the
     // current palette; colour 0 transparent.
+    /**
+     * @param {number} id
+     */
     bitmapImage(id) {
       const bm = engine.sprites.bitmap(id);
       const data = new Uint8ClampedArray(bm.width * bm.height * 4);
@@ -67,6 +83,9 @@ export function install3D(plugin) {
       }
       return typeof ImageData !== "undefined" ? new ImageData(data, bm.width, bm.height) : { width: bm.width, height: bm.height, data };
     },
+    /**
+     * @param {number} id
+     */
     instance(id) {
       let inst = this.instances.get(id);
       if (!inst) {
@@ -80,7 +99,7 @@ export function install3D(plugin) {
   };
   engine.render3d = r3d;
   const { objects } = r3d;
-  const perClump = (field, conv) => (obj, k, v) => {
+  const perClump = (/** @type {string} */ field, /** @type {any} */ conv) => (/** @type {any} */ obj, /** @type {any} */ k, /** @type {any} */ v) => {
     const o = objects.get(obj);
     const inst = o && o.model && r3d.instance(o.model);
     const ci = inst ? inst.clump(k) : -1;
@@ -90,7 +109,12 @@ export function install3D(plugin) {
 
   Object.assign(plugin.externs, r3d.lights.externs(), {
     // 0x1001271e / 0x10016c09
-    GetProperty: (obj, p) => objects.getProperty(obj, p),
+    GetProperty: (/** @type {any} */ obj, /** @type {any} */ p) => objects.getProperty(obj, p),
+    /**
+     * @param {any} obj
+     * @param {any} p
+     * @param {any} v
+     */
     SetProperty(obj, p, v) {
       objects.setProperty(obj, p, v);
       return 0;
@@ -98,6 +122,10 @@ export function install3D(plugin) {
     // 0x10012af7: attach a model copy to an object (0 detaches). Returns the
     // id of the model it replaced... in the original, a pointer; scripts
     // ignore it.
+    /**
+     * @param {any} obj
+     * @param {any} model
+     */
     LinkModel(obj, model) {
       const o = objects.get(obj);
       if (!o) return 0;
@@ -107,12 +135,19 @@ export function install3D(plugin) {
       return 0;
     },
     // 0x10014335: flag 0x100 of the object
+    /**
+     * @param {any} obj
+     * @param {any} on
+     */
     ObjectSetState(obj, on) {
       const o = objects.get(obj);
       if (o) o.flags = on ? o.flags | 0x100 : o.flags & ~0x100;
       return 0;
     },
     // 0x100123de
+    /**
+     * @param {any} model
+     */
     GetNumClumps(model) {
       const inst = r3d.instance(model);
       return inst ? inst.model.count : 0;
@@ -120,6 +155,14 @@ export function install3D(plugin) {
     // 0x100087ab: pose the model (FRME `frame`, frame 0), measure it, store
     // x/y/z in thousandths in the object's properties px/py/pz and the
     // radius max(x, z) / 2 in metres.
+    /**
+     * @param {any} model
+     * @param {any} frame
+     * @param {any} obj
+     * @param {any} px
+     * @param {any} py
+     * @param {any} pz
+     */
     SetModelDimensions(model, frame, obj, px, py, pz) {
       const inst = r3d.instance(model);
       const o = objects.get(obj);
@@ -134,15 +177,19 @@ export function install3D(plugin) {
       return 0;
     },
     // 0x1000a4e5: opacity in percent for one clump's polygons
-    SetObjOpacity: perClump("clumpOpacity", (v) => v / 100),
+    SetObjOpacity: perClump("clumpOpacity", (/** @type {number} */ v) => v / 100),
     // 0x1000a439: 1 = double-sided
-    SetObjDoubleface: perClump("doubleSided", (v) => v === 1),
+    SetObjDoubleface: perClump("doubleSided", (/** @type {number} */ v) => v === 1),
     // 0x1000a381: perspective-correct texturing on (1) or off. Always on here.
     SetObjPerspective: () => 0,
     // 0x1000a04b: RenderWare clump hints (1 -> 2, 2 -> 6). Rendering hints
     // only; kept for reference.
-    SetClumpHints: perClump("hints", (v) => v),
+    SetClumpHints: perClump("hints", (/** @type {any} */ v) => v),
     // 0x1000a592: use a type 1 bitmap as the texture of every polygon
+    /**
+     * @param {any} model
+     * @param {any} bitmap
+     */
     SetModelTexture(model, bitmap) {
       const inst = r3d.instance(model);
       if (inst && engine.bin.type(engine.dynamic?.get(bitmap) ?? bitmap) === 1) inst.textureOverride = r3d.renderer.textures.resource(bitmap);
@@ -151,6 +198,17 @@ export function install3D(plugin) {
     // 0x10008b3a: draw a model into a sprite's bitmap (unit previews).
     // (model, FRME or 0, frame, texture frame, x, y, z in thousandths,
     //  sprite, angle in hundredths of a degree about Y)
+    /**
+     * @param {any} model
+     * @param {any} frme
+     * @param {any} frame
+     * @param {any} texFrame
+     * @param {any} dx
+     * @param {any} dy
+     * @param {any} dz
+     * @param {any} sprite
+     * @param {number} angle
+     */
     RenderToBitmap(model, frme, frame, texFrame, dx, dy, dz, sprite, angle) {
       const inst = r3d.instance(model);
       const s = engine.sprites.get(sprite);

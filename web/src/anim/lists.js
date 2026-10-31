@@ -1,13 +1,19 @@
 // RENDER.R32's list externs (0x10012c08-0x10012f9f): fixed-size arrays of
 // ints that scripts use for unit groups, targets and the like. A list id is
 // 1-based; ids are reused after ListDestroy. Spec: docs/formats/animation.md.
+/** @import { Engine } from "../engine.js" */
+
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function listExterns(engine) {
   /** @type {(number[] | null)[]} */
   const lists = [null]; // index = list id
 
-  const get = (id) => lists[id] || (lists[id] = []);
+  const get = (/** @type {number} */ id) => lists[id] || (lists[id] = []);
   // For other modules (collisions read sector and hotspot lists).
-  engine.renderLists = { get: (id) => (id > 0 ? lists[id] || null : null) };
+  engine.renderLists = { get: (/** @type {number} */ id) => (id > 0 ? lists[id] || null : null) };
   return {
     // ListCreate(n): a list of n zeros; returns its id
     ListCreate(n) {

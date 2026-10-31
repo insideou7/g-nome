@@ -2,6 +2,9 @@
 
 // Returns Map(type -> Map(id -> Uint8Array)) for numeric types and ids
 // (first language of each).
+/**
+ * @param {any} bytes
+ */
 export function peResources(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const pe = dv.getUint32(0x3c, true);
@@ -10,18 +13,19 @@ export function peResources(bytes) {
   const optSize = dv.getUint16(pe + 20, true);
   const opt = pe + 24;
   const rsrcRva = dv.getUint32(opt + 96 + 2 * 8, true); // data directory 2
+  /** @type {any} */
   const secs = [];
   for (let i = 0; i < nsec; i++) {
     const s = opt + optSize + 40 * i;
     secs.push({ va: dv.getUint32(s + 12, true), size: Math.max(dv.getUint32(s + 8, true), dv.getUint32(s + 16, true)), raw: dv.getUint32(s + 20, true) });
   }
-  const off = (rva) => {
-    const s = secs.find((s) => rva >= s.va && rva < s.va + s.size);
+  const off = (/** @type {number} */ rva) => {
+    const s = secs.find((/** @type {any} */ s) => rva >= s.va && rva < s.va + s.size);
     if (!s) throw new Error(`rva ${rva.toString(16)} not mapped`);
     return rva - s.va + s.raw;
   };
   const base = off(rsrcRva);
-  const entries = (dir) => {
+  const entries = (/** @type {number} */ dir) => {
     const n = dv.getUint16(base + dir + 12, true) + dv.getUint16(base + dir + 14, true);
     const out = [];
     for (let i = 0; i < n; i++) {
@@ -52,6 +56,9 @@ export function peResources(bytes) {
 // A cursor resource is u16 hotspot x, y, then a BITMAPINFOHEADER whose
 // height counts both masks, a 2-colour table, the XOR mask and the AND
 // mask, both 1 bit per pixel, bottom row first, rows padded to 4 bytes.
+/**
+ * @param {Uint8Array} bytes
+ */
 export function peCursors(bytes) {
   const res = peResources(bytes);
   const groups = res.get(12), cursors = res.get(1);

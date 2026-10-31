@@ -9,6 +9,9 @@ import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberF
 /** @type {(id: string) => any} */
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
+/**
+ * @param {string} m
+ */
 function log(m) {
   logEl.textContent += m + "\n";
   if (logEl.textContent.length > 200000) logEl.textContent = logEl.textContent.slice(-100000);
@@ -24,6 +27,9 @@ function loadIni() {
 }
 
 // Status line above the game screen
+/**
+ * @param {string} msg
+ */
 function status(msg, error = false) {
   const el = $("status");
   el.textContent = msg;
@@ -32,6 +38,9 @@ function status(msg, error = false) {
 
 let started = false;
 // Open a source of game files (see gamefiles.js) and start the engine.
+/**
+ * @param {any} load
+ */
 async function open(load) {
   if (started) return;
   let files;
@@ -46,10 +55,10 @@ async function open(load) {
   $("picker").classList.add("hidden");
   log(`game folder: ${files.dir || "(top level)"}`);
   // Count the big reads so a slow load shows progress.
-  const total = files.names.filter((n) => /^G-NOME\.\d{3}$/.test(n)).length;
+  const total = files.names.filter((/** @type {string} */ n) => /^G-NOME\.\d{3}$/.test(n)).length;
   let done = 0;
   const read = files.read;
-  files.read = async (n) => {
+  files.read = async (/** @type {string} */ n) => {
     const r = await read(n);
     if (/^G-NOME\.\d{3}$/.test(n.toUpperCase())) status(`Loading game data ${++done}${total ? ` / ${total}` : ""}`);
     return r;
@@ -81,13 +90,13 @@ $("pick-folder").addEventListener("click", async () => {
 });
 // (Each input is cleared so picking the same thing again after an error
 // still fires a change.)
-$("pick-dir").addEventListener("change", (ev) => {
+$("pick-dir").addEventListener("change", (/** @type {any} */ ev) => {
   const input = /** @type {HTMLInputElement} */ (ev.target);
   const list = [...(input.files ?? [])];
   input.value = "";
   open(async () => fromFileList(list));
 });
-$("pick-zip").addEventListener("change", (ev) => {
+$("pick-zip").addEventListener("change", (/** @type {any} */ ev) => {
   const input = /** @type {HTMLInputElement} */ (ev.target);
   const f = input.files?.[0];
   input.value = "";
@@ -158,7 +167,7 @@ if (gameUrl) {
       dir: base,
       names: [],
       has: () => true,
-      read: async (n) => {
+      read: async (/** @type {string} */ n) => {
         for (const name of [n.toUpperCase(), n, n.toLowerCase()]) {
           const r = await fetch(base + name);
           if (r.ok) return new Uint8Array(await r.arrayBuffer());
@@ -170,18 +179,24 @@ if (gameUrl) {
 }
 
 // Every file is read once and kept, so a restart doesn't read them again.
+/**
+ * @param {any} files
+ */
 function cachedFiles(files) {
   const cache = new Map();
   return {
     ...files,
-    read: (n) => {
+    read: (/** @type {string} */ n) => {
       const k = n.toUpperCase();
-      if (!cache.has(k)) cache.set(k, files.read(n).catch((e) => (cache.delete(k), Promise.reject(e))));
+      if (!cache.has(k)) cache.set(k, files.read(n).catch((/** @type {any} */ e) => (cache.delete(k), Promise.reject(e))));
       return cache.get(k);
     },
   };
 }
 
+/**
+ * @param {any} rawFiles
+ */
 async function start(rawFiles) {
   const files = cachedFiles(rawFiles);
   const display = new Display($("screen"));
@@ -195,7 +210,10 @@ async function start(rawFiles) {
   const cursorCss = new Map();
   /** @type {Engine} */
   let engine = /** @type {any} */ (null); // set by boot() before anything uses it
-  let audio = null, panel = null;
+  /** @type {Audio | null} */
+  let audio = null;
+  /** @type {DebugPanel | null} */
+  let panel = null;
 
   // A fresh engine on the same files and screen. Runs at start, and again
   // whenever the game quits (EXIT > Yes, the end of the campaign): the
@@ -244,34 +262,35 @@ async function start(rawFiles) {
   $("skip").disabled = false;
   $("skip").onclick = () => engine.input.keyDown(0x1b);
   canvas.focus();
-  canvas.addEventListener("keydown", (e) => {
-    audio.resume();
+  canvas.addEventListener("keydown", (/** @type {any} */ e) => {
+    audio?.resume();
     const vk = vkFromEvent(e);
     if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey, e.repeat) || engine.world?.shown)) e.preventDefault();
     // WM_CHAR, for typing into texts (statement 0x2c)
-    const ch = { Enter: 13, Escape: 27, Backspace: 8 }[e.key] ?? (e.key.length === 1 && !e.ctrlKey ? e.key.charCodeAt(0) : 0);
+    const ch = /** @type {Record<string, number>} */ ({ Enter: 13, Escape: 27, Backspace: 8 })[e.key] ?? (e.key.length === 1 && !e.ctrlKey ? e.key.charCodeAt(0) : 0);
     if (ch && engine.input.char(ch)) e.preventDefault();
   });
-  canvas.addEventListener("keyup", (e) => engine.input.keyUp(vkFromEvent(e)));
-  const pos = (e) => {
+  canvas.addEventListener("keyup", (/** @type {any} */ e) => engine.input.keyUp(vkFromEvent(e)));
+  /** @returns {[number, number]} */
+  const pos = (/** @type {any} */ e) => {
     const r = canvas.getBoundingClientRect();
     return [Math.floor(((e.clientX - r.left) * 640) / r.width), Math.floor(((e.clientY - r.top) * 480) / r.height)];
   };
-  canvas.addEventListener("pointerdown", (e) => {
-    audio.resume();
+  canvas.addEventListener("pointerdown", (/** @type {any} */ e) => {
+    audio?.resume();
     canvas.focus();
     canvas.setPointerCapture?.(e.pointerId); // keep slider drags going outside the canvas
     engine.mouseDown(...pos(e), e.button);
   });
-  canvas.addEventListener("pointerup", (e) => engine.mouseUp(...pos(e), e.button));
-  canvas.addEventListener("pointermove", (e) => engine.mouseMove(...pos(e)));
+  canvas.addEventListener("pointerup", (/** @type {any} */ e) => engine.mouseUp(...pos(e), e.button));
+  canvas.addEventListener("pointermove", (/** @type {any} */ e) => engine.mouseMove(...pos(e)));
   let last = performance.now();
   let busy = false; // rebooting after a quit
   const step = async () => {
     if (busy) return;
     const t = performance.now();
     engine.tick(Math.min(100, t - last));
-    panel.frame(t);
+    panel?.frame(t);
     last = t;
     if (engine.quit) {
       busy = true;

@@ -16,16 +16,24 @@
 //   0 object class, 1 model resource, 39 linked model copy,
 //   55/56/57 model size x/y/z in thousandths (SetModelDimensions),
 //   79 model used for RenderToBitmap, 99 its FRME pose resource.
+/** @import { Engine } from "../engine.js" */
+
 
 export const PROPS = 512;
 
 export class Objects {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.records = new Map(); // object id (copy id) -> record
   }
 
   // The record for an object id, created from its resource on first use.
+  /**
+   * @param {number} id
+   */
   get(id) {
     let r = this.records.get(id);
     if (r) return r;
@@ -41,25 +49,40 @@ export class Objects {
     return r;
   }
 
+  /**
+   * @param {number} id
+   */
   delete(id) {
     this.records.delete(id);
   }
 
+  /**
+   * @param {number} id
+   * @param {number} p
+   */
   getProperty(id, p) {
     const r = this.get(id);
     return r && p >= 0 && p < PROPS ? r.props[p] : 0;
   }
 
+  /**
+   * @param {number} id
+   * @param {number} p
+   * @param {number} v
+   */
   setProperty(id, p, v) {
     const r = this.get(id);
     if (r && p >= 0 && p < PROPS) r.props[p] = v;
   }
 }
 
+/**
+ * @param {any} bytes
+ */
 export function parseObject(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const u = (i) => (8 + 4 * i + 4 <= bytes.length ? dv.getInt32(8 + 4 * i, true) : 0);
-  const f = (i) => (8 + 4 * i + 4 <= bytes.length ? dv.getFloat32(8 + 4 * i, true) : 0);
+  const u = (/** @type {number} */ i) => (8 + 4 * i + 4 <= bytes.length ? dv.getInt32(8 + 4 * i, true) : 0);
+  const f = (/** @type {number} */ i) => (8 + 4 * i + 4 <= bytes.length ? dv.getFloat32(8 + 4 * i, true) : 0);
   const count = dv.getUint32(4, true);
   const entries = [];
   const props = new Int32Array(PROPS);

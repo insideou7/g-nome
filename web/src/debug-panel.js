@@ -3,6 +3,7 @@
 // debug.js.
 
 import { CHEATS, DEV_KEYS } from "./debug.js";
+/** @import { Engine } from "./engine.js" */
 
 const CSS = `
 .dbg { position: absolute; left: 18.5%; top: 6%; width: 65%; height: 78%; background: #000; color: #0f0;
@@ -25,6 +26,13 @@ const CSS = `
   padding: 1px 4px; pointer-events: none; display: none; }
 `;
 
+/**
+ * @template {keyof HTMLElementTagNameMap} K
+ * @param {K} tag
+ * @param {Record<string, any>} [attrs]
+ * @param {...any} kids
+ * @returns {HTMLElementTagNameMap[K]}
+ */
 function el(tag, attrs = {}, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -36,6 +44,10 @@ function el(tag, attrs = {}, ...kids) {
   return e;
 }
 
+/**
+ * @param {string} key
+ * @param {number | boolean} fallback
+ */
 function load(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback;
@@ -43,6 +55,10 @@ function load(key, fallback) {
     return fallback;
   }
 }
+/**
+ * @param {string} key
+ * @param {number} v
+ */
 function save(key, v) {
   try {
     localStorage.setItem(key, JSON.stringify(v));
@@ -51,6 +67,11 @@ function save(key, v) {
 
 export class DebugPanel {
   // stage: the element around the canvas (position: relative)
+  /**
+   * @param {Engine} engine
+   * @param {any} stage
+   * @param {any} canvas
+   */
   constructor(engine, stage, canvas) {
     this.engine = engine;
     this.canvas = canvas;
@@ -60,6 +81,7 @@ export class DebugPanel {
     this.root = el("div", { class: "dbg" });
     stage.append(this.fps, this.root);
     this.showFps = load("g-nome.debug.fps", false);
+    /** @type {any} */
     this.frames = [];
     this.fps.style.display = this.showFps ? "block" : "none";
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
@@ -71,16 +93,23 @@ export class DebugPanel {
   }
 
   // A new engine after a restart.
+  /**
+   * @param {Engine} engine
+   */
   attach(engine) {
     this.close();
     this.engine = engine;
     this.debug = engine.debug;
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
     this.debug.onOpen = () => this.open();
+    /** @type {any} */
     this.used = null;
   }
 
   // Called every animation frame with the frame's time.
+  /**
+   * @param {number} t
+   */
   frame(t) {
     if (this.root.classList.contains("open") && !this.debug.shown) this.close();
     if (!this.showFps) return;
@@ -102,7 +131,7 @@ export class DebugPanel {
   async open() {
     const d = this.debug;
     const status = el("div", { class: "status" });
-    const say = (m) => (status.textContent = m);
+    const say = (/** @type {string | null} */ m) => (status.textContent = m);
 
     // Level select
     const mission = el("select", {});

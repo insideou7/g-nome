@@ -8,8 +8,12 @@
 // colours: RenderToBitmap picks one with RwSetTextureFrame.
 import { decodeBitmap } from "../bitmap.js";
 import { bmpName } from "./model.js";
+/** @import { Engine } from "../engine.js" */
 
 export class TextureStore {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.index = null; // upper-case BMP name -> {id, offset, length}
@@ -42,6 +46,9 @@ export class TextureStore {
   // same name can mean different pictures for different models (each level
   // of detail has its own, smaller copies). Pass that resource as `res` to
   // look there first.
+  /**
+   * @param {string} name
+   */
   named(name, res = 0) {
     if (!name) return null;
     if (res) {
@@ -60,6 +67,10 @@ export class TextureStore {
     return t;
   }
 
+  /**
+   * @param {number} res
+   * @param {string} name
+   */
   inResource(res, name) {
     const key = `${res}:${name}`;
     if (this.byName.has(key)) return this.byName.get(key);
@@ -78,6 +89,9 @@ export class TextureStore {
   }
 
   // Texture from a type 1 bitmap resource.
+  /**
+   * @param {number} id
+   */
   resource(id) {
     let t = this.byRes.get(id);
     if (!t) {
@@ -88,6 +102,10 @@ export class TextureStore {
   }
 }
 
+/**
+ * @param {string} name
+ * @param {any} bm
+ */
 function makeTexture(name, bm) {
   const { width, height, pixels } = bm;
   const frames = height > width && height % width === 0 ? height / width : 1;
@@ -96,6 +114,9 @@ function makeTexture(name, bm) {
 
 // [{path, offset, length}] for the bitmaps in a type 2 resource. Resources
 // that are not texture lists give [].
+/**
+ * @param {Uint8Array} data
+ */
 export function textureRecords(data) {
   const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
   const out = [];

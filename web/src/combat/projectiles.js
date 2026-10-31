@@ -38,15 +38,19 @@ export const P = {
 const FLAMER = 304; // class whose texture cycles while it flies
 const GUIDED = 7; // weapon kind the player steers (camera rides it)
 
+/**
+ * @param {any} host
+ * @returns {Externs}
+ */
 export function projectileExterns(host) {
-  const prop = (id, n) => host.prop(id, n);
-  const cb = (table, n) => host.word(table, n);
+  const prop = (/** @type {number} */ id, /** @type {number} */ n) => host.prop(id, n);
+  const cb = (/** @type {number} */ table, /** @type {number} */ n) => host.word(table, n);
 
   // FUN_1001ab5c and UpdateCollideCheck (0x100182d0), used only until the
   // battlefield's collision code provides UpdateCollideCheck: the nearest
   // object in `list` whose octagonal x/z distance is under the two radii
   // plus `ahead` (script units).
-  const collideCheck = (id, list, ahead, ignore) => {
+  const collideCheck = (/** @type {number} */ id, /** @type {number} */ list, /** @type {number} */ ahead, /** @type {any} */ ignore) => {
     const o = host.obj(id);
     const ids = list ? listItems(host, list) : [];
     let best = 64000, hit = 0;
@@ -202,6 +206,10 @@ export function projectileExterns(host) {
 }
 
 // The elements of a script list (ListCreate id).
+/**
+ * @param {any} host
+ * @param {any} list
+ */
 export function listItems(host, list) {
   const len = host.extern("ListLength"), get = host.extern("ListGetElem");
   const n = len(list);
@@ -212,6 +220,11 @@ export function listItems(host, list) {
 
 // FUN_1001e3b9: where the segment a -> b crosses the polygon's edges in x/z
 // (the crossing nearest b, where the shot came from), or null.
+/**
+ * @param {any} verts
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 function crossing(verts, a, b) {
   let best = null, bestT = -1;
   for (let i = 0; i < verts.length; i++) {

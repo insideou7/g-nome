@@ -2,7 +2,9 @@
 // filled in as they are reversed. Unimplemented ones log once and continue.
 
 import { STATEMENT_NAMES } from "./names.js";
+/** @import { VM } from "./vm.js" */
 
+/** @type {Record<number, number>} */
 export const FIXED = {
   0x02: 2, 0x04: 8, 0x0b: 0x1a, 0x0d: 8, 0x0e: 0x2e, 0x10: 0x26, 0x11: 0x14,
   0x14: 8, 0x17: 0x20, 0x1a: 0xc, 0xca: 0xc, 0x1b: 4, 0x1c: 0xc, 0x1e: 0xc,
@@ -21,19 +23,28 @@ export const FIXED = {
 
 // Register a stub for every fixed-size statement, then the real handlers.
 // `handlers`: op -> fn(vm, b, dv, pos) returning ok (1/0) or undefined.
+/**
+ * @param {VM} vm
+ * @param {any} handlers
+ */
 export function installStatements(vm, handlers) {
   for (const [k, size] of Object.entries(FIXED)) {
     const op = Number(k);
     const h = handlers[op];
     vm.statements.set(op, h
-      ? (vm, b, dv, pos) => ({ len: size, ok: h(vm, b, dv, pos) === 0 ? 0 : 1 })
-      : (vm, b, dv, pos) => {
+      ? (/** @type {VM} */ vm, /** @type {any} */ b, /** @type {DataView} */ dv, /** @type {any} */ pos) => ({ len: size, ok: h(vm, b, dv, pos) === 0 ? 0 : 1 })
+      : (/** @type {VM} */ vm, /** @type {any} */ b, /** @type {DataView} */ dv, /** @type {number} */ pos) => {
           vm.noteUnknown("statement", `0x${op.toString(16)} ${STATEMENT_NAMES[op] || "?"} ${hex(b, pos + 2, pos + size)}`);
           return { len: size, ok: 1 };
         });
   }
 }
 
+/**
+ * @param {any} b
+ * @param {number} s
+ * @param {number} e
+ */
 export function hex(b, s, e) {
   let out = [];
   for (let i = s; i < e; i++) out.push(b[i].toString(16).padStart(2, "0"));
@@ -41,6 +52,11 @@ export function hex(b, s, e) {
 }
 
 // Length of the statement at p (0x1001ea4b).
+/**
+ * @param {Uint8Array} b
+ * @param {DataView} dv
+ * @param {number} p
+ */
 export function stmtLength(b, dv, p) {
   const op = dv.getUint16(p, true);
   switch (op) {
