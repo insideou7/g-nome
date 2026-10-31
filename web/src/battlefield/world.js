@@ -107,6 +107,7 @@ export class World {
     this.objects = new Map(); // id -> WorldObject, in AddObject order
     this.capacity = 0; // AllocObjects
     this.camera = new BattleCamera();
+    this.camera.viewDistance = engine.viewDistance ?? 1;
     this.time = 0; // simulation clock, ms
     this.acc = 0; // ms not yet simulated
     this.alpha = 0; // how far drawing is into the current tick, 0..1
@@ -170,7 +171,7 @@ export class World {
     const list = o.behaviours;
     if (!list?.length) return;
     const cam = this.cameraPose(1).pos;
-    const d = Math.hypot(o.pos[0] - cam[0], o.pos[1] - cam[1], o.pos[2] - cam[2]) / this.camera.far;
+    const d = Math.hypot(o.pos[0] - cam[0], o.pos[1] - cam[1], o.pos[2] - cam[2]) / this.camera.drawFar;
     for (let i = list.length - 1; i >= 0; i--) {
       const b = list[i];
       if ((b.kind === 4 || b.kind === 5) && b.min <= d && d <= b.max) {
@@ -285,7 +286,7 @@ export class World {
     if (!list || list.length < 2) return;
     const cam = this.cameraPose(1).pos;
     let dx = Math.abs(o.pos[0] - cam[0]), dz = Math.abs(o.pos[2] - cam[2]);
-    const d = (dx + dz - Math.min(dx, dz) / 2) / this.camera.far;
+    const d = (dx + dz - Math.min(dx, dz) / 2) / this.camera.drawFar;
     const cur = o.lod && list[o.lod];
     let chosen = !!(cur && cur.min <= d && d <= cur.max);
     for (let i = list.length - 1; i > 0; i--) {
