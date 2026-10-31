@@ -35,6 +35,9 @@ export const MSG = {
   QUIT: 0x10,
 };
 
+// Scripts use at most 29 locals (L0-L28).
+const MAX_LOCALS = 32;
+
 export class Engine {
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
   // opts: { log, trace, display, audio }
@@ -221,9 +224,17 @@ export class Engine {
     this.run(this.bin.entryScript);
   }
 
+  // From inside a running script (an extern calling back into scripts) the
+  // new frame goes below the caller's locals, and the caller's result is
+  // kept, as statement-level calls do.
   callScript(id, args) {
+    const vm = this.vm;
+    const nested = vm.depth > 0;
+    const savedRet = vm.retval;
     try {
-      return this.vm.callScript(id, 0, args);
+      const ok = vm.callScript(id, nested ? MAX_LOCALS : 0, args);
+      if (nested) vm.retval = savedRet;
+      return ok;
     } catch (e) {
       this.log(`script ${id} failed: ${e.message}`);
       return 0;
