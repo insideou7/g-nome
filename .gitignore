@@ -11,3 +11,6 @@ re-output/
 # Output of tools/gnome_extract.py (derived from game assets)
 extracted/
 __pycache__/
+
+# npm (web/package.json: TypeScript for type checking)
+node_modules/

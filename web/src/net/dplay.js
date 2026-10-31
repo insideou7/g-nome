@@ -31,7 +31,8 @@ const TIMEOUT_MS = 6000; // a member silent this long has gone
 const SESSION_TTL_MS = 5000; // forget sessions not advertised for this long
 
 export class DirectPlay {
-  constructor(bus, { now = () => Date.now(), random = Math.random, log = () => {} } = {}) {
+  /** @param {any} bus @param {{ now?: () => number, random?: () => number, log?: (msg: string) => void }} [opts] */
+  constructor(bus, { now = () => Date.now(), random = Math.random, log = (msg) => {} } = {}) {
     this.bus = bus;
     this.now = now;
     this.random = random;

@@ -57,6 +57,7 @@ export class VM {
     this.scriptCache = new Map();
     this.steps = 0;
     this.maxSteps = opts.maxSteps || 2e6; // per top-level run
+    /** @type {any} */ this.engine; // set by Engine.load
     for (const [id, v] of bin.varInit) this.setGlobal(id, v);
   }
 
@@ -238,7 +239,7 @@ export class VM {
           const v = dv.getInt32(pos + 10 + 4 * i, true);
           args.push(mask & (1 << i) ? this.getVar(v >>> 0) : v);
         }
-        ok = this.callScript(script, nlocals, args, false);
+        ok = this.callScript(script, nlocals, args);
         break;
       }
       default: {

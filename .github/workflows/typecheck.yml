@@ -1,0 +1,30 @@
+# Type check the browser engine (web/src): plain JavaScript with JSDoc,
+# checked by TypeScript without emitting anything (web/tsconfig.json).
+name: Type check web engine
+
+on:
+  pull_request:
+    paths: [web/**, .github/workflows/typecheck.yml]
+  push:
+    branches: [main]
+    paths: [web/**, .github/workflows/typecheck.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck

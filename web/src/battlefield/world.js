@@ -114,6 +114,7 @@ export class World {
     this.onlyMoved = 0; // Init3D's last argument: redraw only when the camera object moved
     this.view = new BattleView(this);
     this.tickListeners = new Set();
+    /** @type {import("./controls.js").Controls} */ this.controls; // set by battlefieldExterns
   }
 
   // Init3D(x, y, w, h, ?, onlyMoved)

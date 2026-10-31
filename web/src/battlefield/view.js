@@ -16,6 +16,7 @@ export class BattleView {
     this.handles = new Map(); // object id -> scene handle
     this.scene = null;
     this.backdropCache = new Map();
+    /** @type {any} */ this.camera; // created on first draw
   }
 
   get r3d() {

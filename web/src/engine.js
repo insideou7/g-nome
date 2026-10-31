@@ -20,6 +20,7 @@ import { VolumePanel } from "./volume-panel.js";
 export class Ini {
   constructor(data = {}) {
     this.data = data;
+    /** @type {((data: object) => void) | undefined} */ this.onChange;
   }
   get(section, key) {
     return this.data[section.toLowerCase()]?.[key.toLowerCase()];
@@ -85,6 +86,12 @@ export class Engine {
     this.music = new CdMusic(this);
     this.volumes = new VolumePanel(this); // OPTIONS > SOUND sliders
     if (this.display) this.display.overlay = (ctx, fade) => this.volumes.draw(ctx, fade);
+    // Set later (type declarations only): by installPlugins, battlefieldExterns
+    // and the browser shell (main.js).
+    /** @type {any[]} */ this.plugins;
+    /** @type {import("./battlefield/world.js").World | undefined} */ this.world;
+    /** @type {((msg: number, wparam: any, lparam: any) => void) | undefined} */ this.onMessage;
+    /** @type {((cursor: any) => void) | undefined} */ this.onCursor; // a peCursors() cursor, "default" or null
   }
 
   // Run one statement outside any script (sprite queue record 21, type 14
@@ -183,7 +190,7 @@ export class Engine {
   mouseMove(cx, cy) {
     this.setMousePos(cx, cy);
     this.debug.mouseMove(cx, cy);
-    if (this.volumes.mouseMove(cx, cy)) return;
+    if (this.volumes.mouseMove(cx)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     let hit = -1;
     for (let i = this.hoverRects.length - 1; i >= 0; i--) {
@@ -246,6 +253,7 @@ export class Engine {
     if (this.display) this.display.setPalette(this.palette);
   }
 
+  /** @param {number} msg @param {any} [wparam] @param {any} [lparam] */
   post(msg, wparam = 0, lparam = 0) {
     this.queue.push({ msg, wparam, lparam });
   }

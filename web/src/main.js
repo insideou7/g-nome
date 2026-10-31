@@ -6,6 +6,7 @@ import { vkFromEvent } from "./input.js";
 import { DebugPanel } from "./debug-panel.js";
 import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberFolder, rememberedFolder, forgetFolder } from "./gamefiles.js";
 
+/** @type {(id: string) => any} */
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
 function log(m) {
@@ -81,13 +82,15 @@ $("pick-folder").addEventListener("click", async () => {
 // (Each input is cleared so picking the same thing again after an error
 // still fires a change.)
 $("pick-dir").addEventListener("change", (ev) => {
-  const list = [...ev.target.files];
-  ev.target.value = "";
+  const input = /** @type {HTMLInputElement} */ (ev.target);
+  const list = [...input.files];
+  input.value = "";
   open(async () => fromFileList(list));
 });
 $("pick-zip").addEventListener("change", (ev) => {
-  const f = ev.target.files[0];
-  ev.target.value = "";
+  const input = /** @type {HTMLInputElement} */ (ev.target);
+  const f = input.files[0];
+  input.value = "";
   if (f) open(() => fromZip(f));
 });
 
@@ -190,7 +193,9 @@ async function start(rawFiles) {
   };
   const canvas = $("screen");
   const cursorCss = new Map();
-  let engine = null, audio = null, panel = null;
+  /** @type {Engine} */
+  let engine = null;
+  let audio = null, panel = null;
 
   // A fresh engine on the same files and screen. Runs at start, and again
   // whenever the game quits (EXIT > Yes, the end of the campaign): the
