@@ -17,3 +17,9 @@ Setup, the Ghidra backend and troubleshooting are in
 - Commit findings, notes, file-format specs and reimplementation code instead.
 - Before native analysis, have the agent call REA's `binary_session` with `{}`
   and check `result.tool_availability` to see which engines are ready.
+
+## Findings
+
+- [docs/rtlib32-engine.md](docs/rtlib32-engine.md): how RTLIB32.DLL loads the
+  `.R32` plugins and runs the script bytecode in `G-NOME.BIN`.
+- `tools/r32script.py`: script disassembler for `.BIN` files.
