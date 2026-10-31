@@ -225,6 +225,7 @@ async function start(files) {
   canvas.addEventListener("pointerdown", (e) => {
     audio.resume();
     canvas.focus();
+    canvas.setPointerCapture?.(e.pointerId); // keep slider drags going outside the canvas
     engine.mouseDown(...pos(e), e.button);
   });
   canvas.addEventListener("pointerup", (e) => engine.mouseUp(...pos(e), e.button));

@@ -90,6 +90,10 @@ Design choices:
    - [x] main menu, GAME submenu, credits movie
    - [x] all five submenus; OPTIONS screens (key mapping, difficulty,
      sound, detail); NETWORK reports no providers (`netgn` stub)
+   - [x] OPTIONS > SOUND volume sliders for music and SFX/Dialogue (a port
+     addition: the original only has On/Off), and CD music from ripped
+     track files when the player has them (`src/music.js`,
+     `src/volume-panel.js`)
    - [x] NEW GAME: campaign briefing (map, objectives), training and
      mission lists. The unit preview beside the map needs
      `render.RenderToBitmap`, so it waits for milestone 3
