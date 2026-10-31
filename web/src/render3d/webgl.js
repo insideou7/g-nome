@@ -2,7 +2,7 @@
 // an offscreen canvas the battlefield view composites under the 2D sprites.
 import { mul } from "./math.js";
 import { clumpMatrices } from "./model.js";
-import { DEFAULT_LIGHTS, rgb01 } from "./scene.js";
+import { DEFAULT_LIGHTS, materialLight, rgb01 } from "./scene.js";
 import { FRONT, CULL } from "./soft.js";
 
 const VS = `#version 300 es
@@ -192,14 +192,14 @@ export class WebGLBackend {
       else gl.enable(gl.CULL_FACE);
       gl.uniformMatrix4fv(u.uWorld, false, world);
       const m = g.material;
-      const k = (m.ambient ?? 0.3) + (m.diffuse ?? 0.7) || 1;
-      gl.uniform2f(u.uK, (m.ambient ?? 0.3) / k, (m.diffuse ?? 0.7) / k);
+      const tex = this.renderer.textureOf(m, node);
+      const ml = materialLight(m, !!tex);
+      gl.uniform2f(u.uK, ml.ka, ml.kd);
       gl.uniform3fv(u.uColor, m.color || [1, 1, 1]);
       gl.uniform1i(u.uTwoSided, two || !CULL ? 1 : 0);
       gl.uniform1f(u.uAlpha, alpha);
-      const tex = this.renderer.textureOf(m, node);
       gl.uniform1i(u.uTextured, tex ? 1 : 0);
-      gl.uniform1i(u.uUnlit, tex && m.textureModes !== undefined && !(m.textureModes & 1) ? 1 : 0);
+      gl.uniform1i(u.uUnlit, ml.unlit ? 1 : 0);
       if (tex) {
         gl.bindTexture(gl.TEXTURE_2D, this.texture(tex));
         gl.uniform2f(u.uFrame, Math.min(node.textureFrame | 0, tex.frames - 1), tex.frames);

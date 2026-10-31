@@ -114,6 +114,21 @@ export function rgb01(c) {
   return c.some((v) => v > 1) ? c.map((v) => v / 255) : c;
 }
 
+// How a material takes light: ambient and diffuse weights (normalised to
+// sum to 1) and whether a texture draws at full brightness instead.
+// A texture without the TextureModes lit bit is unlit. So is a texture on
+// a surface with no ambient and no diffuse light (Surface 0 0 0): the far
+// ground tiles (MPRT 2400, 2404, 2408, 2412 and the other environments'
+// equivalents) have that surface and no TextureModes, while their near
+// versions have the same surface with TextureModes 2 (unlit). Lit, they
+// would be black, which made a black band at the horizon of every mission.
+export function materialLight(mat, textured) {
+  const a = mat.ambient ?? 0.3, d = mat.diffuse ?? 0.7;
+  const unlit = !!textured && (mat.textureModes !== undefined ? !(mat.textureModes & 1) : a + d <= 0);
+  const k = a + d || 1;
+  return { unlit, ka: a / k, kd: d / k };
+}
+
 // Lights used when a scene has none.
 export const DEFAULT_LIGHTS = [
   { type: "ambient", color: [0.8, 0.8, 0.8] },

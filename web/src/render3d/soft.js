@@ -4,7 +4,7 @@
 // flat shading, perspective-correct textures, a z-buffer.
 import { mul } from "./math.js";
 import { clumpMatrices } from "./model.js";
-import { DEFAULT_LIGHTS, rgb01 } from "./scene.js";
+import { DEFAULT_LIGHTS, materialLight, rgb01 } from "./scene.js";
 
 // Front faces wind this way in screen space (+1 or -1). Checked by eye on
 // the unit models: with the other sign the mechs render inside out.
@@ -72,10 +72,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
         const texel = tex ? rgbaOf(tex) : null;
         const alpha = (mat.opacity ?? 1) * clumpAlpha;
         if (alpha <= 0.01) continue;
-        const k = (mat.ambient ?? 0.3) + (mat.diffuse ?? 0.7) || 1;
-        const ka = (mat.ambient ?? 0.3) / k, kd = (mat.diffuse ?? 0.7) / k;
-        // A texture without the lit mode bit draws at full brightness.
-        const unlit = !!tex && mat.textureModes !== undefined && !(mat.textureModes & 1);
+        const { unlit, ka, kd } = materialLight(mat, !!tex);
         for (let t = g.start; t < g.start + g.count; t += 3) {
           // Flat lighting from the face normal in world space.
           const nx0 = N[t * 3], ny0 = N[t * 3 + 1], nz0 = N[t * 3 + 2];

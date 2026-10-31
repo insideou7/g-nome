@@ -61,8 +61,10 @@ export class BattleView {
       const d = sub(p.pos, pose.pos);
       h.setTransform({
         matrix: modelMatrix(p.basis, p.pos),
-        // Flag 0x80 (ObjectSetScene) only draws the model in its own scene.
-        visible: o.visible,
+        // FUN_10006446 skips objects with flag 0x100 (ObjectSetState 1: the
+        // LOD scripts hide the player's own unit this way) or 0x400. Flag
+        // 0x80 (ObjectSetScene) only draws the model in its own scene.
+        visible: o.visible && !(r3d.objects.get(o.id)?.flags & 0x500),
         level: o.level,
         depth: o.level >= 0,
         distance: dot(d, d),
@@ -78,11 +80,12 @@ export class BattleView {
       right: pose.right,
       viewwindow: cam.viewwindow,
       near: cam.near,
-      far: cam.far,
+      far: cam.drawFar,
       // RwSetSceneDepthCueDistance: the cue runs over the last `depth` units
       // before the far plane (so the moon's depth of 0.05 means no fog).
-      // render3d's fog runs linearly from `depth` to the far plane.
-      fog: cam.fog && { depth: Math.max(cam.near, cam.far - cam.fog.depth), color: cam.fog.color },
+      // render3d's fog runs linearly from `depth` to the far plane. With a
+      // longer view distance the cue keeps its share of the distance.
+      fog: cam.fog && { depth: Math.max(cam.near, cam.drawFar - cam.fog.depth * cam.viewDistance), color: cam.fog.color },
       background: cam.background,
       backdrop: this.backdrop(pose, vp),
     });

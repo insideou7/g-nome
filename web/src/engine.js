@@ -43,6 +43,7 @@ export const G_MOUSE_Y = 5006;
 
 // Scripts use at most 29 locals (L0-L28).
 const MAX_LOCALS = 32;
+export const VIEW_DISTANCE = 3;
 
 export class Engine {
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
@@ -53,6 +54,10 @@ export class Engine {
     this.files = files;
     this.log = opts.log || console.log;
     this.traceOn = !!opts.trace;
+    // Battlefield draw distance as a multiple of the scripts' far plane
+    // (BattleCamera.viewDistance). 1 is the original game; the default
+    // keeps the ground on screen out to the horizon.
+    this.viewDistance = opts.viewDistance ?? VIEW_DISTANCE;
     this.display = opts.display || null; // see display.js
     this.audio = opts.audio || null;
     this.netOptions = opts.net || null;

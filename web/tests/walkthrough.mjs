@@ -401,6 +401,9 @@ const SECTIONS = {
     check(!!w.camera.attach, "the camera rides on the player's unit");
     const view = p.region(...VIEWPORT);
     check(view.colours > 30 && view.lit > view.area * 0.9, "the 3D view draws sky and ground", JSON.stringify(view));
+    // The far ground tiles once drew lit with Surface 0 0 0, which left a
+    // black band (about 900 pixels) between the ground and the backdrop.
+    check(view.area - view.lit < 100, "no black band at the horizon", `${view.area - view.lit} black pixels`);
     check(p.region(0, 300, 640, 480).colours > 50, "the cockpit is drawn over it");
     check(p.texts().length > 0, "the HUD shows its readouts", JSON.stringify(p.texts()));
     p.shot("battlefield");
