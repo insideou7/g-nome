@@ -169,15 +169,11 @@ sprites.
   and the scripts then mirror the sprite vertically (sprite message 7, 0, 1).
   The extern writes rows bottom up to match.
 
-## File externs (`web/src/plugins/files.js`)
+## File externs
 
-The LAB screens (VEHICLES, STRUCTURES, PERSONNEL, WEAPONS) read their text
-from `LABTEXT.DAT` with `FileOpen`, `FileSeek`, `FileGetC` and `FileRead`, so
-those are implemented too (`0x1000f3d0` and on, Win32 `mmio` calls in the
-original). `FileGetC/S/L` read 1, 2 or 4 byte values into consecutive
-script variables; `FileRead` reads up to 255 bytes into a string slot.
-`LABTEXT.DAT`, `TRIVIA.IDX` and `TRIVIA.DAT` are loaded at startup so reads
-stay synchronous. Written files live in memory for the session only.
+The LAB screens read their text from `LABTEXT.DAT` through RENDER.R32's
+file externs. Those now live in `web/src/anim/files.js` (from the animation
+work, with saves kept in localStorage).
 
 ## Checking it
 

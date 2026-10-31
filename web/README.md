@@ -51,6 +51,10 @@ NODE_PATH=$(npm root -g) node web/tools/shot.mjs 15 /tmp/boot 12:Escape
 # ...of mission 1
 NODE_PATH=$(npm root -g) node web/tools/shot.mjs 12 /tmp/m1 '?mission=1' 2:Escape 3:Escape 4:Escape
 
+# Check the FRME/OB3D decoders and the animation system on a real unit
+node web/tests/anim-check.mjs game/g-nome/G-NOME
+node web/tests/motion-check.mjs
+
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK
 ```

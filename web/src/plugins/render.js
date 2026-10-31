@@ -4,7 +4,12 @@
 import { decodeSound } from "../sound.js";
 import { battlefieldExterns } from "../battlefield/externs.js";
 import { install3D } from "../render3d/externs.js";
-import { installFileExterns } from "./files.js";
+import { AnimationSystem, animationExterns } from "../anim/animation.js";
+import { listExterns } from "../anim/lists.js";
+import { ScriptFiles } from "../anim/files.js";
+import { Hotspots } from "../anim/hotspots.js";
+import { motionExterns } from "../anim/motion.js";
+import { taskExterns } from "../anim/tasks.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -14,7 +19,16 @@ export class RenderPlugin {
     this.cache = new Map();
     const self = this;
     const ok = () => 1;
+    this.anim = engine.animation = new AnimationSystem(engine);
+    this.files = new ScriptFiles(engine);
+    this.hotspots = engine.hotspots = new Hotspots(engine);
     this.externs = {
+      ...this.hotspots.externs(),
+      ...animationExterns(this.anim),
+      ...listExterns(engine),
+      ...this.files.externs(),
+      ...motionExterns(engine),
+      ...taskExterns(engine),
       // Sound. Scripts identify a playing sound by its resource id.
       DSInitWavePlay: ok,
       DSDeInitWavePlay() {
@@ -46,7 +60,6 @@ export class RenderPlugin {
     };
     // Objects, models, previews: web/src/render3d (docs/render3d.md).
     this.r3d = install3D(this);
-    this.files = installFileExterns(this);
   }
 
   // Once per display frame: run the battlefield's fixed ticks, then draw
@@ -62,6 +75,11 @@ export class RenderPlugin {
       e.dirty = true;
       e.display.dirty = true;
     }
+  }
+
+  // Called by Engine.init before the game starts.
+  async preload() {
+    await this.files.preload(this.engine.files);
   }
 
   // DeleteCopy (builtin 0x22) of an object in the scene removes it.

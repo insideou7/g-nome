@@ -8,7 +8,10 @@ understand:
 
   * sounds (type 12) -> .wav, decoding 7th Level ADPCM
   * bitmaps (type 1) and textures (type 2) -> .png
-  * 3D models (types 7 and 8) -> .obj + .mtl, textured with those PNGs
+  * 3D models (types 7 and 8) -> .obj + .mtl, textured with those PNGs, and
+    .gltf with every FRME animation (type 4) made for the model. Both are
+    posed in the model's rest animation, since some models only assemble
+    correctly once posed (see docs/formats/animation.md)
   * the other sections of G-NOME.BIN (string tables, palette, script) -> raw
 
 It also writes manifest.csv, one row per resource. The format notes are in
@@ -33,6 +36,8 @@ import sys
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+
+import gnome3d
 
 # ---------------------------------------------------------------------------
 # G-NOME.BIN layout
@@ -178,9 +183,7 @@ def texture_records(data: bytes) -> list:
     return out if p == len(data) else []
 
 
-def bmp_name(path: str) -> str:
-    """\\7thlevel\\...\\FOO.BMP -> FOO.BMP"""
-    return path.replace("\\", "/").split("/")[-1]
+bmp_name = gnome3d.bmp_name  # \\7thlevel\\...\\FOO.BMP -> FOO.BMP
 
 
 def decode_rle(bm: Bitmap) -> bytearray:
@@ -411,173 +414,6 @@ def sound_to_wav(data: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# 3D models (types 7 MODL and 8 MPRT)
-# ---------------------------------------------------------------------------
-
-# After the 4 byte tag and a u32, a model is a stream of u32 opcodes, each
-# followed by fixed arguments. It mirrors RenderWare's RWX script commands.
-# Argument kinds: f float, i int, P count-prefixed int list, s texture path
-# (only present when the preceding int is not 0; NUL-terminated, padded to 4).
-MODEL_OPS = {
-    0x1A: ("modelbegin", ""), 0x1B: ("modelend", ""),
-    0x06: ("clumpbegin", ""), 0x07: ("clumpend", ""),
-    0x35: ("transformbegin", ""), 0x36: ("transformend", ""),
-    0x34: ("transform", "f" * 16),
-    0x3B: ("vertex", "fff"), 0x3C: ("vertexext", "fff"),
-    0x12: ("uv", "ff"), 0x14: ("vertexend", ""),
-    0x39: ("triangle", "iii"), 0x23: ("quad", "iiii"), 0x1D: ("polygon", "P"),
-    0x2C: ("color", "fff"), 0x08: ("surface", "fff"), 0x1C: ("opacity", "f"),
-    0x2E: ("texture", "is"),
-    # Int settings whose meaning is not known yet.
-    0x04: ("op04", "i"), 0x0D: ("op0d", "i"), 0x0F: ("op0f", "i"),
-    0x16: ("op16", "i"), 0x19: ("op19", "i"), 0x2D: ("op2d", "i"),
-    0x32: ("op32", "i"),
-}
-
-
-def model_ops(data: bytes) -> list:
-    """Split a MODL/MPRT resource into (name, args) tuples."""
-    p, ops = 8, []
-    while p < len(data):
-        (op,) = struct.unpack_from("<I", data, p)
-        p += 4
-        if op not in MODEL_OPS:
-            raise ValueError(f"unknown model opcode {op:#x} at {p - 4:#x}")
-        name, kinds = MODEL_OPS[op]
-        args = []
-        for k in kinds:
-            if k == "f":
-                args.append(struct.unpack_from("<f", data, p)[0])
-                p += 4
-            elif k == "i":
-                args.append(struct.unpack_from("<i", data, p)[0])
-                p += 4
-            elif k == "P":
-                (n,) = struct.unpack_from("<I", data, p)
-                args.append(list(struct.unpack_from(f"<{n}I", data, p + 4)))
-                p += 4 + 4 * n
-            elif k == "s" and args[-1]:
-                z = data.index(b"\0", p)
-                args.append(data[p:z].decode("latin-1"))
-                p = (z + 4) & ~3
-        ops.append((name, args))
-    if p != len(data):
-        raise ValueError("model stream overruns the resource")
-    return ops
-
-
-def _matmul(a: list, b: list) -> list:
-    return [sum(a[r * 4 + k] * b[k * 4 + c] for k in range(4))
-            for r in range(4) for c in range(4)]
-
-
-IDENTITY = [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0]
-
-
-def model_to_obj(data: bytes, name: str, texture_pngs: dict) -> tuple:
-    """Convert a model to Wavefront OBJ and MTL text.
-
-    Each clump has its own 1-based vertex list. A transform (a 4x4 matrix
-    for row vectors, translation in the last row) applies to the clumps
-    that follow it, inside the parent clump's space. texture_pngs maps an
-    upper-case .BMP file name to a PNG path for the material file.
-    """
-    obj = [f"# {name}, converted by tools/gnome_extract.py", f"mtllib {name}.mtl"]
-    mtl = [f"# materials for {name}"]
-    materials = {}
-    color, opacity, texture = (0.8, 0.8, 0.8), 1.0, ""
-    current_mtl = None
-    ctm, ctm_stack = IDENTITY, []
-    world, world_stack = IDENTITY, []
-    verts, vert_stack = [], []
-    nv = nvt = 0
-    clump_no = 0
-    pending = None  # [x, y, z, uv or None] until the vertex is complete
-
-    def flush_vertex():
-        nonlocal pending, nv, nvt
-        if pending is None:
-            return
-        x, y, z, uv = pending
-        m = _matmul(ctm, world)
-        wx = x * m[0] + y * m[4] + z * m[8] + m[12]
-        wy = x * m[1] + y * m[5] + z * m[9] + m[13]
-        wz = x * m[2] + y * m[6] + z * m[10] + m[14]
-        obj.append(f"v {wx:.6f} {wy:.6f} {wz:.6f}")
-        nv += 1
-        vt = None
-        if uv is not None:
-            obj.append(f"vt {uv[0]:.6f} {1 - uv[1]:.6f}")
-            nvt += 1
-            vt = nvt
-        verts.append((nv, vt))
-        pending = None
-
-    def use_material():
-        nonlocal current_mtl
-        key = (color, opacity, texture)
-        if key not in materials:
-            mname = f"mat{len(materials)}"
-            materials[key] = mname
-            mtl.extend([f"newmtl {mname}", "Kd %.4f %.4f %.4f" % color,
-                        f"d {opacity:.4f}"])
-            if texture:
-                png = texture_pngs.get(texture.upper())
-                mtl.append(f"map_Kd {png}" if png else f"# texture {texture} not found")
-        if materials[key] != current_mtl:
-            current_mtl = materials[key]
-            obj.append(f"usemtl {current_mtl}")
-
-    def face(idx: list):
-        flush_vertex()
-        use_material()
-        refs = []
-        for i in idx:
-            if not 1 <= i <= len(verts):
-                raise ValueError(f"face uses vertex {i} of {len(verts)}")
-            v, vt = verts[i - 1]
-            refs.append(f"{v}/{vt}" if vt else str(v))
-        obj.append("f " + " ".join(refs))
-
-    for op, args in model_ops(data):
-        if op in ("vertex", "vertexext"):
-            flush_vertex()
-            pending = [*args, None]
-        elif op == "uv" and pending is not None:
-            pending[3] = args
-        elif op == "vertexend":
-            flush_vertex()
-        elif op == "triangle" or op == "quad":
-            face(args)
-        elif op == "polygon":
-            face(args[0])
-        elif op == "clumpbegin":
-            flush_vertex()
-            world_stack.append(world)
-            vert_stack.append(verts)
-            world, ctm, verts = _matmul(ctm, world), IDENTITY, []
-            clump_no += 1
-            obj.append(f"o clump{clump_no}")
-        elif op == "clumpend":
-            flush_vertex()
-            world, verts = world_stack.pop(), vert_stack.pop()
-        elif op == "transformbegin":
-            ctm_stack.append(ctm)
-        elif op == "transformend":
-            ctm = ctm_stack.pop()
-        elif op == "transform":
-            ctm = list(args)
-        elif op == "color":
-            color = tuple(round(c, 4) for c in args)
-        elif op == "opacity":
-            opacity = round(args[0], 4)
-        elif op == "texture":
-            texture = bmp_name(args[1]) if args[0] else ""
-    flush_vertex()
-    return "\n".join(obj) + "\n", "\n".join(mtl) + "\n"
-
-
-# ---------------------------------------------------------------------------
 # Extraction
 # ---------------------------------------------------------------------------
 
@@ -658,6 +494,9 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
                 texture_pngs.setdefault(name.upper(),
                                         f"../png/texture/{texture_png_name(e, path)}")
 
+    # FRME animations belong to the models stored just before them.
+    animations = gnome3d.find_animations(entries, packs.read)
+
     rows, errors = [], 0
     counts = {}
     for e in entries:
@@ -708,12 +547,25 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
                 row["converted"] = ";".join(done)
             elif e.type in (7, 8) and not raw_only:
                 name = f"{e.index:04d}"
-                obj, mtl = model_to_obj(data, name, texture_pngs)
+                model = gnome3d.parse_model(data)
+                anims = [(f"frme{f:04d}", gnome3d.parse_frme(packs.read(entries[f])))
+                         for f in animations.get(e.index, [])]
+                rest = gnome3d.rest_pose(anims)
+                obj, mtl = gnome3d.model_to_obj(model, name, texture_pngs, rest)
                 rel = Path("obj") / f"{name}.obj"
                 (out / rel).parent.mkdir(parents=True, exist_ok=True)
                 (out / rel).write_text(obj)
                 (out / rel).with_suffix(".mtl").write_text(mtl)
-                row["converted"] = rel.as_posix()
+                grel = Path("gltf") / f"{name}.gltf"
+                (out / grel).parent.mkdir(parents=True, exist_ok=True)
+                (out / grel).write_text(
+                    gnome3d.model_to_gltf(model, name, texture_pngs, anims, rest))
+                row["converted"] = f"{rel.as_posix()};{grel.as_posix()}"
+                if anims:
+                    row["note"] = "animations: " + " ".join(a for a, _ in anims)
+            elif e.type in (9, 10):
+                od = gnome3d.parse_object(data)
+                row["note"] = "properties: " + " ".join(map(str, od.props))
             elif e.type == 12 and not raw_only:
                 rel = Path("wav") / f"{e.index:04d}.wav"
                 (out / rel).parent.mkdir(parents=True, exist_ok=True)
