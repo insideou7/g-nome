@@ -1,10 +1,15 @@
 // Keyboard and mouse: key bindings set by statement 0x6b, click handling.
 
+import { table } from "./builtins.js";
+const SHIFT = 0x10, CTRL = 0x11;
+const KEYMAP_CAPTURE = 6366; // OPTIONS > INTERFACE's capture script
+
 export class Input {
   constructor(engine) {
     this.engine = engine;
     this.keys = new Map(); // key code -> {down, shift, ctrl, shiftCtrl, up, disabled}
     this.captureScript = 0;
+    this.lonelyModifier = 0; // Shift/Ctrl pressed alone during a capture
     this.edit = null; // text being typed into (rt+0x3d5b), see startEdit
   }
 
@@ -79,6 +84,30 @@ export class Input {
     return true;
   }
 
+  // A port addition: Shift or Ctrl bound on its own. The INTERFACE capture
+  // script (6366 -> 6367) skips keys 16 and 17 because the original reads
+  // them as modifiers for Ctrl+key and Shift+key, and its CheckActionState
+  // can't tell them apart from that. Here a lone press and release of one
+  // (nothing else pressed in between) does what 6367 does for a plain key:
+  // name it into the cell (script 6344: list 6928 -> string 13 -> text
+  // G2096), store {device 0, key} in table 6323 at row G2101, mapping G2103,
+  // and close the prompt (script 6368(1)). battlefield/controls.js then
+  // treats the binding as "this key is held".
+  bindModifier(vk) {
+    const e = this.engine, vm = e.vm;
+    if (this.captureScript !== KEYMAP_CAPTURE || !vm.getGlobal(2107)) return;
+    const name = e.statementList(6928)[vk];
+    const keyMap = table(vm, 6323);
+    if (!name || !keyMap) return;
+    e.runStatement(name);
+    e.texts.setText(vm.getGlobal(2096), e.getString(13));
+    const o = vm.getGlobal(2101) * 8 + vm.getGlobal(2103) * 2;
+    keyMap.data[o] = 0;
+    keyMap.data[o + 1] = vk;
+    this.captureScript = 0;
+    e.callScript(6368, [1]);
+  }
+
   // Windows virtual-key code. `repeat`: auto-repeat, which the capture
   // ignores (lParam bit 30).
   keyDown(vk, shift = false, ctrl = false, repeat = false) {
@@ -87,7 +116,10 @@ export class Input {
       return true;
     }
     if (this.captureScript) {
-      if (!repeat) this.captured(ctrl ? 1 : shift ? 2 : 0, vk);
+      if (repeat) return true;
+      // Shift or Ctrl on its own: bound when it is let go (keyUp)
+      this.lonelyModifier = vk === SHIFT || vk === CTRL ? vk : 0;
+      this.captured(ctrl ? 1 : shift ? 2 : 0, vk);
       return true;
     }
     this.engine.world?.controls.keyDown(vk);
@@ -98,6 +130,8 @@ export class Input {
     return !!s;
   }
   keyUp(vk) {
+    if (this.captureScript && vk && vk === this.lonelyModifier) this.bindModifier(vk);
+    this.lonelyModifier = 0;
     this.engine.world?.controls.keyUp(vk);
     const r = this.keys.get(vk);
     if (r && !r.disabled && r.up) this.engine.runLater(r.up, [vk]);
@@ -108,6 +142,7 @@ export class Input {
 // Numpad and punctuation keys go by e.code, so the throttle (numpad + and -)
 // and the twist keys (, and .) work whatever the keyboard layout.
 const CODE_VK = {
+  CapsLock: 0x14, Pause: 0x13, NumLock: 0x90, ScrollLock: 0x91, ContextMenu: 0x5d,
   NumpadAdd: 0x6b, NumpadSubtract: 0x6d, NumpadMultiply: 0x6a, NumpadDivide: 0x6f, NumpadDecimal: 0x6e, NumpadEnter: 0x0d,
   Semicolon: 0xba, Equal: 0xbb, Comma: 0xbc, Minus: 0xbd, Period: 0xbe, Slash: 0xbf, Backquote: 0xc0,
   BracketLeft: 0xdb, Backslash: 0xdc, BracketRight: 0xdd, Quote: 0xde,

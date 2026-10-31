@@ -107,7 +107,8 @@ soldier), a frame rate counter, and the game's own cheat codes. See
 ## Controls
 
 OPTIONS > INTERFACE is the game's own key mapping screen. Click a cell,
-press the key you want (Ctrl and Shift combinations work), then press
+press the key you want (Ctrl and Shift combinations work; Ctrl or Shift
+on its own binds when you let go of it), then press
 Use/Save. The keys are kept in the browser and used in missions. Cells
 outlined in red share their key with another game function that can be
 active at the same time (a browser port addition; the original did not

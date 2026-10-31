@@ -70,6 +70,7 @@ const USE_SAVE = [424, 78];
 const PROMPT_SPRITE = 6400;
 const KEY_MAP = 6323; // the bindings on screen: rows of {action, ?, device, key} x 3
 const HELD_BINDINGS = 2546; // what missions read: {action, device, key} rows
+const VK_CTRL = 0x11;
 const VK_D = 0x44, VK_G = 0x47, VK_W = 0x57; // D and G are free in the default map
 const LAB_PREVIEW = [150, 60, 330, 330]; // the turning model on LAB screens
 const BRIEF_MAP = [130, 40, 330, 240];
@@ -255,6 +256,20 @@ const SECTIONS = {
     await press(p, CELL(ROW.TURN_RIGHT, 0), 10);
     p.key(VK_D);
     await p.wait(10);
+    // Ctrl on its own (a port addition: the original skips Shift and Ctrl).
+    await press(p, CELL(ROW.FIRE2, 2), 10);
+    p.engine.input.keyDown(VK_CTRL, false, true);
+    await p.wait(2);
+    p.engine.input.keyUp(VK_CTRL);
+    await p.wait(10);
+    check(same(binding(p, ROW.FIRE2, 2), [0, VK_CTRL]) && p.texts().includes("CTRL") && !p.engine.input.captureScript, "Ctrl pressed alone binds Ctrl", `${binding(p, ROW.FIRE2, 2)}`);
+    await press(p, CELL(ROW.FIRE2, 1), 10);
+    p.engine.input.keyDown(VK_CTRL, false, true);
+    p.engine.input.keyDown(VK.UP, false, true);
+    p.engine.input.keyUp(VK.UP);
+    p.engine.input.keyUp(VK_CTRL);
+    await p.wait(10);
+    check(same(binding(p, ROW.FIRE2, 1), [1, VK.UP]), "Ctrl+Up still binds Ctrl+Up", `${binding(p, ROW.FIRE2, 1)}`);
     await press(p, USE_SAVE, 30);
     const held = bindRows(p, HELD_BINDINGS);
     check(held.includes(`29/0/${VK_G}`) && held.includes(`1/0/${VK_D}`) && !held.includes("1/5/39"), "Use/Save hands the new keys to the game", held.slice(0, 12).join(" "));
@@ -278,6 +293,14 @@ const SECTIONS = {
     };
     check(!(await turned(VK.RIGHT)), "Right no longer turns the unit");
     check(await turned(VK_D), "D turns the unit right");
+    // Fire Weapon 2 (action 30) is on Ctrl alone now
+    const vm = p2.engine.vm;
+    const fire2 = () => w.controls.check(2544, HELD_BINDINGS, 30, vm.getGlobal(1854) + 2, vm.getGlobal(1857));
+    const idle = fire2();
+    p2.engine.input.keyDown(VK_CTRL, false, true);
+    const heldNow = fire2();
+    p2.engine.input.keyUp(VK_CTRL);
+    check(idle === 0 && heldNow === 1, "holding Ctrl fires weapon 2", `${idle} -> ${heldNow}`);
     finish(p2);
   },
 

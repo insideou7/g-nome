@@ -229,6 +229,14 @@ files in localStorage (`web/src/anim/files.js`). While capturing, mouse
 moves reach the script as `(0, 0)`; after Clear or Cancel it returns 1 to
 the next one, which ends the capture.
 
+Script 6367 ignores keys 16 and 17 (Shift and Ctrl) on their own: the
+original uses them only as modifiers, and its `CheckActionState` wants the
+key without them for device 0. The port adds lone Shift and Ctrl: a press
+and release with nothing in between writes `{0, 16 or 17}` the way 6367
+would (name from list 6928, which has "SHFT" and "CTRL"), and
+`web/src/battlefield/controls.js` counts such a binding as held whenever
+the key is down. Caps Lock (VK 0x14, "Capital") is a plain key.
+
 The port outlines conflicting cells in red (`web/src/key-conflicts.js`):
 the same input (devices 0 and 5 count as one; joysticks are left out) on two
 actions that share a control mode in table 2544 columns 2-5. The default map
