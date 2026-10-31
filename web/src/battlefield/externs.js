@@ -12,6 +12,10 @@ export function battlefieldExterns(engine) {
   const controls = (world.controls = new Controls(engine));
   const vm = () => engine.vm;
   const obj = (id) => world.get(id);
+  // FUN_1001a290. The motion code (web/src/anim/motion.js) sets
+  // engine.spinStep to its version, which first works a pending yaw target
+  // with the acceleration-limited controller; without it, spin at the rates.
+  const spin = (o, dt) => (engine.spinStep ? engine.spinStep(o, dt) : o.spinFor(dt));
   const out = (addr, v) => {
     if (addr) vm().store(addr, Math.trunc(v));
   };
@@ -186,7 +190,7 @@ export function battlefieldExterns(engine) {
       const o = obj(id);
       if (!o) return 0;
       o.move(ms / 1000);
-      o.spinFor(ms / 1000);
+      spin(o, ms / 1000);
       return 1;
     },
     // UpdateTimeStep(id, ms, slot) (0x10011ec1): move forward at the
@@ -202,13 +206,13 @@ export function battlefieldExterns(engine) {
       const anim = engine.animation;
       if (anim?.timeStep) t = anim.timeStep(id, t) ?? t;
       if (t === 0) {
-        o.spinFor(ms / 1000);
+        spin(o, ms / 1000);
         o.timers[slot] = o.speed ? (o.timers[slot] || 0) + ms : 0;
       } else {
         o.vel = scale(o.basis.at, o.speed);
         anim?.syncRate?.(id);
         o.move(Math.abs(t) / 1000);
-        o.spinFor(ms / 1000);
+        spin(o, ms / 1000);
         o.timers[slot] = 0;
       }
       return t;
