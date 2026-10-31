@@ -9,8 +9,31 @@ You need your own copy of the game. Nothing here contains game data.
 ## Play
 
 Serve the repo root with any static web server, open `web/index.html`, and
-choose the folder that holds `G-NOME.BIN` (the `G-NOME` folder on the CD).
-Files are read in the browser and never uploaded.
+load your copy of the game. Files are read in the browser and never
+uploaded. Any of these works:
+
+- **Choose game folder**: the CD, the install folder, or the `G-NOME`
+  folder itself. The engine uses the folder that holds `G-NOME.BIN` and
+  ignores the rest (the CD's demos of other 7th Level games have their own
+  `RTLIB32.DLL`). In Chrome and Edge the folder is remembered, so the next
+  visit shows **Continue with "..."**; the browser asks again for permission
+  to read it.
+- **Open a .zip** of any of those folders. The zip is read in place: each
+  file is inflated when the engine needs it.
+- Drag the folder or the .zip onto the page.
+
+The loaders are in `src/gamefiles.js`; `node web/tests/gamefiles-check.mjs
+[game.zip]` checks them.
+
+## Hosting
+
+`.github/workflows/pages.yml` publishes `web/index.html` and `web/src/` to
+GitHub Pages on every push to `main` that touches them. The published site
+is only the engine's code; the workflow fails if anything that looks like
+game data ends up in it. To turn it on, set **Settings > Pages > Source** to
+**GitHub Actions** (Pages on a private repo needs a paid plan). The site is
+plain static files, so any static host works: publish `web/index.html` and
+`web/src/` together.
 
 ```bash
 python3 -m http.server 8000
@@ -25,7 +48,8 @@ needs the RENDER.R32 reimplementation, which is the next big piece.
 
 During development you can skip the folder picker:
 `http://localhost:8000/web/?game=/game/g-nome/G-NOME/` reads the files over
-HTTP from the repo's git-ignored `game/` folder.
+HTTP from the repo's git-ignored `game/` folder; `?game=<url>.zip` reads a
+zip.
 
 To jump straight into a campaign mission, add `&mission=N` (N is the
 mission number, 1-22): `web/?game=/game/g-nome/G-NOME/&mission=1`. In a

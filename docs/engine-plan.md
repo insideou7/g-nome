@@ -28,7 +28,8 @@ game's own scripts.
 ## Architecture
 
 ```
-web/index.html, src/main.js   browser shell: folder picker, canvas, keys, audio
+web/index.html, src/main.js   browser shell: game picker, canvas, keys, audio
+src/gamefiles.js              game files from a folder, a dropped folder or a .zip
 src/engine.js                 message loop, strings, palette, background, INI
 src/vm.js                     script VM (flat memory, frames, expressions)
 src/stmt-impl.js              fixed-size statement handlers
@@ -139,4 +140,6 @@ a bitmap is drawn centred on its sprite's position plus its own x/y offset.
 
 ## Running it
 
-See [web/README.md](../web/README.md).
+See [web/README.md](../web/README.md). The engine is published as a static
+site by `.github/workflows/pages.yml`; players pick their own game folder
+or .zip and nothing of the game is hosted.

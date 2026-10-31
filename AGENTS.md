@@ -32,4 +32,6 @@ Setup, the Ghidra backend and troubleshooting are in
   task, list, file and hotspot externs. `tools/gnome3d.py` exports models to glTF with their
   animations.
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
-  (scope, architecture, milestones, status).
+  (scope, architecture, milestones, status). It is published to GitHub
+  Pages by `.github/workflows/pages.yml` (code only; players load their
+  own game folder or .zip through `web/src/gamefiles.js`).
