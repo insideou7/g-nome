@@ -1,5 +1,6 @@
 // Boot the engine in Node without a display and report what the scripts hit.
 // Usage: node web/tools/run-headless.mjs game/g-nome/G-NOME [--trace] [--ticks N]
+//   [--mission N] [--world] [--sprites] [--regions] [--click t:x,y] [--key t:vk]
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Engine } from "../src/engine.js";
@@ -20,12 +21,22 @@ const files = {
 const engine = new Engine(files, { log: (m) => console.log(m), trace });
 await engine.init();
 engine.boot();
+// --mission N starts campaign mission N (row of table 6984) at tick 60, the
+// way the briefing's start button does (script 8317).
+const mi = process.argv.indexOf("--mission");
+const mission = mi > 0 ? Number(process.argv[mi + 1]) : 0;
 // --click tick:x,y (repeatable) clicks in screen pixels; --key tick:vk
 const events = [];
 process.argv.forEach((a, i) => {
   if (a === "--click" || a === "--key") events.push([a, process.argv[i + 1]]);
 });
 for (let i = 0; i < ticks && !engine.quit; i++) {
+  if (mission && i === 60) {
+    console.log(`-- start mission ${mission}`);
+    for (const g of [2118, 2119]) engine.vm.setGlobal(g, mission);
+    engine.vm.setGlobal(982, 0);
+    engine.run(8317);
+  }
   for (const [kind, v] of events) {
     const [t, rest] = v.split(":");
     if (Number(t) !== i) continue;
@@ -42,6 +53,15 @@ for (let i = 0; i < ticks && !engine.quit; i++) {
 }
 console.log("\nunimplemented (count):");
 for (const [k, n] of [...engine.vm.unknown].sort((a, b) => b[1] - a[1])) console.log(`  ${n}\t${k}`);
+if (process.argv.includes("--world") && engine.world) {
+  const w = engine.world;
+  const levels = new Map();
+  for (const o of w.objects.values()) levels.set(o.level, (levels.get(o.level) || 0) + 1);
+  console.log(`\nworld: state ${w.state}, ${w.objects.size} objects, levels ${JSON.stringify([...levels])}`);
+  const c = w.camera;
+  console.log(`camera: ${JSON.stringify({ attach: c.attach, near: c.near, far: c.far, fog: c.fog, background: c.background, backdrop: c.backdrop })}`);
+  console.log(`camera pose: ${JSON.stringify(w.cameraPose(1))}`);
+}
 if (process.argv.includes("--sprites")) {
   console.log("\nvisible sprites:");
   for (const s of engine.sprites.visibleSorted()) {

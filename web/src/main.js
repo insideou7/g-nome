@@ -78,6 +78,21 @@ async function start(files) {
   };
   engine.boot();
   window.engine = engine; // for poking at it from the console
+  // Development: ?mission=N starts campaign mission N after the boot, the way
+  // the briefing's start button does (script 8317).
+  const mission = Number(new URLSearchParams(location.search).get("mission"));
+  if (mission) {
+    engine.input.keyDown(0x1b); // skip the opening movie
+    engine.input.keyUp(0x1b);
+    setTimeout(() => {
+      // the real path goes through the briefing, which has already put the
+      // menu away; hide whatever is still up
+      for (const sp of engine.sprites.list.values()) sp.visible = false;
+      for (const g of [2118, 2119]) engine.vm.setGlobal(g, mission);
+      engine.vm.setGlobal(982, 0);
+      engine.run(8317);
+    }, 5000);
+  }
   $("skip").disabled = false;
   $("skip").onclick = () => engine.input.keyDown(0x1b);
   const canvas = $("screen");
@@ -85,7 +100,7 @@ async function start(files) {
   canvas.addEventListener("keydown", (e) => {
     audio.resume();
     const vk = vkFromEvent(e);
-    if (vk && engine.input.keyDown(vk, e.shiftKey, e.ctrlKey)) e.preventDefault();
+    if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey) || engine.world?.shown)) e.preventDefault();
   });
   canvas.addEventListener("keyup", (e) => engine.input.keyUp(vkFromEvent(e)));
   const pos = (e) => {
@@ -97,6 +112,7 @@ async function start(files) {
     canvas.focus();
     engine.mouseDown(...pos(e), e.button);
   });
+  canvas.addEventListener("pointerup", (e) => engine.mouseUp(...pos(e), e.button));
   canvas.addEventListener("pointermove", (e) => engine.mouseMove(...pos(e)));
   let last = performance.now();
   const frame = (t) => {

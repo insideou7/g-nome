@@ -22,6 +22,7 @@ export class Input {
   }
   // Windows virtual-key code.
   keyDown(vk, shift = false, ctrl = false) {
+    this.engine.world?.controls.keyDown(vk);
     const r = this.keys.get(vk);
     if (!r || r.disabled) return false;
     const s = shift && ctrl ? r.shiftCtrl : shift ? r.shift : ctrl ? r.ctrl : r.down;
@@ -29,6 +30,7 @@ export class Input {
     return !!s;
   }
   keyUp(vk) {
+    this.engine.world?.controls.keyUp(vk);
     const r = this.keys.get(vk);
     if (r && !r.disabled && r.up) this.engine.runLater(r.up, [vk]);
   }

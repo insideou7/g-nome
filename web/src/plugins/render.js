@@ -2,6 +2,8 @@
 // input options and hotspots. Only the calls the menus need so far; the 3D
 // externs are stubs that log once (see docs/engine-plan.md, milestone 3).
 import { decodeSound } from "../sound.js";
+import { battlefieldExterns } from "../battlefield/externs.js";
+import { install3D } from "../render3d/externs.js";
 import { AnimationSystem, animationExterns } from "../anim/animation.js";
 import { listExterns } from "../anim/lists.js";
 import { ScriptFiles } from "../anim/files.js";
@@ -52,17 +54,37 @@ export class RenderPlugin {
       },
       DSPauseAudio: ok,
       // Input and modes that need no work in a browser.
-      MouseOnOff: ok,
-      EnableJoystick: ok,
-      MapActionKeys: ok,
       SetPauseScript: ok,
-      Pause3D: ok,
+      // World, camera and view: web/src/battlefield/
+      ...battlefieldExterns(engine),
     };
+    // Objects, models, previews: web/src/render3d (docs/render3d.md).
+    this.r3d = install3D(this);
+  }
+
+  // Once per display frame: run the battlefield's fixed ticks, then draw
+  // the 3D view under the sprites.
+  service(ms) {
+    const e = this.engine, w = e.world;
+    if (!w) return;
+    w.advance(ms);
+    if (!e.display) return;
+    const canvas = w.shown ? w.view.frame() : null;
+    e.display.underlay = canvas ? { canvas, x: w.origin[0], y: w.origin[1] } : null;
+    if (canvas) {
+      e.dirty = true;
+      e.display.dirty = true;
+    }
   }
 
   // Called by Engine.init before the game starts.
   async preload() {
     await this.files.preload(this.engine.files);
+  }
+
+  // DeleteCopy (builtin 0x22) of an object in the scene removes it.
+  onDeleteCopy(id) {
+    this.engine.world?.remove(id);
   }
 
   sound(id) {

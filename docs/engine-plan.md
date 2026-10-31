@@ -35,7 +35,9 @@ src/stmt-impl.js              fixed-size statement handlers
 src/builtins.js               RTLIB32 builtins (ids < 0xFA)
 src/sprites.js                sprite system (type 20 resources + messages)
 src/plugins/smacker.js        SMACKER.R32 (cutscenes)
-src/plugins/render.js         RENDER.R32 (sound so far; 3D and hotspots to do)
+src/plugins/render.js         RENDER.R32: sound, plus the 3D externs below
+src/battlefield/              world, camera, fixed-tick loop, mission view, controls
+src/render3d/                 models, textures, objects, WebGL renderer
 src/plugins/netgn.js          NETGN.R32 stub (no network providers)
 src/smacker.js                .SMK video/audio decoder
 src/binfile.js                G-NOME.BIN and pack access
@@ -101,6 +103,13 @@ Design choices:
 3. **3D battlefield**: reimplement the `RENDER.R32` externs on WebGL. Needs
    the model formats (PR #6 converts models to OBJ), terrain, cameras,
    object properties and the AI hooks. This is the largest part.
+   - [x] renderer core: models, textures, objects (`src/render3d/`,
+     [render3d.md](render3d.md))
+   - [x] world, cameras, ground tiles, fixed-tick update loop with
+     interpolation, controls (`src/battlefield/`,
+     [battlefield.md](battlefield.md)); `?mission=N` starts a mission
+   - [ ] movement, tasks and animation (`src/anim/`), collisions,
+     hotspots, weapons
 4. **Saves and settings**: `SGNOME*.SAV`, INI values (now kept in
    `localStorage`).
 5. Networking (`NETGN.R32`, DirectPlay) is out of scope; the scripts already
