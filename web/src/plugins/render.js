@@ -2,6 +2,7 @@
 // input options and hotspots. Only the calls the menus need so far; the 3D
 // externs are stubs that log once (see docs/engine-plan.md, milestone 3).
 import { decodeSound } from "../sound.js";
+import { install3D } from "../render3d/externs.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -43,6 +44,8 @@ export class RenderPlugin {
       SetPauseScript: ok,
       Pause3D: ok,
     };
+    // Objects, models, previews: web/src/render3d (docs/render3d.md).
+    this.r3d = install3D(this);
   }
 
   sound(id) {

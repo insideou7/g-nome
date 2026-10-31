@@ -1,0 +1,52 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>render3d check</title>
+<style>body { background: #223; color: #ccc; font: 13px sans-serif } canvas { image-rendering: pixelated; margin: 4px; background: #334 }</style>
+<p>WebGL (left) and software (right) renderings of the same models. Usage:
+<code>web/tests/render3d.html?game=/game/g-nome/G-NOME/&amp;models=2583,2641&amp;frame=2597</code></p>
+<div id="out"></div>
+<script type="module">
+import { Engine } from "../src/engine.js";
+import { Renderer } from "../src/render3d/renderer.js";
+import { rotY, mul, translation } from "../src/render3d/math.js";
+import { modelBounds } from "../src/render3d/model.js";
+const q = new URLSearchParams(location.search);
+const base = q.get("game") || "/game/g-nome/G-NOME/";
+const files = { read: async (n) => new Uint8Array(await (await fetch(base + n)).arrayBuffer()), has: () => true };
+const engine = new Engine(files, { log: console.log });
+await engine.init();
+const r = new Renderer(engine);
+const out = document.getElementById("out");
+const W = 200, H = 160;
+for (const id of (q.get("models") || "2583").split(",").map(Number)) {
+  const m = r.loadModel(id);
+  const pose = r.frame(m, Number(q.get("frame") || 0), 0);
+  const row = document.createElement("div");
+  for (const angle of [0, 60, 180]) {
+    // Same turntable camera as RenderToBitmap, once per backend.
+    const soft = r.renderPreview(m, { pose, angle, width: W, height: H, textureFrame: 0 });
+    const scene = r.createScene();
+    const node = scene.add(m);
+    node.pose = pose;
+    node.matrix = rotY(angle);
+    const cam = r.createCamera();
+    const b = modelBounds(m, pose);
+    const across = Math.hypot(b.max[0] - b.min[0], b.max[2] - b.min[2]) * 1.05, up = (b.max[1] - b.min[1]) * 1.05;
+    const vw = 0.1, vh = (H * 0.1) / W;
+    const dist = across / up <= W / H ? (up * 0.5) / vh : (across * 0.5) / vw;
+    cam.viewwindow = [vw, vh];
+    cam.near = dist / 100;
+    cam.matrix = mul(rotY(180), translation(0, up / 2, dist));
+    const glc = r.render(scene, cam, { x: 0, y: 0, w: W, h: H }, { backend: "webgl" });
+    const c1 = document.createElement("canvas");
+    c1.width = W; c1.height = H;
+    c1.getContext("2d").drawImage(glc, 0, 0);
+    const c2 = document.createElement("canvas");
+    c2.width = W; c2.height = H;
+    c2.getContext("2d").putImageData(new ImageData(soft.rgba, W, H), 0, 0);
+    row.append(c1, c2);
+  }
+  out.append(row);
+}
+document.title = "done";
+</script>
