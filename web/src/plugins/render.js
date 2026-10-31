@@ -39,9 +39,6 @@ export class RenderPlugin {
       },
       DSPauseAudio: ok,
       // Input and modes that need no work in a browser.
-      MouseOnOff: ok,
-      EnableJoystick: ok,
-      MapActionKeys: ok,
       SetPauseScript: ok,
       // World, camera and view: web/src/battlefield/
       ...battlefieldExterns(engine),

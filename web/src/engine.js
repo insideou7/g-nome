@@ -129,7 +129,12 @@ export class Engine {
   }
 
   // Mouse, in canvas pixels (0..639, 0..479).
+  mouseUp(cx, cy, button = 0) {
+    this.world?.controls.mouseUp(button);
+  }
+
   mouseDown(cx, cy, button = 0) {
+    this.world?.controls.mouseDown(button);
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
     if (s && s.click) return this.runLater(s.click.script, [s.id, s.click.arg]);

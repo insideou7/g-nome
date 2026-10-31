@@ -4,10 +4,12 @@
 // a degree, times in milliseconds.
 import { World, STATE, UNIT } from "./world.js";
 import { headingOf, normalize, scale, add } from "./math.js";
+import { Controls } from "./controls.js";
 
 export function battlefieldExterns(engine) {
   const world = new World(engine);
   engine.world = world;
+  const controls = (world.controls = new Controls(engine));
   const vm = () => engine.vm;
   const obj = (id) => world.get(id);
   const out = (addr, v) => {
@@ -230,6 +232,29 @@ export function battlefieldExterns(engine) {
     },
     SetGroundFlag(v) {
       world.groundFlag = v;
+      return 1;
+    },
+
+    // --- controls ---------------------------------------------------------
+    // MapActionKeys(actions, pressTable1, pressTable2, column, mask); a 0
+    // action table turns press handling off
+    MapActionKeys(actions, ev1, ev2, column, mask) {
+      controls.map = actions ? { actions, events: [ev1, ev2], column, mask } : null;
+      return 1;
+    },
+    // CheckActionState(actions, heldTable, action, column, mask)
+    CheckActionState(actions, binds, action, column, mask) {
+      return controls.check(actions, binds, action, column, mask);
+    },
+    MouseOnOff(on) {
+      controls.mouse = !!on;
+      return 1;
+    },
+    // RangeJoystickAxis(...): no joystick, so the axis rests at 0
+    RangeJoystickAxis() {
+      return 0;
+    },
+    EnableJoystick() {
       return 1;
     },
 

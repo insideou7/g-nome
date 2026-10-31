@@ -83,6 +83,7 @@ async function start(files) {
   const mission = Number(new URLSearchParams(location.search).get("mission"));
   if (mission) {
     engine.input.keyDown(0x1b); // skip the opening movie
+    engine.input.keyUp(0x1b);
     setTimeout(() => {
       // the real path goes through the briefing, which has already put the
       // menu away; hide whatever is still up
@@ -99,7 +100,7 @@ async function start(files) {
   canvas.addEventListener("keydown", (e) => {
     audio.resume();
     const vk = vkFromEvent(e);
-    if (vk && engine.input.keyDown(vk, e.shiftKey, e.ctrlKey)) e.preventDefault();
+    if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey) || engine.world?.shown)) e.preventDefault();
   });
   canvas.addEventListener("keyup", (e) => engine.input.keyUp(vkFromEvent(e)));
   const pos = (e) => {
@@ -111,6 +112,7 @@ async function start(files) {
     canvas.focus();
     engine.mouseDown(...pos(e), e.button);
   });
+  canvas.addEventListener("pointerup", (e) => engine.mouseUp(...pos(e), e.button));
   canvas.addEventListener("pointermove", (e) => engine.mouseMove(...pos(e)));
   let last = performance.now();
   const frame = (t) => {
