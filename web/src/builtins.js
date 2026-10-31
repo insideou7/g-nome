@@ -5,7 +5,7 @@
 // Type 11 resources are integer tables: a 60-byte header (u32 data pointer,
 // u32 data bytes, ?, u32 resource id, u32 number of dimensions, u32 stride
 // per dimension, ...) and then int32 data. Element = data[sum(stride*idx)].
-function table(vm, id) {
+export function table(vm, id) {
   const e = vm.engine;
   let t = e.tables.get(id);
   if (!t) {

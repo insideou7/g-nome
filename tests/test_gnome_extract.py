@@ -2,12 +2,14 @@
 
 Run with: python -m unittest discover tests
 """
+import math
 import struct
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+import gnome3d as g3  # noqa: E402
 import gnome_extract as gx  # noqa: E402
 
 
@@ -85,6 +87,124 @@ class PaletteTest(unittest.TestCase):
         self.assertEqual(pal[10], (0, 0, 0))
         self.assertEqual(pal[245], (235, 235, 235))
         self.assertEqual(pal[255], (255, 255, 255))
+
+
+def pack_codes(codes, bits):
+    acc = n = 0
+    out = bytearray()
+    for c in codes:
+        acc = (acc << bits) | c
+        n += bits
+        while n >= 8:
+            n -= 8
+            out.append((acc >> n) & 0xFF)
+    if n:
+        out.append((acc << (8 - n)) & 0xFF)
+    return bytes(out)
+
+
+class PackedBitmapTest(unittest.TestCase):
+    def test_lzw_chunk(self):
+        # A, B, then code 256 (= "AB"), then 258 (the code being defined, "ABA").
+        data = pack_codes([65, 66, 256, 258, 1023], 10)
+        self.assertEqual(bytes(gx._lzw_chunk(data, 10)), b"ABABABA")
+
+    def test_stream_and_row_padding(self):
+        chunk = pack_codes([1, 2, 3, 2047], 11)
+        lzw_block = struct.pack("<H", len(chunk)) + chunk
+        stored = bytes([4, 5, 6, 7, 8])
+        body = (struct.pack("<H", 0x6000 | len(lzw_block)) + lzw_block
+                + struct.pack("<H", len(stored)) + stored + struct.pack("<H", 0xE000))
+        self.assertEqual(bytes(gx.decompress_packed(body)), bytes(range(1, 9)))
+        # 3x2 image: rows are padded to 4 bytes and stored bottom row first.
+        bm = gx.Bitmap(3, 2, 0, 0, 0, 0, body)
+        self.assertEqual(gx.bitmap_pixels(bm), bytes([5, 6, 7, 1, 2, 3]))
+
+
+def op(code, fmt="", *args):
+    return struct.pack("<I" + fmt, code, *args)
+
+
+class ModelTest(unittest.TestCase):
+    def model(self):
+        ident_moved = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 10, 0, 0, 1]
+        path = b"\\x\\WALL.BMP\0"
+        path += b"\0" * (-len(path) % 4)
+        body = op(0x1A) + op(0x06)
+        body += op(0x35) + op(0x34, "16f", *ident_moved) + op(0x06)
+        for x, y in [(0, 0), (1, 0), (1, 1), (0, 1)]:
+            body += op(0x3C, "3f", x, y, 0) + op(0x12, "2f", x, y) + op(0x14)
+        body += op(0x2C, "3f", 1, 0, 0) + op(0x2E, "i", 8) + path
+        body += op(0x23, "4i", 1, 2, 3, 4)
+        body += op(0x07) + op(0x36) + op(0x07) + op(0x1B)
+        return b"MODL" + bytes(4) + body
+
+    def test_ops(self):
+        names = [n for n, _ in g3.model_ops(self.model())]
+        self.assertEqual(names[:5], ["modelbegin", "clumpbegin", "transformbegin",
+                                     "transform", "clumpbegin"])
+        self.assertIn(("texture", [8, "\\x\\WALL.BMP"]), g3.model_ops(self.model()))
+
+    def test_obj(self):
+        obj, mtl = g3.model_to_obj(g3.parse_model(self.model()), "m", {"WALL.BMP": "wall.png"})
+        lines = obj.splitlines()
+        self.assertIn("v 10.000000 0.000000 0.000000", lines)
+        self.assertIn("vt 1.000000 0.000000", lines)  # v is flipped for OBJ
+        self.assertIn("f 1/1 2/2 3/3 4/4", lines)
+        self.assertIn("map_Kd wall.png", mtl)
+        self.assertIn("Kd 1.0000 0.0000 0.0000", mtl)
+
+
+class AnimationTest(unittest.TestCase):
+    def tagged_model(self):
+        # Root clump, then a child tagged 1 with one vertex at its origin.
+        body = op(0x1A) + op(0x06) + op(0x06) + op(0x2D, "i", 1)
+        body += op(0x3B, "3f", 0, 0, 0) + op(0x07) + op(0x07) + op(0x1B)
+        return b"MODL" + struct.pack("<I", 1) + body
+
+    def frme(self, frames):
+        data = b"FRME" + struct.pack("<III", 1, len(frames), 0)
+        for t in frames:
+            data += struct.pack("<12f", 1, 0, 0, 0, 1, 0, 0, 0, 1, *t)
+        return data
+
+    def test_frame_replaces_tagged_joint(self):
+        m = g3.parse_model(self.tagged_model())
+        self.assertEqual(m.by_tag(), {1: 1})
+        f = g3.parse_frme(self.frme([(0, 0, 0), (0, 5, 0)]))
+        self.assertEqual((f.parts, len(f.frames)), (1, 2))
+        obj, _ = g3.model_to_obj(m, "m", {}, f.pose(1))
+        self.assertIn("v 0.000000 5.000000 0.000000", obj.splitlines())
+
+    def test_gltf_has_node_animation(self):
+        import json
+        m = g3.parse_model(self.tagged_model())
+        f = g3.parse_frme(self.frme([(0, 0, 0), (0, 5, 0)]))
+        g = json.loads(g3.model_to_gltf(m, "m", {}, [("clip", f)]))
+        self.assertEqual(g["nodes"][0]["children"], [1])
+        paths = {c["target"]["path"] for c in g["animations"][0]["channels"]}
+        self.assertEqual(paths, {"translation", "rotation", "scale"})
+
+    def test_object_properties(self):
+        data = b"OB3D" + struct.pack("<I", 6)
+        data += struct.pack("<Iii", 6, 30, 1723)
+        data += struct.pack("<IffII", 2, 0.0, 50.0, 19, 2147)
+        data += struct.pack("<III3i", 7, 16, 3, 100, 2583, 7)
+        od = g3.parse_object(data)
+        self.assertEqual(od.props, [100, 2583, 7])
+        self.assertEqual([k for k, _ in od.entries], [6, 2])
+        self.assertEqual(od.prop_slot, 2)
+
+    def test_decompose_round_trip(self):
+        c, s = math.cos(0.3), math.sin(0.3)
+        m = [2 * c, 2 * s, 0, 0, -2 * s, 2 * c, 0, 0, 0, 0, 2, 0, 1, 2, 3, 1]
+        t, q, sc = g3.decompose(m)
+        self.assertEqual(t, (1, 2, 3))
+        for a, b in zip(sc, (2, 2, 2)):
+            self.assertAlmostEqual(a, b)
+        # Column-vector rotation by +0.3 about z, as a quaternion.
+        for a, b in zip(q, (0, 0, math.sin(0.15), math.cos(0.15))):
+            self.assertAlmostEqual(a, b)
 
 
 if __name__ == "__main__":

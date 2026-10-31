@@ -7,7 +7,11 @@ This tool copies every entry out as a raw file and converts the formats we
 understand:
 
   * sounds (type 12) -> .wav, decoding 7th Level ADPCM
-  * RLE bitmaps (type 1) and RLE textures (type 2) -> .png
+  * bitmaps (type 1) and textures (type 2) -> .png
+  * 3D models (types 7 and 8) -> .obj + .mtl, textured with those PNGs, and
+    .gltf with every FRME animation (type 4) made for the model. Both are
+    posed in the model's rest animation, since some models only assemble
+    correctly once posed (see docs/formats/animation.md)
   * the other sections of G-NOME.BIN (string tables, palette, script) -> raw
 
 It also writes manifest.csv, one row per resource. The format notes are in
@@ -32,6 +36,8 @@ import sys
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
+
+import gnome3d
 
 # ---------------------------------------------------------------------------
 # G-NOME.BIN layout
@@ -157,18 +163,27 @@ def parse_bitmap(data: bytes) -> Bitmap:
     return Bitmap(w, h, flags, x, y, rid, data[BITMAP_HDR.size:])
 
 
-def texture_bitmap(data: bytes):
-    """A type 2 texture is u32 kind, u32 size, u32 path length, the original
-    .BMP path, then (for kind 61) a bitmap. Returns (path, bitmap or None)."""
-    if len(data) < 12:
-        return "", None
-    kind, _size, path_len = struct.unpack_from("<III", data, 0)
-    if 12 + path_len > len(data):
-        return "", None
-    path = data[12:12 + path_len].split(b"\0")[0].decode("latin-1")
-    if kind != 61:
-        return path, None
-    return path, parse_bitmap(data[12 + path_len:])
+TEXTURE_KIND = 61
+
+
+def texture_records(data: bytes) -> list:
+    """A type 2 resource is a list of textures, each one:
+        u32 kind (61), u32 size of the rest of the record,
+        u32 path length, the original .BMP path, then a bitmap.
+    Returns [(path, Bitmap)], or [] for the 34 resources in another format."""
+    out, p = [], 0
+    while p + 12 <= len(data):
+        kind, size, path_len = struct.unpack_from("<III", data, p)
+        end = p + 4 + size
+        if kind != TEXTURE_KIND or end > len(data) or 12 + path_len > 4 + size:
+            return []
+        path = data[p + 12:p + 12 + path_len].split(b"\0")[0].decode("latin-1")
+        out.append((path, parse_bitmap(data[p + 12 + path_len:end])))
+        p = end
+    return out if p == len(data) else []
+
+
+bmp_name = gnome3d.bmp_name  # \\7thlevel\\...\\FOO.BMP -> FOO.BMP
 
 
 def decode_rle(bm: Bitmap) -> bytearray:
@@ -205,6 +220,103 @@ def decode_rle(bm: Bitmap) -> bytearray:
         if x != w:
             raise ValueError(f"row {r} decoded to {x} pixels, expected {w}")
     return out
+
+
+def _lzw_chunk(data: bytes, bits: int) -> bytearray:
+    """Decode one LZW chunk: fixed-width codes, MSB first, codes 0-255 are
+    bytes, new strings start at 256, the all-ones code ends the chunk. There
+    is no reset code; the table just stops growing when full."""
+    end = (1 << bits) - 1
+    prefix, suffix = [0] * end, bytearray(end)
+    out = bytearray()
+    pos = acc = nacc = 0
+
+    def code() -> int:
+        nonlocal pos, acc, nacc
+        while nacc < bits:
+            acc = (acc << 8) | data[pos]
+            pos += 1
+            nacc += 8
+        nacc -= bits
+        c = (acc >> nacc) & end
+        acc &= (1 << nacc) - 1
+        return c
+
+    def string(c: int) -> bytes:
+        s = bytearray()
+        while c > 0xFF:
+            s.append(suffix[c])
+            c = prefix[c]
+        s.append(c)
+        s.reverse()
+        return bytes(s)
+
+    old = code()
+    if old == end:
+        return out
+    out.append(old)
+    nxt = 256
+    while True:
+        c = code()
+        if c == end:
+            return out
+        if c < nxt:
+            s = string(c)
+        else:  # the code being defined right now
+            s = string(old)
+            s += s[:1]
+        out += s
+        if nxt < end:
+            prefix[nxt], suffix[nxt] = old, s[0]
+            nxt += 1
+        old = c
+
+
+LZW_BITS = {0x4000: 10, 0x6000: 11, 0x8000: 12}
+
+
+def decompress_packed(body: bytes) -> bytearray:
+    """Decode RTLIB32's DecompressBitmapData stream.
+
+    A list of blocks, each with a u16 header: the top 3 bits are the method,
+    the low 13 bits the block's byte size. 0x0000 stores bytes as is, 0x4000,
+    0x6000 and 0x8000 hold LZW chunks (u16 size + data each) with 10, 11 and
+    12 bit codes, and 0xE000 ends the stream.
+    """
+    out = bytearray()
+    p = 0
+    while True:
+        (head,) = struct.unpack_from("<H", body, p)
+        p += 2
+        method, size = head & 0xE000, head & 0x1FFF
+        if method == 0xE000:
+            return out
+        block = body[p:p + size]
+        p += size
+        if method == 0:
+            out += block
+            continue
+        if method not in LZW_BITS:
+            raise ValueError(f"unknown packing method {method:#x}")
+        q = 0
+        while q < len(block):
+            (n,) = struct.unpack_from("<H", block, q)
+            out += _lzw_chunk(block[q + 2:q + 2 + n], LZW_BITS[method])
+            q += 2 + n
+
+
+def bitmap_pixels(bm: Bitmap) -> bytes:
+    """width*height palette indices for either bitmap encoding."""
+    if bm.flags & FLAG_RLE:
+        return bytes(decode_rle(bm))
+    # Packed bitmaps are DIB rows: padded to 4 bytes, bottom row first.
+    raw = decompress_packed(bm.body)
+    stride = (bm.width + 3) & ~3
+    if len(raw) < stride * bm.height:
+        raise ValueError(f"packed bitmap decoded to {len(raw)} bytes, "
+                         f"expected {stride * bm.height}")
+    return b"".join(raw[r * stride:r * stride + bm.width]
+                    for r in reversed(range(bm.height)))
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
@@ -332,6 +444,11 @@ class Packs:
         return data[e.offset:e.offset + e.size]
 
 
+def texture_png_name(e: Entry, path: str) -> str:
+    stem = bmp_name(path).rsplit(".", 1)[0] or "unnamed"
+    return f"{e.index:04d}-{stem}.png"
+
+
 def find_parents(entries: list) -> dict:
     """Map each sound slice (types 13-21) to the type 12 sound that holds it."""
     sounds = {}
@@ -363,6 +480,23 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
     for name, data in sections.items():
         (sec_dir / f"{name}.bin").write_bytes(data)
 
+    # Models name their textures by the original .BMP file name, and the
+    # type 2 textures carry that name, so map one to the other's PNG.
+    texture_pngs = {}
+    for e in entries:
+        if e.type == 2 and e.size:
+            try:
+                records = texture_records(packs.read(e))
+            except (OSError, ValueError, struct.error):
+                continue
+            for path, _bm in records:
+                name = bmp_name(path)
+                texture_pngs.setdefault(name.upper(),
+                                        f"../png/texture/{texture_png_name(e, path)}")
+
+    # FRME animations belong to the models stored just before them.
+    animations = gnome3d.find_animations(entries, packs.read)
+
     rows, errors = [], 0
     counts = {}
     for e in entries:
@@ -387,22 +521,51 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
         counts[e.type_name] = counts.get(e.type_name, 0) + 1
 
         try:
-            if e.type in (1, 2) and data:
-                bm = None
-                if e.type == 1:
-                    bm = parse_bitmap(data)
-                else:
-                    row["source_path"], bm = texture_bitmap(data)
-                if bm is not None:
-                    row.update(width=bm.width, height=bm.height, x=bm.x, y=bm.y,
-                               flags=hex(bm.flags))
-                    if not bm.flags & FLAG_RLE:
-                        row["note"] = "packed bitmap (flags 0), not decoded yet"
-                    elif not raw_only:
-                        rel = Path("png") / e.type_name / f"{e.index:04d}.png"
-                        (out / rel).parent.mkdir(parents=True, exist_ok=True)
-                        write_png(out / rel, bm.width, bm.height, decode_rle(bm), palette)
-                        row["converted"] = rel.as_posix()
+            if e.type == 1 and data:
+                bm = parse_bitmap(data)
+                row.update(width=bm.width, height=bm.height, x=bm.x, y=bm.y,
+                           flags=hex(bm.flags))
+                if not raw_only:
+                    rel = Path("png") / "bitmap" / f"{e.index:04d}.png"
+                    (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm), palette)
+                    row["converted"] = rel.as_posix()
+            elif e.type == 2 and data:
+                records = texture_records(data)
+                if not records:
+                    row["note"] = "not a texture list; kept raw"
+                row["source_path"] = ";".join(path for path, _ in records)
+                if records:
+                    bm = records[0][1]
+                    row.update(width=bm.width, height=bm.height, flags=hex(bm.flags))
+                done = []
+                for path, bm in records if not raw_only else []:
+                    rel = Path("png") / "texture" / texture_png_name(e, path)
+                    (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm), palette)
+                    done.append(rel.as_posix())
+                row["converted"] = ";".join(done)
+            elif e.type in (7, 8) and not raw_only:
+                name = f"{e.index:04d}"
+                model = gnome3d.parse_model(data)
+                anims = [(f"frme{f:04d}", gnome3d.parse_frme(packs.read(entries[f])))
+                         for f in animations.get(e.index, [])]
+                rest = gnome3d.rest_pose(anims)
+                obj, mtl = gnome3d.model_to_obj(model, name, texture_pngs, rest)
+                rel = Path("obj") / f"{name}.obj"
+                (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                (out / rel).write_text(obj)
+                (out / rel).with_suffix(".mtl").write_text(mtl)
+                grel = Path("gltf") / f"{name}.gltf"
+                (out / grel).parent.mkdir(parents=True, exist_ok=True)
+                (out / grel).write_text(
+                    gnome3d.model_to_gltf(model, name, texture_pngs, anims, rest))
+                row["converted"] = f"{rel.as_posix()};{grel.as_posix()}"
+                if anims:
+                    row["note"] = "animations: " + " ".join(a for a, _ in anims)
+            elif e.type in (9, 10):
+                od = gnome3d.parse_object(data)
+                row["note"] = "properties: " + " ".join(map(str, od.props))
             elif e.type == 12 and not raw_only:
                 rel = Path("wav") / f"{e.index:04d}.wav"
                 (out / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -450,7 +613,7 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT,
                     help="output folder (default: the repo's extracted/ folder)")
     ap.add_argument("--raw-only", action="store_true",
-                    help="only copy raw resources, skip WAV/PNG conversion")
+                    help="only copy raw resources, skip WAV/PNG/OBJ conversion")
     ap.add_argument("--list", action="store_true",
                     help="print the index as TSV instead of extracting")
     args = ap.parse_args()
