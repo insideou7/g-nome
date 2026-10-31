@@ -2,13 +2,16 @@
 # Install Ghidra for REA's native analysis. Safe to re-run.
 #
 # Cloud: paste `bash scripts/install-ghidra.sh` into the environment's setup
-# script (it runs from the repo root). Needs network access to api.github.com,
-# github.com, objects.githubusercontent.com and release-assets.githubusercontent.com.
+# script (it runs from the repo root). Needs network access to github.com,
+# objects.githubusercontent.com and release-assets.githubusercontent.com.
 #
-# Env overrides: GHIDRA_VERSION (default 12.1.4), GHIDRA_INSTALL_DIR (default /opt/ghidra).
+# Env override: GHIDRA_INSTALL_DIR (default /opt/ghidra).
+# To change version, update the three values below from the GitHub release page.
 set -euo pipefail
 
-VERSION="${GHIDRA_VERSION:-12.1.4}"
+VERSION="12.1.4"
+BUILD_DATE="20260921"
+SHA256="ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db"
 DEST="${GHIDRA_INSTALL_DIR:-/opt/ghidra}"
 
 if [ -x "$DEST/support/analyzeHeadless" ]; then
@@ -21,17 +24,13 @@ if ! command -v java >/dev/null 2>&1; then
   apt-get update -qq && apt-get install -y -qq openjdk-21-jdk-headless
 fi
 
-api="https://api.github.com/repos/NationalSecurityAgency/ghidra/releases/tags/Ghidra_${VERSION}_build"
-url="$(curl -fsSL "$api" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -1 | sed 's/.*"\(https[^"]*\)"/\1/')"
-if [ -z "$url" ]; then
-  echo "Could not find a Ghidra $VERSION download at $api" >&2
-  exit 1
-fi
+url="https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_${VERSION}_build/ghidra_${VERSION}_PUBLIC_${BUILD_DATE}.zip"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 echo "Downloading $url"
 curl -fsSL -o "$tmp/ghidra.zip" "$url"
+echo "$SHA256  $tmp/ghidra.zip" | sha256sum -c -
 unzip -q "$tmp/ghidra.zip" -d "$tmp"
 mkdir -p "$(dirname "$DEST")"
 rm -rf "$DEST"

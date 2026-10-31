@@ -89,17 +89,19 @@ the default image.
 
 Ghidra is the missing piece. To add it:
 
-1. In the cloud environment's network settings, allow `api.github.com`,
-   `github.com`, `objects.githubusercontent.com` and
-   `release-assets.githubusercontent.com` (keep package managers allowed).
+1. In the cloud environment's network settings, allow `github.com`,
+   `objects.githubusercontent.com` and `release-assets.githubusercontent.com`
+   (keep package managers allowed).
 2. Set the environment's setup script to:
 
    ```bash
    bash scripts/install-ghidra.sh
    ```
 
-   It installs Ghidra 12.1.4 to `/opt/ghidra`, which is where `.mcp.json`
-   points REA by default.
+   It downloads Ghidra 12.1.4, checks its SHA-256 and installs it to
+   `/opt/ghidra`, which is where `.mcp.json` points REA by default.
+   `api.github.com` is not used: in cloud sessions it is limited to the
+   repos attached to the session.
 
 ## Scope
 
