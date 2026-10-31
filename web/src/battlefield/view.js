@@ -61,8 +61,8 @@ export class BattleView {
       const d = sub(p.pos, pose.pos);
       h.setTransform({
         matrix: modelMatrix(p.basis, p.pos),
-        // ObjectSetScene(id, 1) takes the model out of the scene (flag 0x80).
-        visible: o.visible && !(r3d.objects.get(o.id)?.flags & 0x80),
+        // Flag 0x80 (ObjectSetScene) only draws the model in its own scene.
+        visible: o.visible,
         level: o.level,
         depth: o.level >= 0,
         distance: dot(d, d),

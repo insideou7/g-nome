@@ -588,11 +588,12 @@ export function collisionExterns(engine) {
       return 1;
     },
     GetCallbackParm: (n, k) => (k >= 1 && k <= 3 ? hs(n)?.params[k] ?? 0 : 0),
-    // ObjectSetScene(id, out) 0x10014272: 0 puts the object's model in the
-    // scene, anything else takes it out (object flag 0x80).
-    ObjectSetScene(id, outOfScene) {
+    // ObjectSetScene(id, own) 0x10014272: 0 puts the object's model in the
+    // main scene, anything else sets object flag 0x80, and the draw pass
+    // then renders it in a scene of its own. Either way it is drawn.
+    ObjectSetScene(id, own) {
       const rec = engine.render3d?.objects?.get(id);
-      if (rec) rec.flags = outOfScene ? rec.flags | 0x80 : rec.flags & ~0x80;
+      if (rec) rec.flags = own ? rec.flags | 0x80 : rec.flags & ~0x80;
       return 0;
     },
     // UpdateLOD(id) 0x10029743: forget the current level of detail and pick
