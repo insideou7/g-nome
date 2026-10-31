@@ -13,10 +13,15 @@ understand:
 It also writes manifest.csv, one row per resource. The format notes are in
 docs/formats/g-nome-bin.md.
 
-Usage:
-    python tools/gnome_extract.py game/g-nome/G-NOME extracted/
-    python tools/gnome_extract.py game/g-nome/G-NOME extracted/ --raw-only
-    python tools/gnome_extract.py game/g-nome/G-NOME --list | head
+Usage (from the repo root, after unzipping the game into game/):
+    python tools/gnome_extract.py
+    python tools/gnome_extract.py --raw-only
+    python tools/gnome_extract.py --list | head
+    python tools/gnome_extract.py --game path/to/G-NOME --out somewhere/
+
+By default the game is looked for under the repo's game/ folder (any
+subfolder holding G-NOME.BIN) and output goes to the repo's extracted/
+folder. Both are git-ignored.
 
 Only the standard library is used.
 """
@@ -300,6 +305,17 @@ def sound_to_wav(data: bytes) -> bytes:
 # Extraction
 # ---------------------------------------------------------------------------
 
+def find_file(folder: Path, name: str) -> Path:
+    """Find a file by name, ignoring case (CD copies are often lowercased)."""
+    path = folder / name
+    if path.exists():
+        return path
+    for p in folder.iterdir():
+        if p.name.upper() == name.upper():
+            return p
+    raise FileNotFoundError(path)
+
+
 class Packs:
     def __init__(self, folder: Path):
         self.folder = folder
@@ -308,9 +324,7 @@ class Packs:
     def read(self, e: Entry) -> bytes:
         data = self._cache.get(e.pack)
         if data is None:
-            path = self.folder / e.pack_name
-            if not path.exists():
-                raise FileNotFoundError(path)
+            path = find_file(self.folder, e.pack_name)
             # Packs are at most ~15 MB, so keeping them all is fine.
             data = self._cache[e.pack] = path.read_bytes()
         if e.offset + e.size > len(data):
@@ -335,7 +349,7 @@ def find_parents(entries: list) -> dict:
 
 
 def extract(game: Path, out: Path, raw_only: bool = False) -> int:
-    bin_path = game / "G-NOME.BIN"
+    bin_path = find_file(game, "G-NOME.BIN")
     bin_data = bin_path.read_bytes()
     entries = read_index(bin_data)
     sections = bin_sections(bin_data)
@@ -413,25 +427,46 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
     return 1 if errors else 0
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_GAME_ROOT = REPO_ROOT / "game"
+DEFAULT_OUT = REPO_ROOT / "extracted"
+
+
+def find_game_folder(root: Path) -> Path:
+    """Return the folder under root that holds G-NOME.BIN (case-insensitive)."""
+    hits = sorted(p.parent for p in root.rglob("*")
+                  if p.is_file() and p.name.upper() == "G-NOME.BIN")
+    if not hits:
+        raise FileNotFoundError(
+            f"no G-NOME.BIN under {root}. Unzip the game there, or pass --game.")
+    return hits[0]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("game", type=Path, help="folder holding G-NOME.BIN and the packs")
-    ap.add_argument("out", type=Path, nargs="?", help="output folder")
+    ap.add_argument("--game", type=Path, default=DEFAULT_GAME_ROOT,
+                    help="folder holding G-NOME.BIN, or a folder above it "
+                         "(default: the repo's game/ folder)")
+    ap.add_argument("--out", type=Path, default=DEFAULT_OUT,
+                    help="output folder (default: the repo's extracted/ folder)")
     ap.add_argument("--raw-only", action="store_true",
                     help="only copy raw resources, skip WAV/PNG conversion")
     ap.add_argument("--list", action="store_true",
                     help="print the index as TSV instead of extracting")
     args = ap.parse_args()
 
+    try:
+        game = find_game_folder(args.game)
+    except FileNotFoundError as exc:
+        ap.error(str(exc))
     if args.list:
-        entries = read_index((args.game / "G-NOME.BIN").read_bytes())
+        entries = read_index(find_file(game, "G-NOME.BIN").read_bytes())
         print("index\tpack\toffset\tsize\ttype")
         for e in entries:
             print(f"{e.index}\t{e.pack_name}\t{e.offset:#x}\t{e.size}\t{e.type_name}")
         return 0
-    if args.out is None:
-        ap.error("an output folder is required unless --list is given")
-    return extract(args.game, args.out, args.raw_only)
+    print(f"reading {game}")
+    return extract(game, args.out, args.raw_only)
 
 
 if __name__ == "__main__":

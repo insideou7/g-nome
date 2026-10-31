@@ -20,14 +20,23 @@ G-NOME (7th Level, 1997) for Windows 95. Everything is 32-bit x86.
 ## Extracting the assets
 
 `tools/gnome_extract.py` copies all 9,440 resources out of the packs and
-converts sounds to WAV and RLE bitmaps and textures to PNG:
+converts sounds to WAV and RLE bitmaps and textures to PNG. It needs only
+Python 3.8 or newer, no packages. To run it on your own machine:
 
-```sh
-python tools/gnome_extract.py game/g-nome/G-NOME extracted/
-```
+1. Clone the repo.
+2. Unzip the game into `game/` at the repo root. Any layout works, such as
+   `game/g-nome/G-NOME/G-NOME.BIN`: the script searches `game/` for
+   `G-NOME.BIN`. File name case does not matter.
+3. From the repo root, run:
 
-It writes `raw/`, `wav/`, `png/`, `bin-sections/` and a `manifest.csv` with
-one row per resource. `extracted/` is git-ignored. The formats are written up
+   ```sh
+   python tools/gnome_extract.py
+   ```
+
+The output goes to `extracted/` at the repo root: `raw/`, `wav/`, `png/`,
+`bin-sections/` and a `manifest.csv` with one row per resource. Both `game/`
+and `extracted/` are git-ignored. Use `--game` and `--out` to pick other
+folders, and `--raw-only` to skip the WAV and PNG conversion. The formats are written up
 in [formats/g-nome-bin.md](formats/g-nome-bin.md). Tests:
 `python -m unittest discover tests`.
 
