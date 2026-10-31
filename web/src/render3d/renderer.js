@@ -144,7 +144,7 @@ export class Renderer {
   render(scene, camera, viewport, opts = {}) {
     const width = viewport.width ?? viewport.w, height = viewport.height ?? viewport.h;
     const useGL = (opts.backend || (this.gl ? "webgl" : "soft")) === "webgl" && this.gl;
-    if (useGL) return this.gl.render(scene, camera, { ...viewport, width, height });
+    if (useGL && this.gl) return this.gl.render(scene, camera, { ...viewport, width, height });
     const target = opts.target && opts.target.width === width && opts.target.height === height ? opts.target : new SoftTarget(width, height);
     return renderSoft(scene, camera, target, {
       textureOf: (m, n) => this.textureOf(m, n),

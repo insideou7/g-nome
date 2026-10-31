@@ -2,6 +2,7 @@
 // ints that scripts use for unit groups, targets and the like. A list id is
 // 1-based; ids are reused after ListDestroy. Spec: docs/formats/animation.md.
 export function listExterns(engine) {
+  /** @type {(number[] | null)[]} */
   const lists = [null]; // index = list id
 
   const get = (id) => lists[id] || (lists[id] = []);

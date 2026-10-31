@@ -117,7 +117,7 @@ export function parseModel(bytes) {
         break;
       case "clumpend":
         flush();
-        [clump, ctm, mat] = stack.pop();
+        [clump, ctm, mat] = /** @type {any[]} */ (stack.pop());
         break;
       case "transformbegin": ctmStack.push(ctm); break;
       case "transformend": ctm = ctmStack.pop() || identity(); break;
@@ -193,6 +193,7 @@ export function clumpMatrices(model, world, pose = null, joints = null) {
 }
 
 // Axis-aligned bounds of the posed model in model space.
+/** @param {any} [pose] */
 export function modelBounds(model, pose = null) {
   const ms = clumpMatrices(model, identity(), pose);
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];

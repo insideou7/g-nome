@@ -28,6 +28,7 @@ export class Input {
   }
   endEdit(cancel) {
     const ed = this.edit;
+    if (!ed) return;
     const t = this.engine.texts;
     this.edit = null;
     const text = cancel ? ed.saved : (t.get(ed.text)?.text ?? "_").slice(0, -1);

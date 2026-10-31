@@ -83,13 +83,13 @@ $("pick-folder").addEventListener("click", async () => {
 // still fires a change.)
 $("pick-dir").addEventListener("change", (ev) => {
   const input = /** @type {HTMLInputElement} */ (ev.target);
-  const list = [...input.files];
+  const list = [...(input.files ?? [])];
   input.value = "";
   open(async () => fromFileList(list));
 });
 $("pick-zip").addEventListener("change", (ev) => {
   const input = /** @type {HTMLInputElement} */ (ev.target);
-  const f = input.files[0];
+  const f = input.files?.[0];
   input.value = "";
   if (f) open(() => fromZip(f));
 });
@@ -127,7 +127,7 @@ document.addEventListener("drop", async (e) => {
   if (started) return;
   e.preventDefault();
   picker.classList.remove("over");
-  const item = [...e.dataTransfer.items].find((i) => i.kind === "file");
+  const item = [...(e.dataTransfer?.items ?? [])].find((i) => i.kind === "file");
   if (!item) return;
   // Both calls must happen before the first await, while the drop is live.
   const handleP = item.getAsFileSystemHandle?.();
@@ -194,7 +194,7 @@ async function start(rawFiles) {
   const canvas = $("screen");
   const cursorCss = new Map();
   /** @type {Engine} */
-  let engine = null;
+  let engine = /** @type {any} */ (null); // set by boot() before anything uses it
   let audio = null, panel = null;
 
   // A fresh engine on the same files and screen. Runs at start, and again
@@ -221,7 +221,7 @@ async function start(rawFiles) {
         const cv = document.createElement("canvas");
         cv.width = c.width;
         cv.height = c.height;
-        cv.getContext("2d").putImageData(new ImageData(c.rgba, c.width, c.height), 0, 0);
+        cv.getContext("2d")?.putImageData(new ImageData(c.rgba, c.width, c.height), 0, 0);
         cursorCss.set(c, `url(${cv.toDataURL()}) ${c.hotX} ${c.hotY}, default`);
       }
       canvas.style.cursor = cursorCss.get(c);

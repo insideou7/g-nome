@@ -60,7 +60,7 @@ export class ScriptFiles {
     try {
       for (let i = 0; i < (this.storage?.length ?? 0); i++) {
         const key = this.storage.key(i);
-        if (key.startsWith(STORE)) this.data.set(key.slice(STORE.length), fromBase64(this.storage.getItem(key)));
+        if (key?.startsWith(STORE)) this.data.set(key.slice(STORE.length), fromBase64(this.storage.getItem(key) ?? ""));
       }
     } catch {
       /* storage blocked: saves last for this session only */

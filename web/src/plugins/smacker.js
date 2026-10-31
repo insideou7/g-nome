@@ -46,7 +46,7 @@ export class SmackerPlugin {
       e.log(`smacker: ${name} not found`);
       return 0;
     }
-    const movie = { name, endScript, endArg, loop, smk: null, clock: 0, shown: -1 };
+    const movie = { name, endScript, endArg, loop, smk: /** @type {SmackerFile | null} */ (null), clock: 0, shown: -1 };
     this.movie = movie;
     e.files.read(name).then((bytes) => {
       if (this.movie !== movie) return;
@@ -69,6 +69,7 @@ export class SmackerPlugin {
     // correct.
     while (m.shown + 1 < smk.frameCount && (m.shown + 1) * smk.frameMs <= m.clock) {
       const f = smk.decodeFrame();
+      if (!f) break;
       m.shown = f.index;
       for (const a of f.audio) this.engine.audio?.queue(a.samples, a.channels, a.rate);
       this.draw(f);
@@ -84,8 +85,8 @@ export class SmackerPlugin {
 
   draw(f) {
     const d = this.engine.display;
-    if (!d) return;
-    const smk = this.movie.smk;
+    const smk = this.movie?.smk;
+    if (!d || !smk) return;
     // 320x200 movies are shown doubled, centred on the 640x480 screen.
     const scale = smk.width <= 320 ? 2 : 1;
     const w = smk.width * scale, h = smk.height * smk.yScale * scale;

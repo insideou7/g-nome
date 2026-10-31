@@ -86,6 +86,11 @@ void main() {
 }`;
 
 export class WebGLBackend {
+  // Backdrop pass state, created with bdProg on first use (backdrop()).
+  /** @type {Record<string, WebGLUniformLocation | null>} */ bdU;
+  /** @type {WeakMap<object, WebGLTexture>} */ bdTex;
+  /** @type {WebGLVertexArrayObject} */ bdVao;
+
   constructor(renderer, canvas = null) {
     this.renderer = renderer;
     this.canvas = canvas || document.createElement("canvas");

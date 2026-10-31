@@ -47,6 +47,14 @@ const MAX_LOCALS = 32;
 export const VIEW_DISTANCE = 3;
 
 export class Engine {
+  // Set by load() (and plugins by installPlugins); declared here so the
+  // type checker treats them as always present once the engine runs.
+  /** @type {BinFile} */ bin;
+  /** @type {VM} */ vm;
+  /** @type {any[]} */ plugins;
+  /** @type {Uint8Array} */ palette;
+  /** @type {Map<number, any>} */ cursors;
+
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
   // opts: { log, trace, display, audio, ini, storage, net }
   // net: { providers } for NETGN (see plugins/netgn.js); browsers default to
@@ -98,9 +106,8 @@ export class Engine {
         this.keyConflicts.draw(ctx, fade);
       };
     }
-    // Set later (type declarations only): by installPlugins, battlefieldExterns
+    // Set later (type declarations only): by battlefieldExterns
     // and the browser shell (main.js).
-    /** @type {any[]} */ this.plugins;
     /** @type {import("./battlefield/world.js").World | undefined} */ this.world;
     /** @type {((msg: number, wparam: any, lparam: any) => void) | undefined} */ this.onMessage;
     /** @type {((cursor: any) => void) | undefined} */ this.onCursor; // a peCursors() cursor, "default" or null
