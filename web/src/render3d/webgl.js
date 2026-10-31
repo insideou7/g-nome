@@ -3,7 +3,7 @@
 import { mul } from "./math.js";
 import { clumpMatrices } from "./model.js";
 import { DEFAULT_LIGHTS, rgb01 } from "./scene.js";
-import { FRONT } from "./soft.js";
+import { FRONT, CULL } from "./soft.js";
 
 const VS = `#version 300 es
 layout(location = 0) in vec3 aPos;
@@ -31,7 +31,7 @@ in vec3 vNormal;
 in vec2 vUV;
 in float vDepth;
 uniform sampler2D uTex;
-uniform bool uTextured, uTwoSided;
+uniform bool uTextured, uTwoSided, uUnlit;
 uniform vec3 uColor, uAmbient;
 uniform vec2 uK; // ambient, diffuse weights
 uniform vec3 uLightDir[4], uLightColor[4];
@@ -57,6 +57,7 @@ void main() {
     float d = dot(n, uLightDir[i]);
     light += uK.y * (uTwoSided ? abs(d) : max(d, 0.0)) * uLightColor[i];
   }
+  if (uUnlit) light = vec3(1.0);
   vec3 c = base * light;
   if (uFog.z > 0.0) c = mix(c, uFogColor, clamp((vDepth - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0));
   outColor = vec4(c, uAlpha);
@@ -93,7 +94,7 @@ export class WebGLBackend {
     this.gl = gl;
     this.prog = program(gl, VS, FS);
     this.u = {};
-    for (const n of ["uWorld", "uView", "uProj", "uTex", "uTextured", "uTwoSided", "uColor", "uAmbient", "uK", "uLightDir", "uLightColor", "uLights", "uFrame", "uAlpha", "uFog", "uFogColor"])
+    for (const n of ["uWorld", "uView", "uProj", "uTex", "uTextured", "uTwoSided", "uUnlit", "uColor", "uAmbient", "uK", "uLightDir", "uLightColor", "uLights", "uFrame", "uAlpha", "uFog", "uFogColor"])
       this.u[n] = gl.getUniformLocation(this.prog, n);
     this.meshes = new WeakMap(); // clump mesh -> VAO
     this.textures = new WeakMap(); // texture -> {tex, key}
@@ -187,17 +188,18 @@ export class WebGLBackend {
       else gl.enable(gl.DEPTH_TEST);
       gl.depthMask(!noDepth && alpha >= 0.99);
       const two = !!node.doubleSided[ci];
-      if (two) gl.disable(gl.CULL_FACE);
+      if (two || !CULL) gl.disable(gl.CULL_FACE);
       else gl.enable(gl.CULL_FACE);
       gl.uniformMatrix4fv(u.uWorld, false, world);
       const m = g.material;
       const k = (m.ambient ?? 0.3) + (m.diffuse ?? 0.7) || 1;
       gl.uniform2f(u.uK, (m.ambient ?? 0.3) / k, (m.diffuse ?? 0.7) / k);
       gl.uniform3fv(u.uColor, m.color || [1, 1, 1]);
-      gl.uniform1i(u.uTwoSided, two ? 1 : 0);
+      gl.uniform1i(u.uTwoSided, two || !CULL ? 1 : 0);
       gl.uniform1f(u.uAlpha, alpha);
       const tex = this.renderer.textureOf(m, node);
       gl.uniform1i(u.uTextured, tex ? 1 : 0);
+      gl.uniform1i(u.uUnlit, tex && m.textureModes !== undefined && !(m.textureModes & 1) ? 1 : 0);
       if (tex) {
         gl.bindTexture(gl.TEXTURE_2D, this.texture(tex));
         gl.uniform2f(u.uFrame, Math.min(node.textureFrame | 0, tex.frames - 1), tex.frames);

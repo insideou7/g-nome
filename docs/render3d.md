@@ -35,8 +35,12 @@ behaviour can be checked against the original.
 - 1 RenderWare unit = 1 model unit. Units are about 0.5 units tall. The
   battlefield thread found 1 unit = 100 script position units.
 - Colours are 0..1; camera and light colours also accept 0..255.
-- Front faces are clockwise on screen (`FRONT` in `soft.js`). With the other
-  winding the mechs render inside out.
+- No back-face culling (`CULL` in `soft.js`): ground tile MPRT 2398 faces
+  away from a camera above it by the winding the mechs use (clockwise on
+  screen, `FRONT`), yet the game shows it. Closed models look the same with
+  the z-buffer, and lighting uses |N.L|.
+- Model op `0x32` is RWX TextureModes (1 lit, 2 foreshorten, 4 filter). A
+  texture without the lit bit draws at full brightness; ground tiles use 2.
 
 ## Using it
 
@@ -201,8 +205,10 @@ the script swaps those pointers for RenderWare names.
 
 - Lights from the scripts (`LightAdd*`, `AllocLights`) are not wired to
   `scene.lights`.
-- Material settings ops `0x04`, `0x0D`, `0x0F`, `0x16`, `0x19`, `0x32` are
-  read but not used.
+- Material settings ops `0x04`, `0x0D` (likely GeometrySampling), `0x0F`,
+  `0x16` (likely LightSampling), `0x19` are read but not used.
+- Ground textures look like noise in the menu palette; the mission palette
+  presumably fixes them.
 - Whether screen-left really is +X (as in RenderWare 3) is not confirmed
   against the original; if units come out mirrored, flip the sign in
   `soft.js` and `webgl.js`.

@@ -23,10 +23,12 @@ const OPS = {
   // geometrysampling, texturemodes and friends).
   0x04: ["op04", "i"], 0x0d: ["op0d", "i"], 0x0f: ["op0f", "i"],
   0x16: ["op16", "i"], 0x19: ["op19", "i"],
+  // RWX TextureModes: 1 lit, 2 foreshorten (perspective), 4 filter. Without
+  // the lit bit a texture draws at full brightness (ground tiles use 2).
+  0x32: ["texturemodes", "i"],
   // Clump tag. RENDER.R32 finds clump i of a model as the clump tagged i + 1
   // (RwFindTaggedClump); the u32 after the "MODL" tag is the number of them.
   0x2d: ["tag", "i"],
-  0x32: ["op32", "i"],
 };
 
 export function modelOps(bytes) {
@@ -124,6 +126,7 @@ export function parseModel(bytes) {
       case "surface": mat = { ...mat, ambient: a[0], diffuse: a[1], specular: a[2] }; break;
       case "opacity": mat = { ...mat, opacity: a[0] }; break;
       case "tag": if (clump) clump.tag = a[0]; break;
+      case "texturemodes": mat = { ...mat, textureModes: a[0] }; break;
       case "texture": mat = { ...mat, texture: a[0] ? bmpName(a[1]) : "" }; break;
     }
   }
