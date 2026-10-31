@@ -134,3 +134,23 @@ The object keeps its root clump and stops: gravity, speed, FRME and stride 0.
   cel numbers; the record is `0xe + 4 x count` bytes. Sprite 571 marks the
   target's feet (`XZToScreen`, script 579), or an arrow at the screen edge
   when it is off to the side.
+- Where the crosshair sits: script 1220 walks the cockpit's HUD table
+  (property 93, rows of 8: kind, x, y, ...) and for kind 4 calls
+  `script_576(x - 320, y - 240)`, which moves sprite 562 there. Sprite
+  positions are relative to the screen centre, which is also the 3D view's
+  centre of projection (ViewportCrop only clips; see docs/battlefield.md).
+  Most cockpits put the crosshair at 320, 240; a few nudge it: Union Sentry
+  248, Darken Sentry 230, Darken Tactical Defense 228, Merc Sentry 235, Merc
+  Tactical Defense 230, Union Heavy Assault 242, Merc Cruiser 239. Many
+  cockpit windows end well below the middle of the screen (Union Sentry
+  shows rows 20-284), so the crosshair sits in the lower part of the window:
+  that is the original's layout.
+- Shots leave the muzzle clumps (`OrientModels` from the weapon's clump in
+  script 1682) and fly along the unit's heading, so they converge on the
+  screen centre with distance. Only homing weapons (script 1674) get the
+  locked target (property 45); the others fly straight whatever is locked.
+  Up close, a tall vehicle's shots pass over a small unit that the lock
+  bracket is on (the mission 1 walker from 8 units away is 30-55 pixels
+  below the crosshair in a Tactical Defense or Heavy Assault HAWC).
+- `web/tests/aim-check.mjs` checks the crosshair position, the shots'
+  direction and lock-on in all 25 units the debug panel offers.

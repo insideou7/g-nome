@@ -235,7 +235,8 @@ def u32(b, o):
 
 
 def decode_stmt(bf, buf, pos):
-    """Returns (length, text). Raises on anything unknown."""
+    """Returns (length, text), plus the case table's byte range for a
+    switch. Raises on anything unknown."""
     op = struct.unpack_from("<H", buf, pos)[0]
     name = NAMES.get(op, "op_%02x" % op)
     if op in FIXED:
@@ -249,7 +250,7 @@ def decode_stmt(bf, buf, pos):
         e, end = decode_expr(bf, buf, pos + 10)
         return t, "%-14s %s  else->%+d" % (name, e, f)
     if op == 0x68:
-        return s32(buf, pos + 2), "%-14s %+d" % (name, s32(buf, pos + 2))
+        return 6, "%-14s %+d" % (name, s32(buf, pos + 2))
     if op == 0xAF:
         n = u32(buf, pos + 2)
         e, _ = decode_expr(bf, buf, pos + 6)
@@ -266,21 +267,32 @@ def decode_stmt(bf, buf, pos):
             subj, _ = decode_expr(bf, buf, pos + 0x10)
         else:
             subj = var_name(u32(buf, pos + 2)) if buf[pos + 15] else str(u32(buf, pos + 2))
-        cases = []
+        cases, hdr = [], min(tab, dflt) if dflt > 0 else tab
         for i in range(ncase):
             c = pos + tab + 12 * i
             val = u32(buf, c + 2)
             val = var_name(val) if buf[c + 10] else str(s32(buf, c + 2))
             cases.append("%s:%+d" % (val, s32(buf, c + 6)))
-        return tab + 12 * ncase, "%-14s %s {%s} default:%+d" % (
-            name, subj, ", ".join(cases), dflt)
+            if s32(buf, c + 6) > 0:
+                hdr = min(hdr, s32(buf, c + 6))
+        # The case bodies follow the header; the case table comes after
+        # them and is skipped by disassemble().
+        text = "%-14s %s {%s} default:%+d" % (name, subj, ", ".join(cases), dflt)
+        return hdr, text, (pos + tab, pos + tab + 12 * ncase)
     raise ExprError("unknown statement op %#x" % op)
 
 
 def disassemble(bf, buf):
-    pos, out = 0, []
+    pos, out, tables = 0, [], []
     while pos < len(buf):
-        n, text = decode_stmt(bf, buf, pos)
+        skip = [end for start, end in tables if start <= pos < end]
+        if skip:
+            pos = skip[0]
+            continue
+        r = decode_stmt(bf, buf, pos)
+        if len(r) == 3:
+            tables.append(r[2])
+        n, text = r[:2]
         out.append((pos, text))
         if n <= 0:
             # goto with a back/zero jump: fall through to the next record
@@ -356,10 +368,17 @@ def main():
         for rid in scripts:
             buf = bf.resident(rid)
             try:
-                pos = 0
+                pos, tables = 0, []
                 while pos < len(buf):
+                    skip = [end for start, end in tables if start <= pos < end]
+                    if skip:
+                        pos = skip[0]
+                        continue
                     op = struct.unpack_from("<H", buf, pos)[0]
-                    n, _ = decode_stmt(bf, buf, pos)
+                    r = decode_stmt(bf, buf, pos)
+                    if len(r) == 3:
+                        tables.append(r[2])
+                    n = r[0]
                     ops[op] += 1
                     pos += n if n > 0 else 6
                 ok += pos == len(buf)
