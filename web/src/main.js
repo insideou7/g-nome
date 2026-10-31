@@ -62,6 +62,20 @@ async function start(files) {
   const engine = new Engine(files, { log, display, audio, ini, trace: $("trace").checked });
   log("loading game files...");
   await engine.init();
+  const cursorCss = new Map();
+  engine.onCursor = (c) => {
+    const canvas = $("screen");
+    if (c === null) return void (canvas.style.cursor = "none");
+    if (c === "default") return void (canvas.style.cursor = "default");
+    if (!cursorCss.has(c)) {
+      const cv = document.createElement("canvas");
+      cv.width = c.width;
+      cv.height = c.height;
+      cv.getContext("2d").putImageData(new ImageData(c.rgba, c.width, c.height), 0, 0);
+      cursorCss.set(c, `url(${cv.toDataURL()}) ${c.hotX} ${c.hotY}, default`);
+    }
+    canvas.style.cursor = cursorCss.get(c);
+  };
   engine.boot();
   window.engine = engine; // for poking at it from the console
   $("skip").disabled = false;
