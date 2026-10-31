@@ -69,13 +69,18 @@ Design choices:
      .BIN turned out to be `{variable, value}` pairs)
    - [x] Smacker plugin and decoder; the opening movie (`DREAM.SMK`) plays,
      Esc and Space skip it, and the scripts then move on to the main menu
-   - [ ] sprite system: type 20 definitions, the 18 sprite messages, cels
-     from type 1 bitmaps, draw order, animation
-   - [ ] background bitmaps, including the packed (flag 0) 640x480 screens
-     (decoder in `tools/gnome_extract.py`, PR #6)
-   - [ ] click regions (statements 0x0e, 0x10, 0xb9, 0x3f), mouse cursor
-   - [ ] menu sounds (`render.DSPlayWave` and friends) and palette fades
-   - [ ] menu screens: main menu, options, load/save, credits movie
+   - [x] sprite system, first pass: type 20 definitions, immediate
+     messages 1/8/12/18, type 18 queues (cel animation, waits, moves,
+     embedded statements), draw order by level
+   - [x] bitmaps: RLE and packed (packed rows are stored bottom row first)
+   - [x] click and hover regions (statements 0x10, 0x0e), sprite bounds
+     (0x3f), timers (0xc4, 0x6d), type 14 statement lists (0xd9)
+   - [x] menu sounds and music (`render.DSPlayWave` and friends)
+   - [x] type 21 text objects (status line) drawn with a canvas font
+   - [x] main menu, GAME submenu, credits movie
+   - [ ] remaining sprite messages (motion paths, speed), palette fade
+     timing, mouse cursor
+   - [ ] options, load/save, NEW GAME flow into mission select
 2. **Briefings and non-3D screens**: mission select, briefings, unit
    loadout. Mostly more of the same 2D services.
 3. **3D battlefield**: reimplement the `RENDER.R32` externs on WebGL. Needs
@@ -98,9 +103,10 @@ The game boots like this (script ids are resource ids):
 | 10, 7 | play `dream.smk` (string `0x8018`); Esc / Space run script 8 |
 | 8, 9 | stop the movie, load palette 2510, fade in, run script 11 |
 | 11, 5998 / 6005 | build the main menu from table 8611 (sprites, click regions, sounds) |
+| 8344 etc. | main menu buttons; submenus come from tables like 8613 |
 
-Next unknowns on that path, in order: statements 0x6d, 0xb9, 0x3f, 0x10,
-0x0e, the sprite messages and `render.DSPlayWave`.
+Coordinates in scripts are relative to the screen centre (320, 240), and
+a bitmap is drawn centred on its sprite's position plus its own x/y offset.
 
 ## Running it
 

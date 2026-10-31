@@ -9,6 +9,7 @@ import { STATEMENTS } from "./stmt-impl.js";
 import { BUILTINS } from "./builtins.js";
 import { installPlugins } from "./plugins/index.js";
 import { Input } from "./input.js";
+import { Texts } from "./text.js";
 import { Sprites, ORIGIN_X, ORIGIN_Y, blit } from "./sprites.js";
 
 // 7THLEVEL.INI stand-in: section -> key -> value. Persisted by the shell.
@@ -55,6 +56,7 @@ export class Engine {
     this.dynamic = new Map(); // copied resources: new id -> source id
     this.nextDynamic = 0;
     this.sprites = new Sprites(this);
+    this.texts = new Texts(this);
     this.clickRects = []; // statement 0x10: {l, t, r, b, script, arg, off}
     this.hoverRects = []; // statement 0x0e: {l, t, r, b, enter, enterArg, leave, leaveArg, sprite}
     this.hover = -1;

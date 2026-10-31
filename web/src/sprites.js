@@ -15,6 +15,9 @@
 import { decodeBitmap } from "./bitmap.js";
 import { WIDTH, HEIGHT } from "./display.js";
 
+const EMPTY = { width: 1, height: 1, x: 0, y: 0, pixels: new Uint8Array(1) };
+const drawable = (t) => t === 1 || t === 21;
+
 export const ORIGIN_X = WIDTH / 2;
 export const ORIGIN_Y = HEIGHT / 2;
 
@@ -29,6 +32,7 @@ export class Sprites {
   }
 
   bitmap(id) {
+    if (this.engine.bin.type(id) === 21) return this.engine.texts.bitmap(id) || EMPTY;
     let b = this.bitmaps.get(id);
     if (!b) {
       b = decodeBitmap(this.engine.res(id));
@@ -196,14 +200,14 @@ export class Sprites {
   // Bounds of the current cel, in script coordinates (SpriteGetBounds).
   bounds(s) {
     const id = s.cels[s.cel];
-    if (id === undefined || this.engine.bin.type(id) !== 1) return { left: s.x, top: s.y, right: s.x, bottom: s.y };
+    if (id === undefined || !drawable(this.engine.bin.type(id))) return { left: s.x, top: s.y, right: s.x, bottom: s.y };
     const b = this.bitmap(id);
     const left = s.x + b.x - (b.width >> 1), top = s.y + b.y - (b.height >> 1);
     return { left, top, right: left + b.width, bottom: top + b.height };
   }
 
   visibleSorted() {
-    return [...this.list.values()].filter((s) => s.visible && this.engine.bin.type(s.cels[Math.min(s.cel, s.cels.length - 1)]) === 1).sort((a, b) => a.level - b.level);
+    return [...this.list.values()].filter((s) => s.visible && drawable(this.engine.bin.type(s.cels[Math.min(s.cel, s.cels.length - 1)]))).sort((a, b) => a.level - b.level);
   }
 
   draw(pixels) {

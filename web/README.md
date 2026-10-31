@@ -17,8 +17,9 @@ python3 -m http.server 8000
 # open http://localhost:8000/web/
 ```
 
-Today it boots the game's scripts and plays the opening movie (Esc or Space
-skips it). The main menu is next.
+Today it boots the game's scripts, plays the opening movie (Esc or Space
+skips it) and shows the main menu with its music, sounds and status text.
+The GAME submenu and the credits movie work; the other screens are next.
 
 During development you can skip the folder picker:
 `http://localhost:8000/web/?game=/game/g-nome/G-NOME/` reads the files over

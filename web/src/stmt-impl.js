@@ -154,6 +154,16 @@ export const STATEMENTS = {
   0xb4(vm, b, dv, p) {
     vm.engine.setPaletteResource(vm.resolve(u32(dv, p + 2), b[p + 6]));
   },
+  // 0xc2: set the text of a type 21 resource +2 (flag +0xe) to string +10,
+  // formatted with the number +6 (flag +0xf) if +0x10 (0x1002104e).
+  0xc2(vm, b, dv, p) {
+    const e = vm.engine;
+    const id = vm.resolve(u32(dv, p + 2), b[p + 0xe]);
+    const arg = vm.resolve(i32(dv, p + 6), b[p + 0xf]);
+    const fmt = e.getString(u32(dv, p + 10));
+    if (fmt === undefined) return 0;
+    return e.texts.setText(id, b[p + 0x10] ? sprintf(fmt, [arg]) : fmt) ? 1 : 0;
+  },
   // 0xc0: string slot = format(src, args) (0x100186e8). +2 dest string id,
   // +6 format string id, +10 arg count, then 6-byte args at +0xe:
   // {u32 value, u8 is_number, u8 is_var}.
