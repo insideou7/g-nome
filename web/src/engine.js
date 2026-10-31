@@ -135,10 +135,9 @@ export class Engine {
 
   mouseDown(cx, cy, button = 0) {
     this.world?.controls.mouseDown(button);
-    if (this.clicksOff) return; // statement 0x10 global switch
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
-    if (s && s.click) return this.runLater(s.click.script, [s.id, s.click.arg]);
+    if (s && s.click && !s.clickOff) return this.runLater(s.click.script, [s.id, s.click.arg]);
     for (let i = this.clickRects.length - 1; i >= 0; i--) {
       const r = this.clickRects[i];
       if (!r.off && x >= r.l && x < r.r && y >= r.t && y < r.b) return this.runLater(r.script, [0, r.arg]);
