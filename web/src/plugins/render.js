@@ -13,6 +13,7 @@ import { taskExterns } from "../anim/tasks.js";
 import { collisionExterns } from "../battlefield/collision.js";
 import { aimExterns } from "../battlefield/aim.js";
 import { combatExterns } from "../combat/externs.js";
+import { radarExterns } from "../battlefield/radar.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -35,6 +36,7 @@ export class RenderPlugin {
       ...collisionExterns(engine),
       ...aimExterns(engine),
       ...combatExterns(engine),
+      ...radarExterns(engine),
       // Sound. Scripts identify a playing sound by its resource id.
       DSInitWavePlay: ok,
       DSDeInitWavePlay() {

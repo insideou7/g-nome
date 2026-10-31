@@ -370,3 +370,69 @@ Object `+0x58` is the radius `SetModelDimensions` (half the larger of the
 posed model's x and z size), `SetRadius` and `GetRadius` share. In mission 1
 the player starts on foot as a pilot with radius 0.039 (3.9 script units);
 cliffs and buildings use footprints instead.
+
+## Radar
+
+Vehicle cockpits have a radar: row type 21 of the cockpit's table (script
+982 finds it) names the radar sprite. Script 986 sets it up
+(`MakeSpriteExtern`, shown), and script 985 redraws it every tick:
+
+```
+RadarClear(sprite)
+RadarDraw(unit, sprite, G1816, range, 101, 113, 77, G1811, 10,
+          class >= 200, property 24, waypoint)
+MakeSpriteDraw(sprite)
+```
+
+`G1816` is the list of units, `range` is the radar range (property 114,
+1000 up to property 40 in steps of 2000 with scripts 983/984; 18000 in a
+HAWC), `G1811` the current target and `waypoint` `G1233[G1238]`. The middle
+numbers are property numbers RadarDraw reads from each unit: 101 the radar
+symbol, 113 the side, 77 the pilot, 10 the clump the radar turns with.
+
+RENDER.R32 paints straight into the frame over the sprite's bounds; the
+sprite drawn after it is the cockpit's radar frame, transparent inside. In
+the browser the sprite carries a buffer of its bounds (`sprite.radar`) that
+`Sprites.draw` puts under its cels (`web/src/battlefield/radar.js`).
+
+`RadarClear(sprite)` (`0x10014866`) fills the bounds with black. It also
+matches the radar's colours to the palette (`FUN_10014bb7`: the entry
+10-245 with the smallest sum of channel differences):
+
+| State | COLORREF | Use |
+|---|---|---|
+| `+0xc8` | `0x00ff00` green | the player's side |
+| `+0xcc` | `0x0000ff` red | other sides |
+| `+0xd0` | `0xffff00` cyan | no pilot (property 77 is 0) |
+| `+0xd4` | `0x00ffff` yellow | ring around the target |
+| `+0xd8` | `0xffffff` white | side 0, and the waypoint |
+| `+0xdc` | black | background |
+| `+0xe0` | `0x808080` grey | view cone and range marks |
+
+`RadarDraw` (`0x10014c8e`), with `w`, `h` the bounds' size, `cx = w/2`,
+`cy = h/2` and `R = range / 100` in world units:
+
+- Orientation: the unit's `right` and `at` rows. With the turret flag set
+  and property 10 non-zero it uses that clump's world matrix instead, and the
+  twist is 0. Both vectors are normalized.
+- View cone: two grey lines from the centre at `twist / 100 ± 33` degrees,
+  ending at `(cx - sin a · r, cy - cos a · r · h/w)` (truncated). `r` starts
+  at `cx + cy - min(cx, cy)/2` and shrinks until both ends are above the
+  bottom edge.
+- Range marks: for each of 40, 80 and 120 units that `R` reaches, a 5-pixel
+  grey line across the centre, `trunc(20h / R)` pixels further up each time.
+- Units: each list entry within `R` of the unit in both x and z goes at
+  `x = cx - (right·d / R) · cx`, `y = cy - (at·d / R) · cy` (truncated,
+  `d` the offset from the unit), if that is strictly inside the bounds'
+  border. Forward is up; `right` points to the left of the view in
+  RenderWare, so units on the right land on the right. The symbol is
+  property 101 (0 a hollow 3x3 square, 1 a dot, 2 a plus, 3 a diagonal
+  cross, 5 not drawn), 4 for the target (a dot in a yellow ring). The colour
+  is cyan without a pilot, else white for side 0, green for the unit's own
+  side and red for the rest. The unit itself is in the list, so it marks the
+  centre.
+- Waypoint: two white 3-pixel rows above and below its position, with the
+  same range test.
+
+Lines use `FUN_10024f90`, a run-length slice line; the browser draws an
+ordinary midpoint line, which can differ by a pixel along a slope.

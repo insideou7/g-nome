@@ -26,9 +26,6 @@ import { table } from "../src/builtins.js";
 // done; the run says when one is no longer hit.
 const KNOWN_GAPS = new Set([
   "extern:render.FreeAllTextures",
-  // The radar in vehicle cockpits (reached once mission1 swaps into a HAWC).
-  "extern:render.RadarDraw",
-  "extern:render.RadarClear",
   // Sets bit 15 of the sprite's flags (0x1003f25a -> 0x10036e10) and then
   // copies a position from the sprite's +0x1c record. Sent while quitting.
   "sprite message:14",
@@ -79,6 +76,7 @@ const LAB_PREVIEW = [150, 60, 330, 330]; // the turning model on LAB screens
 const BRIEF_MAP = [130, 40, 330, 240];
 const BRIEF_PREVIEW = [340, 40, 510, 240];
 const VIEWPORT = [60, 90, 570, 265]; // the 3D view through the cockpit
+const RADAR = [230, 370, 410, 455]; // inside the HAWC cockpit's radar oval
 
 let failures = 0;
 let section = "";
@@ -459,6 +457,16 @@ const SECTIONS = {
     const own = p.engine.vm.getGlobal(973);
     check(r3d.objects.getProperty(own, 0) >= 100, "the debug panel puts the player in a HAWC", `class ${r3d.objects.getProperty(own, 0)}`);
     check(w.view.handles.get(own)?.visible === false, "the player's own vehicle is not drawn over the view");
+    // The radar (RadarClear/RadarDraw): a grey view cone and range marks
+    // from the centre (320, 412), where the player's unit is marked. (The
+    // empty mech the walk parked on the same spot is drawn over it in cyan.)
+    const radar = p.region(...RADAR);
+    check(radar.colours >= 3 && radar.lit > 150, "the radar draws its view cone and units", JSON.stringify(radar));
+    const scr = p.screen();
+    const px = (x, y) => [...scr.subarray((y * 640 + x) * 4, (y * 640 + x) * 4 + 3)];
+    const coloured = (c) => Math.max(...c) - Math.min(...c) > 100; // not black, grey or white
+    const marked = [[319, 412], [320, 411], [320, 412], [320, 413], [321, 412]].filter(([x, y]) => coloured(px(x, y)));
+    check(marked.length >= 3, "the radar marks the player's unit at its centre", `${marked.length} pixels`);
     p.shot("in-hawc");
     finish(p);
   },

@@ -131,7 +131,8 @@ Design choices:
      detail at AddObject, ObjectSetScene/UpdateLOD
    - [x] weapons: recharge, projectiles, hits, explosions and debris
      (`src/combat/`, [combat.md](combat.md))
-   - [ ] radar
+   - [x] radar: RadarClear/RadarDraw paint the cockpit radar sprite
+     (`src/battlefield/radar.js`, [battlefield.md](battlefield.md#radar))
    - [x] enemy AI and mission goals: the AI and win/lose logic are the
      game's own scripts; turret aiming (`RotateSubClump`,
      `MoveSubClumpToFace`) and `OrientModels` are in
