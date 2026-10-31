@@ -66,6 +66,7 @@ const near = (a, b, e = 1e-6) => assert.ok(Math.abs(a - b) < e, `${a} != ${b}`);
   w.init(0, 0, 640, 480, 0);
   const o = w.add(5, 0, 0, 0);
   o.updateScript = 99;
+  o.hasUpdate = true; // an update record (kind 6), interval 0
   w.onTick(() => {
     o.pos = [o.pos[0] + 1, 0, 0];
   });

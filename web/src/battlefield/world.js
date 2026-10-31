@@ -10,7 +10,8 @@
 // Object records (properties, models) belong to web/src/render3d/objects.js;
 // this file only keeps transforms and motion state, keyed by the same id.
 import { BattleCamera, project, screenToGround } from "./camera.js";
-import { identityBasis, copyBasis, lerp, lerpBasis, rotate, add, scale, headingOf } from "./math.js";
+import { identityBasis, copyBasis, lerp, lerpBasis, rotate, add, scale, headingOf, normalize, modelMatrix } from "./math.js";
+import { clumpMatrices } from "../render3d/model.js";
 import { BattleView } from "./view.js";
 
 export const UNIT = 100; // script units per RenderWare unit (Init3D: 100.0f)
@@ -101,6 +102,8 @@ export class World {
   constructor(engine) {
     this.engine = engine;
     this.state = STATE.OFF;
+    this.shown = false; // the 3D view is the screen's background (Resume3D)
+    this.origin = [0, 0];
     this.objects = new Map(); // id -> WorldObject, in AddObject order
     this.capacity = 0; // AllocObjects
     this.camera = new BattleCamera();
@@ -135,8 +138,26 @@ export class World {
     }
     o.setPosition([x / UNIT, y / UNIT, z / UNIT]);
     o.tickPos = o.pos.slice();
-    o.lastUpdate = this.time;
+    o.lastUpdate = Math.round(this.time);
+    this.loadBehaviours(o);
     return o;
+  }
+
+  // The object's behaviour records (OB3D/OPRT entries, +0xec): record 0 of
+  // kind 6 is the update (interval, script); kind 1 is a timer script;
+  // kinds 4 and 5 are level-of-detail ranges (a model, or a script that
+  // links one) chosen by distance in FUN_10029059.
+  loadBehaviours(o) {
+    const rec = this.engine.render3d?.objects?.get(o.id);
+    const entries = rec?.entries || [];
+    o.behaviours = entries.map((e) => ({ ...e, last: Math.round(this.time) }));
+    const first = o.behaviours[0];
+    o.hasUpdate = first?.kind === 6;
+    if (o.hasUpdate) {
+      o.updateInterval = first.a || 0;
+      if (first.script && !o.updateScript) o.updateScript = first.script;
+    }
+    o.lod = 0; // index of the level of detail in use (+0xe0)
   }
 
   remove(id) {
@@ -178,8 +199,10 @@ export class World {
     this.alpha = Math.min(1, this.acc / TICK_MS);
   }
 
-  // One simulation step: snapshot poses, then run due update scripts. The
-  // camera's object goes first, as in FUN_10029856.
+  // One simulation step (FUN_10029856): snapshot poses, then run the
+  // updates. When the camera rides on an object, every object with an
+  // update record is stepped whenever that object is (Init3D's "only when
+  // moved" flag is 0 in G-Nome); otherwise objects keep their own interval.
   tick() {
     for (const o of this.objects.values()) {
       o.tickPos = o.pos.slice();
@@ -187,33 +210,79 @@ export class World {
     }
     this.time += TICK_MS;
     const now = Math.round(this.time);
-    const camId = this.camera.attach?.id;
-    if (camId) this.update(this.objects.get(camId), now);
+    const camObj = this.camera.attach && this.objects.get(this.camera.attach.id);
+    let all = false;
+    if (camObj?.hasUpdate && this.due(camObj, now)) {
+      this.update(camObj, now);
+      this.levelOfDetail(camObj, now);
+      all = !this.onlyMoved || camObj.moved;
+      camObj.moved = false;
+    }
     for (const o of [...this.objects.values()]) {
-      if (o.id !== camId) this.update(o, now);
+      if (o === camObj || !o.hasUpdate || !this.objects.has(o.id)) continue;
+      if (!(all || (camObj ? this.onlyMoved && this.due(o, now) : this.due(o, now)))) continue;
+      this.update(o, now);
       if (this.state === STATE.OFF) return;
+      if (this.objects.has(o.id)) this.levelOfDetail(o, now);
     }
     for (const fn of this.tickListeners) fn(TICK_MS);
     if (this.state === STATE.REDRAW) this.state = STATE.RUNNING;
   }
 
-  update(o, now) {
-    if (!o || !o.updateScript || !this.objects.has(o.id)) return;
-    if (now - o.lastUpdate < o.updateInterval) return;
-    const dt = Math.min(MAX_STEP_MS, now - o.lastUpdate);
-    o.lastUpdate = now;
-    this.engine.callScript(o.updateScript, [o.id, dt]);
+  due(o, now) {
+    return now - o.lastUpdate >= o.updateInterval;
   }
 
-  // Interpolated pose of an object for drawing. `clump` selects a sub-clump
-  // (turret etc.); the model code can refine that through objectClumpPose.
+  // FUN_10028fb2: run the update script with the time since the last one.
+  update(o, now) {
+    const dt = Math.min(MAX_STEP_MS, now - o.lastUpdate);
+    o.lastUpdate = now;
+    if (o.updateScript) this.engine.callScript(o.updateScript, [o.id, dt]);
+  }
+
+  // FUN_10029059: timers (kind 1) and level of detail (kinds 4, 5). The
+  // distance is an octagonal approximation in x/z divided by the far plane.
+  levelOfDetail(o, now) {
+    const list = o.behaviours;
+    if (!list || list.length < 2) return;
+    const cam = this.cameraPose(1).pos;
+    let dx = Math.abs(o.pos[0] - cam[0]), dz = Math.abs(o.pos[2] - cam[2]);
+    const d = (dx + dz - Math.min(dx, dz) / 2) / this.camera.far;
+    const cur = o.lod && list[o.lod];
+    let chosen = !!(cur && cur.min <= d && d <= cur.max);
+    for (let i = list.length - 1; i > 0; i--) {
+      const b = list[i];
+      if (b.kind === 1) {
+        if (now - b.last > b.a) {
+          b.last = now;
+          if (b.b) this.engine.callScript(b.b, [o.id]);
+        }
+      } else if ((b.kind === 4 || b.kind === 5) && !chosen && b.min <= d && d <= b.max) {
+        if (b.kind === 4) this.engine.render3d?.setObjectModel?.(o.id, b.value);
+        else this.engine.callScript(b.value, [o.id, this.engine.render3d?.objects?.get(o.id)?.model || 0]);
+        o.lod = i;
+        chosen = true;
+      }
+    }
+  }
+
+  // Interpolated pose of an object for drawing. With `clump` > 0 it is the
+  // pose of that tagged clump of the object's model (RwGetClumpLTM), e.g. the
+  // cockpit the camera sits in.
   pose(id, clump = 0, t = this.alpha) {
     const o = this.objects.get(id);
     if (!o) return null;
-    let pos = lerp(o.tickPos, o.pos, t), basis = t >= 1 ? copyBasis(o.basis) : lerpBasis(o.tickBasis, o.basis, t);
-    const sub = clump && this.engine.objects?.clumpOffset?.(id, clump);
-    if (sub) pos = add(pos, add(add(scale(basis.right, sub[0]), scale(basis.up, sub[1])), scale(basis.at, sub[2])));
-    return { pos, basis };
+    const pos = lerp(o.tickPos, o.pos, t);
+    const basis = t >= 1 ? copyBasis(o.basis) : lerpBasis(o.tickBasis, o.basis, t);
+    if (!clump) return { pos, basis };
+    const inst = this.engine.render3d?.objectModel?.(id);
+    const i = inst ? inst.clump(clump) : -1;
+    if (i < 0) return { pos, basis };
+    const m = clumpMatrices(inst.model, modelMatrix(basis, pos), inst.pose)[i];
+    return {
+      pos: [m[12], m[13], m[14]],
+      basis: { right: normalize([m[0], m[1], m[2]]), up: normalize([m[4], m[5], m[6]]), at: normalize([m[8], m[9], m[10]]) },
+    };
   }
 
   cameraPose(t = this.alpha) {

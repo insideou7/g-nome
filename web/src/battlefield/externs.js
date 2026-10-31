@@ -34,12 +34,19 @@ export function battlefieldExterns(engine) {
       world.clear();
       return 1;
     },
-    Pause3D() {
+    // Pause3D(hide): stop the clock; hide != 0 also takes the 3D view off
+    // the screen (RtSetComposeBackground(0))
+    Pause3D(hide) {
       if (world.state !== STATE.OFF) world.state = STATE.PAUSED;
+      if (hide) world.shown = false;
       return 1;
     },
+    // Resume3D: run again and make the 3D view the sprites' background
     Resume3D() {
-      if (world.state !== STATE.OFF) world.state = STATE.RUNNING;
+      if (world.state !== STATE.OFF) {
+        world.state = STATE.RUNNING;
+        world.shown = true;
+      }
       return 1;
     },
     FullRedraw() {
@@ -180,22 +187,24 @@ export function battlefieldExterns(engine) {
       o.spinFor(ms / 1000);
       return 1;
     },
-    // UpdateTimeStep(id, ms, slot): move forward at the object's speed for the
-    // time banked in timer `slot` plus `ms`. Animated objects hand the step
-    // to the animation code (engine.animation.timeStep), as the original
-    // does through UpdateFrameTerm / doAnimationUpdate.
+    // UpdateTimeStep(id, ms, slot) (0x10011ec1): move forward at the
+    // object's speed for the time banked in timer `slot` plus `ms`. For an
+    // animated object the animation code decides first (UpdateFrameTerm +
+    // doAnimationUpdate): 0 means no frame change yet, so only spin and keep
+    // banking time; otherwise move for |result| ms and resync the clip rate.
     UpdateTimeStep(id, ms, slot) {
       const o = obj(id);
       if (!o) return 0;
       o.timers ??= [];
       let t = (o.timers[slot] || 0) + ms;
-      const anim = engine.animation?.timeStep;
-      if (anim) t = anim(id, t, ms) ?? t;
+      const anim = engine.animation;
+      if (anim?.timeStep) t = anim.timeStep(id, t) ?? t;
       if (t === 0) {
         o.spinFor(ms / 1000);
         o.timers[slot] = o.speed ? (o.timers[slot] || 0) + ms : 0;
       } else {
         o.vel = scale(o.basis.at, o.speed);
+        anim?.syncRate?.(id);
         o.move(Math.abs(t) / 1000);
         o.spinFor(ms / 1000);
         o.timers[slot] = 0;

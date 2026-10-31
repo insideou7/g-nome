@@ -55,7 +55,8 @@ export class BattleView {
     }
     const cam = w.camera;
     const vp = cam.viewport();
-    const camera = {
+    this.camera ??= r3d.createCamera();
+    const camera = Object.assign(this.camera, {
       position: pose.pos,
       at: pose.at,
       up: pose.up,
@@ -69,8 +70,10 @@ export class BattleView {
       fog: cam.fog && { depth: Math.max(cam.near, cam.far - cam.fog.depth), color: cam.fog.color },
       background: cam.background,
       backdrop: this.backdrop(pose, vp),
-    };
-    return r3d.render(this.scene, camera, vp);
+    });
+    // Render the viewport inside a full-size canvas, so it lines up with
+    // the 640x480 screen when drawn at the Init3D origin.
+    return r3d.render(this.scene, camera, { ...vp, canvasWidth: cam.width, canvasHeight: cam.height });
   }
 
   backdrop(pose, vp) {

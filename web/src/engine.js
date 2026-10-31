@@ -115,7 +115,10 @@ export class Engine {
     this.dirty = false;
     const d = this.display;
     const bg = this.background;
-    if (bg.mode === 0 && this.bin.type(bg.bitmap) === 1) {
+    // While the battlefield is shown, the 3D view is the background
+    // (Resume3D: SpriteSetBackground(-1)); colour 0 lets it show through.
+    if (this.world?.shown) d.pixels.fill(0);
+    else if (bg.mode === 0 && this.bin.type(bg.bitmap) === 1) {
       d.pixels.fill(0);
       const b = this.sprites.bitmap(bg.bitmap);
       blit(d.pixels, b, 0, 0);

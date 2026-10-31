@@ -87,5 +87,71 @@ class PaletteTest(unittest.TestCase):
         self.assertEqual(pal[255], (255, 255, 255))
 
 
+def pack_codes(codes, bits):
+    acc = n = 0
+    out = bytearray()
+    for c in codes:
+        acc = (acc << bits) | c
+        n += bits
+        while n >= 8:
+            n -= 8
+            out.append((acc >> n) & 0xFF)
+    if n:
+        out.append((acc << (8 - n)) & 0xFF)
+    return bytes(out)
+
+
+class PackedBitmapTest(unittest.TestCase):
+    def test_lzw_chunk(self):
+        # A, B, then code 256 (= "AB"), then 258 (the code being defined, "ABA").
+        data = pack_codes([65, 66, 256, 258, 1023], 10)
+        self.assertEqual(bytes(gx._lzw_chunk(data, 10)), b"ABABABA")
+
+    def test_stream_and_row_padding(self):
+        chunk = pack_codes([1, 2, 3, 2047], 11)
+        lzw_block = struct.pack("<H", len(chunk)) + chunk
+        stored = bytes([4, 5, 6, 7, 8])
+        body = (struct.pack("<H", 0x6000 | len(lzw_block)) + lzw_block
+                + struct.pack("<H", len(stored)) + stored + struct.pack("<H", 0xE000))
+        self.assertEqual(bytes(gx.decompress_packed(body)), bytes(range(1, 9)))
+        # 3x2 image: rows are padded to 4 bytes and stored bottom row first.
+        bm = gx.Bitmap(3, 2, 0, 0, 0, 0, body)
+        self.assertEqual(gx.bitmap_pixels(bm), bytes([5, 6, 7, 1, 2, 3]))
+
+
+def op(code, fmt="", *args):
+    return struct.pack("<I" + fmt, code, *args)
+
+
+class ModelTest(unittest.TestCase):
+    def model(self):
+        ident_moved = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 10, 0, 0, 1]
+        path = b"\\x\\WALL.BMP\0"
+        path += b"\0" * (-len(path) % 4)
+        body = op(0x1A) + op(0x06)
+        body += op(0x35) + op(0x34, "16f", *ident_moved) + op(0x06)
+        for x, y in [(0, 0), (1, 0), (1, 1), (0, 1)]:
+            body += op(0x3C, "3f", x, y, 0) + op(0x12, "2f", x, y) + op(0x14)
+        body += op(0x2C, "3f", 1, 0, 0) + op(0x2E, "i", 8) + path
+        body += op(0x23, "4i", 1, 2, 3, 4)
+        body += op(0x07) + op(0x36) + op(0x07) + op(0x1B)
+        return b"MODL" + bytes(4) + body
+
+    def test_ops(self):
+        names = [n for n, _ in gx.model_ops(self.model())]
+        self.assertEqual(names[:5], ["modelbegin", "clumpbegin", "transformbegin",
+                                     "transform", "clumpbegin"])
+        self.assertIn(("texture", [8, "\\x\\WALL.BMP"]), gx.model_ops(self.model()))
+
+    def test_obj(self):
+        obj, mtl = gx.model_to_obj(self.model(), "m", {"WALL.BMP": "wall.png"})
+        lines = obj.splitlines()
+        self.assertIn("v 10.000000 0.000000 0.000000", lines)
+        self.assertIn("vt 1.000000 0.000000", lines)  # v is flipped for OBJ
+        self.assertIn("f 1/1 2/2 3/3 4/4", lines)
+        self.assertIn("map_Kd wall.png", mtl)
+        self.assertIn("Kd 1.0000 0.0000 0.0000", mtl)
+
+
 if __name__ == "__main__":
     unittest.main()
