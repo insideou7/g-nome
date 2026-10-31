@@ -33,3 +33,6 @@ Setup, the Ghidra backend and troubleshooting are in
   animations.
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
   (scope, architecture, milestones, status).
+- [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
+  actions they unlock, and the DEBUG button on the OPTIONS screen
+  (`web/src/debug.js`).

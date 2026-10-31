@@ -12,6 +12,7 @@ import { installPlugins } from "./plugins/index.js";
 import { Input } from "./input.js";
 import { Texts } from "./text.js";
 import { Sprites, ORIGIN_X, ORIGIN_Y, blit } from "./sprites.js";
+import { Debug } from "./debug.js";
 
 // 7THLEVEL.INI stand-in: section -> key -> value. Persisted by the shell.
 export class Ini {
@@ -66,6 +67,7 @@ export class Engine {
     this.fades = []; // queued palette fades {to, ms}
     this.fadedOut = false;
     this.lists = new Map(); // type 14 statement lists
+    this.debug = new Debug(this); // DEBUG button on the OPTIONS screen (debug.js)
   }
 
   // Run one statement outside any script (sprite queue record 21, type 14
@@ -125,6 +127,7 @@ export class Engine {
     } else if (bg.mode === 1) d.pixels.fill(bg.color);
     else d.pixels.fill(0);
     this.sprites.draw(d.pixels);
+    this.debug.draw(d.pixels);
     d.dirty = true;
   }
 
@@ -135,6 +138,7 @@ export class Engine {
 
   mouseDown(cx, cy, button = 0) {
     this.world?.controls.mouseDown(button);
+    if (this.debug.mouseDown(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
     if (s && s.click && !s.clickOff) return this.runLater(s.click.script, [s.id, s.click.arg]);
@@ -144,6 +148,7 @@ export class Engine {
     }
   }
   mouseMove(cx, cy) {
+    this.debug.mouseMove(cx, cy);
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     let hit = -1;
     for (let i = this.hoverRects.length - 1; i >= 0; i--) {

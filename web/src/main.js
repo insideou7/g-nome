@@ -3,6 +3,7 @@ import { Engine, Ini } from "./engine.js";
 import { Display } from "./display.js";
 import { Audio } from "./audio.js";
 import { vkFromEvent } from "./input.js";
+import { DebugPanel } from "./debug-panel.js";
 
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
@@ -78,20 +79,14 @@ async function start(files) {
   };
   engine.boot();
   window.engine = engine; // for poking at it from the console
+  const panel = new DebugPanel(engine, $("stage"), $("screen"));
   // Development: ?mission=N starts campaign mission N after the boot, the way
   // the briefing's start button does (script 8317).
   const mission = Number(new URLSearchParams(location.search).get("mission"));
   if (mission) {
     engine.input.keyDown(0x1b); // skip the opening movie
     engine.input.keyUp(0x1b);
-    setTimeout(() => {
-      // the real path goes through the briefing, which has already put the
-      // menu away; hide whatever is still up
-      for (const sp of engine.sprites.list.values()) sp.visible = false;
-      for (const g of [2118, 2119]) engine.vm.setGlobal(g, mission);
-      engine.vm.setGlobal(982, 0);
-      engine.run(8317);
-    }, 5000);
+    setTimeout(() => engine.debug.startMission(mission, -1), 5000);
   }
   $("skip").disabled = false;
   $("skip").onclick = () => engine.input.keyDown(0x1b);
@@ -117,6 +112,7 @@ async function start(files) {
   let last = performance.now();
   const frame = (t) => {
     engine.tick(Math.min(100, t - last));
+    panel.frame(t);
     last = t;
     if (!engine.quit) requestAnimationFrame(frame);
     else log("game quit");
