@@ -48,6 +48,9 @@ export class Controls {
     switch (device) {
       case 0:
       case 5:
+        // Shift or Ctrl bound on its own (a port addition, input.js) is
+        // held whenever it is down
+        if (key === CTRL || key === SHIFT) return this.down.has(key);
         return !ctrl && !shift && this.down.has(key);
       case 1:
         return ctrl && this.down.has(key);
@@ -83,7 +86,7 @@ export class Controls {
     for (const id of m.events) {
       for (const [action, dev, k] of this.rows(id)) {
         if (k !== key) continue;
-        if (device === "mouse" ? dev !== 4 : !matchesKey(dev, ctrl, shift)) continue;
+        if (device === "mouse" ? dev !== 4 : !matchesKey(dev, ctrl, shift, k)) continue;
         if (!this.action(m.actions, action, m.column) || !(m.mask & this.action(m.actions, action, 1))) continue;
         const script = this.action(m.actions, action, 0);
         if (script) this.engine.callScript(script, [action]);
@@ -113,6 +116,7 @@ export class Controls {
   }
 }
 
-function matchesKey(dev, ctrl, shift) {
+function matchesKey(dev, ctrl, shift, key) {
+  if (key === CTRL || key === SHIFT) return dev === 0 || dev === 5;
   return (dev === 0 && !ctrl && !shift) || (dev === 1 && ctrl && !shift) || (dev === 2 && shift && !ctrl) || (dev === 5 && !ctrl && !shift);
 }
