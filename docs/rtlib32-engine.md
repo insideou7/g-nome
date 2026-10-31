@@ -263,8 +263,9 @@ A few runtime fields that several of them touch:
 
 What the menus, LAB and mission 1 hit: statements `0x4D`, `0x71`, `0xB8`,
 `0x8E`, `0xD2` and builtin `0xE7` were the only RTLIB32 ones the web engine
-did not implement yet; they are in now. G-Nome's scripts call 17 of the 181
-builtins in all (`python3 -I tools/r32script.py G-NOME.BIN --summary`).
+did not implement yet; they are in now. G-Nome's scripts call 19 of the 181
+builtins in all (`python3 -I tools/r32script.py G-NOME.BIN --summary`);
+`0xC8` ScreenShake is the one the web engine still lacks.
 
 ## Sprite motion: paths, speed and motion
 
@@ -306,7 +307,10 @@ messages 1, 2, 7, 8, 12, 14 and 18 only. The web engine implements them all
 
 `tools/r32script.py` implements all of the above. On `G-NOME.BIN` it parses
 all 2,342 scripts to exactly their stored size, which is a good check that the
-statement sizes and expression format are right. Example from script 1 (game
+statement sizes and expression format are right. A `goto` and a `switch`
+are listed at their own size, so the code after a forward `goto` and the
+case bodies of a `switch` (its case table follows them and is skipped) are
+listed too; before, both skipped over that code. Example from script 1 (game
 reset):
 
 ```
