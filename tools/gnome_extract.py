@@ -7,7 +7,8 @@ This tool copies every entry out as a raw file and converts the formats we
 understand:
 
   * sounds (type 12) -> .wav, decoding 7th Level ADPCM
-  * RLE bitmaps (type 1) and RLE textures (type 2) -> .png
+  * bitmaps (type 1) and textures (type 2) -> .png
+  * 3D models (types 7 and 8) -> .obj + .mtl, textured with those PNGs
   * the other sections of G-NOME.BIN (string tables, palette, script) -> raw
 
 It also writes manifest.csv, one row per resource. The format notes are in
@@ -157,18 +158,29 @@ def parse_bitmap(data: bytes) -> Bitmap:
     return Bitmap(w, h, flags, x, y, rid, data[BITMAP_HDR.size:])
 
 
-def texture_bitmap(data: bytes):
-    """A type 2 texture is u32 kind, u32 size, u32 path length, the original
-    .BMP path, then (for kind 61) a bitmap. Returns (path, bitmap or None)."""
-    if len(data) < 12:
-        return "", None
-    kind, _size, path_len = struct.unpack_from("<III", data, 0)
-    if 12 + path_len > len(data):
-        return "", None
-    path = data[12:12 + path_len].split(b"\0")[0].decode("latin-1")
-    if kind != 61:
-        return path, None
-    return path, parse_bitmap(data[12 + path_len:])
+TEXTURE_KIND = 61
+
+
+def texture_records(data: bytes) -> list:
+    """A type 2 resource is a list of textures, each one:
+        u32 kind (61), u32 size of the rest of the record,
+        u32 path length, the original .BMP path, then a bitmap.
+    Returns [(path, Bitmap)], or [] for the 34 resources in another format."""
+    out, p = [], 0
+    while p + 12 <= len(data):
+        kind, size, path_len = struct.unpack_from("<III", data, p)
+        end = p + 4 + size
+        if kind != TEXTURE_KIND or end > len(data) or 12 + path_len > 4 + size:
+            return []
+        path = data[p + 12:p + 12 + path_len].split(b"\0")[0].decode("latin-1")
+        out.append((path, parse_bitmap(data[p + 12 + path_len:end])))
+        p = end
+    return out if p == len(data) else []
+
+
+def bmp_name(path: str) -> str:
+    """\\7thlevel\\...\\FOO.BMP -> FOO.BMP"""
+    return path.replace("\\", "/").split("/")[-1]
 
 
 def decode_rle(bm: Bitmap) -> bytearray:
@@ -205,6 +217,103 @@ def decode_rle(bm: Bitmap) -> bytearray:
         if x != w:
             raise ValueError(f"row {r} decoded to {x} pixels, expected {w}")
     return out
+
+
+def _lzw_chunk(data: bytes, bits: int) -> bytearray:
+    """Decode one LZW chunk: fixed-width codes, MSB first, codes 0-255 are
+    bytes, new strings start at 256, the all-ones code ends the chunk. There
+    is no reset code; the table just stops growing when full."""
+    end = (1 << bits) - 1
+    prefix, suffix = [0] * end, bytearray(end)
+    out = bytearray()
+    pos = acc = nacc = 0
+
+    def code() -> int:
+        nonlocal pos, acc, nacc
+        while nacc < bits:
+            acc = (acc << 8) | data[pos]
+            pos += 1
+            nacc += 8
+        nacc -= bits
+        c = (acc >> nacc) & end
+        acc &= (1 << nacc) - 1
+        return c
+
+    def string(c: int) -> bytes:
+        s = bytearray()
+        while c > 0xFF:
+            s.append(suffix[c])
+            c = prefix[c]
+        s.append(c)
+        s.reverse()
+        return bytes(s)
+
+    old = code()
+    if old == end:
+        return out
+    out.append(old)
+    nxt = 256
+    while True:
+        c = code()
+        if c == end:
+            return out
+        if c < nxt:
+            s = string(c)
+        else:  # the code being defined right now
+            s = string(old)
+            s += s[:1]
+        out += s
+        if nxt < end:
+            prefix[nxt], suffix[nxt] = old, s[0]
+            nxt += 1
+        old = c
+
+
+LZW_BITS = {0x4000: 10, 0x6000: 11, 0x8000: 12}
+
+
+def decompress_packed(body: bytes) -> bytearray:
+    """Decode RTLIB32's DecompressBitmapData stream.
+
+    A list of blocks, each with a u16 header: the top 3 bits are the method,
+    the low 13 bits the block's byte size. 0x0000 stores bytes as is, 0x4000,
+    0x6000 and 0x8000 hold LZW chunks (u16 size + data each) with 10, 11 and
+    12 bit codes, and 0xE000 ends the stream.
+    """
+    out = bytearray()
+    p = 0
+    while True:
+        (head,) = struct.unpack_from("<H", body, p)
+        p += 2
+        method, size = head & 0xE000, head & 0x1FFF
+        if method == 0xE000:
+            return out
+        block = body[p:p + size]
+        p += size
+        if method == 0:
+            out += block
+            continue
+        if method not in LZW_BITS:
+            raise ValueError(f"unknown packing method {method:#x}")
+        q = 0
+        while q < len(block):
+            (n,) = struct.unpack_from("<H", block, q)
+            out += _lzw_chunk(block[q + 2:q + 2 + n], LZW_BITS[method])
+            q += 2 + n
+
+
+def bitmap_pixels(bm: Bitmap) -> bytes:
+    """width*height palette indices for either bitmap encoding."""
+    if bm.flags & FLAG_RLE:
+        return bytes(decode_rle(bm))
+    # Packed bitmaps are DIB rows: padded to 4 bytes, bottom row first.
+    raw = decompress_packed(bm.body)
+    stride = (bm.width + 3) & ~3
+    if len(raw) < stride * bm.height:
+        raise ValueError(f"packed bitmap decoded to {len(raw)} bytes, "
+                         f"expected {stride * bm.height}")
+    return b"".join(raw[r * stride:r * stride + bm.width]
+                    for r in reversed(range(bm.height)))
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
@@ -302,6 +411,173 @@ def sound_to_wav(data: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# 3D models (types 7 MODL and 8 MPRT)
+# ---------------------------------------------------------------------------
+
+# After the 4 byte tag and a u32, a model is a stream of u32 opcodes, each
+# followed by fixed arguments. It mirrors RenderWare's RWX script commands.
+# Argument kinds: f float, i int, P count-prefixed int list, s texture path
+# (only present when the preceding int is not 0; NUL-terminated, padded to 4).
+MODEL_OPS = {
+    0x1A: ("modelbegin", ""), 0x1B: ("modelend", ""),
+    0x06: ("clumpbegin", ""), 0x07: ("clumpend", ""),
+    0x35: ("transformbegin", ""), 0x36: ("transformend", ""),
+    0x34: ("transform", "f" * 16),
+    0x3B: ("vertex", "fff"), 0x3C: ("vertexext", "fff"),
+    0x12: ("uv", "ff"), 0x14: ("vertexend", ""),
+    0x39: ("triangle", "iii"), 0x23: ("quad", "iiii"), 0x1D: ("polygon", "P"),
+    0x2C: ("color", "fff"), 0x08: ("surface", "fff"), 0x1C: ("opacity", "f"),
+    0x2E: ("texture", "is"),
+    # Int settings whose meaning is not known yet.
+    0x04: ("op04", "i"), 0x0D: ("op0d", "i"), 0x0F: ("op0f", "i"),
+    0x16: ("op16", "i"), 0x19: ("op19", "i"), 0x2D: ("op2d", "i"),
+    0x32: ("op32", "i"),
+}
+
+
+def model_ops(data: bytes) -> list:
+    """Split a MODL/MPRT resource into (name, args) tuples."""
+    p, ops = 8, []
+    while p < len(data):
+        (op,) = struct.unpack_from("<I", data, p)
+        p += 4
+        if op not in MODEL_OPS:
+            raise ValueError(f"unknown model opcode {op:#x} at {p - 4:#x}")
+        name, kinds = MODEL_OPS[op]
+        args = []
+        for k in kinds:
+            if k == "f":
+                args.append(struct.unpack_from("<f", data, p)[0])
+                p += 4
+            elif k == "i":
+                args.append(struct.unpack_from("<i", data, p)[0])
+                p += 4
+            elif k == "P":
+                (n,) = struct.unpack_from("<I", data, p)
+                args.append(list(struct.unpack_from(f"<{n}I", data, p + 4)))
+                p += 4 + 4 * n
+            elif k == "s" and args[-1]:
+                z = data.index(b"\0", p)
+                args.append(data[p:z].decode("latin-1"))
+                p = (z + 4) & ~3
+        ops.append((name, args))
+    if p != len(data):
+        raise ValueError("model stream overruns the resource")
+    return ops
+
+
+def _matmul(a: list, b: list) -> list:
+    return [sum(a[r * 4 + k] * b[k * 4 + c] for k in range(4))
+            for r in range(4) for c in range(4)]
+
+
+IDENTITY = [1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 1.0]
+
+
+def model_to_obj(data: bytes, name: str, texture_pngs: dict) -> tuple:
+    """Convert a model to Wavefront OBJ and MTL text.
+
+    Each clump has its own 1-based vertex list. A transform (a 4x4 matrix
+    for row vectors, translation in the last row) applies to the clumps
+    that follow it, inside the parent clump's space. texture_pngs maps an
+    upper-case .BMP file name to a PNG path for the material file.
+    """
+    obj = [f"# {name}, converted by tools/gnome_extract.py", f"mtllib {name}.mtl"]
+    mtl = [f"# materials for {name}"]
+    materials = {}
+    color, opacity, texture = (0.8, 0.8, 0.8), 1.0, ""
+    current_mtl = None
+    ctm, ctm_stack = IDENTITY, []
+    world, world_stack = IDENTITY, []
+    verts, vert_stack = [], []
+    nv = nvt = 0
+    clump_no = 0
+    pending = None  # [x, y, z, uv or None] until the vertex is complete
+
+    def flush_vertex():
+        nonlocal pending, nv, nvt
+        if pending is None:
+            return
+        x, y, z, uv = pending
+        m = _matmul(ctm, world)
+        wx = x * m[0] + y * m[4] + z * m[8] + m[12]
+        wy = x * m[1] + y * m[5] + z * m[9] + m[13]
+        wz = x * m[2] + y * m[6] + z * m[10] + m[14]
+        obj.append(f"v {wx:.6f} {wy:.6f} {wz:.6f}")
+        nv += 1
+        vt = None
+        if uv is not None:
+            obj.append(f"vt {uv[0]:.6f} {1 - uv[1]:.6f}")
+            nvt += 1
+            vt = nvt
+        verts.append((nv, vt))
+        pending = None
+
+    def use_material():
+        nonlocal current_mtl
+        key = (color, opacity, texture)
+        if key not in materials:
+            mname = f"mat{len(materials)}"
+            materials[key] = mname
+            mtl.extend([f"newmtl {mname}", "Kd %.4f %.4f %.4f" % color,
+                        f"d {opacity:.4f}"])
+            if texture:
+                png = texture_pngs.get(texture.upper())
+                mtl.append(f"map_Kd {png}" if png else f"# texture {texture} not found")
+        if materials[key] != current_mtl:
+            current_mtl = materials[key]
+            obj.append(f"usemtl {current_mtl}")
+
+    def face(idx: list):
+        flush_vertex()
+        use_material()
+        refs = []
+        for i in idx:
+            if not 1 <= i <= len(verts):
+                raise ValueError(f"face uses vertex {i} of {len(verts)}")
+            v, vt = verts[i - 1]
+            refs.append(f"{v}/{vt}" if vt else str(v))
+        obj.append("f " + " ".join(refs))
+
+    for op, args in model_ops(data):
+        if op in ("vertex", "vertexext"):
+            flush_vertex()
+            pending = [*args, None]
+        elif op == "uv" and pending is not None:
+            pending[3] = args
+        elif op == "vertexend":
+            flush_vertex()
+        elif op == "triangle" or op == "quad":
+            face(args)
+        elif op == "polygon":
+            face(args[0])
+        elif op == "clumpbegin":
+            flush_vertex()
+            world_stack.append(world)
+            vert_stack.append(verts)
+            world, ctm, verts = _matmul(ctm, world), IDENTITY, []
+            clump_no += 1
+            obj.append(f"o clump{clump_no}")
+        elif op == "clumpend":
+            flush_vertex()
+            world, verts = world_stack.pop(), vert_stack.pop()
+        elif op == "transformbegin":
+            ctm_stack.append(ctm)
+        elif op == "transformend":
+            ctm = ctm_stack.pop()
+        elif op == "transform":
+            ctm = list(args)
+        elif op == "color":
+            color = tuple(round(c, 4) for c in args)
+        elif op == "opacity":
+            opacity = round(args[0], 4)
+        elif op == "texture":
+            texture = bmp_name(args[1]) if args[0] else ""
+    flush_vertex()
+    return "\n".join(obj) + "\n", "\n".join(mtl) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # Extraction
 # ---------------------------------------------------------------------------
 
@@ -330,6 +606,11 @@ class Packs:
         if e.offset + e.size > len(data):
             raise ValueError(f"#{e.index} runs past the end of {e.pack_name}")
         return data[e.offset:e.offset + e.size]
+
+
+def texture_png_name(e: Entry, path: str) -> str:
+    stem = bmp_name(path).rsplit(".", 1)[0] or "unnamed"
+    return f"{e.index:04d}-{stem}.png"
 
 
 def find_parents(entries: list) -> dict:
@@ -363,6 +644,20 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
     for name, data in sections.items():
         (sec_dir / f"{name}.bin").write_bytes(data)
 
+    # Models name their textures by the original .BMP file name, and the
+    # type 2 textures carry that name, so map one to the other's PNG.
+    texture_pngs = {}
+    for e in entries:
+        if e.type == 2 and e.size:
+            try:
+                records = texture_records(packs.read(e))
+            except (OSError, ValueError, struct.error):
+                continue
+            for path, _bm in records:
+                name = bmp_name(path)
+                texture_pngs.setdefault(name.upper(),
+                                        f"../png/texture/{texture_png_name(e, path)}")
+
     rows, errors = [], 0
     counts = {}
     for e in entries:
@@ -387,22 +682,38 @@ def extract(game: Path, out: Path, raw_only: bool = False) -> int:
         counts[e.type_name] = counts.get(e.type_name, 0) + 1
 
         try:
-            if e.type in (1, 2) and data:
-                bm = None
-                if e.type == 1:
-                    bm = parse_bitmap(data)
-                else:
-                    row["source_path"], bm = texture_bitmap(data)
-                if bm is not None:
-                    row.update(width=bm.width, height=bm.height, x=bm.x, y=bm.y,
-                               flags=hex(bm.flags))
-                    if not bm.flags & FLAG_RLE:
-                        row["note"] = "packed bitmap (flags 0), not decoded yet"
-                    elif not raw_only:
-                        rel = Path("png") / e.type_name / f"{e.index:04d}.png"
-                        (out / rel).parent.mkdir(parents=True, exist_ok=True)
-                        write_png(out / rel, bm.width, bm.height, decode_rle(bm), palette)
-                        row["converted"] = rel.as_posix()
+            if e.type == 1 and data:
+                bm = parse_bitmap(data)
+                row.update(width=bm.width, height=bm.height, x=bm.x, y=bm.y,
+                           flags=hex(bm.flags))
+                if not raw_only:
+                    rel = Path("png") / "bitmap" / f"{e.index:04d}.png"
+                    (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm), palette)
+                    row["converted"] = rel.as_posix()
+            elif e.type == 2 and data:
+                records = texture_records(data)
+                if not records:
+                    row["note"] = "not a texture list; kept raw"
+                row["source_path"] = ";".join(path for path, _ in records)
+                if records:
+                    bm = records[0][1]
+                    row.update(width=bm.width, height=bm.height, flags=hex(bm.flags))
+                done = []
+                for path, bm in records if not raw_only else []:
+                    rel = Path("png") / "texture" / texture_png_name(e, path)
+                    (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                    write_png(out / rel, bm.width, bm.height, bitmap_pixels(bm), palette)
+                    done.append(rel.as_posix())
+                row["converted"] = ";".join(done)
+            elif e.type in (7, 8) and not raw_only:
+                name = f"{e.index:04d}"
+                obj, mtl = model_to_obj(data, name, texture_pngs)
+                rel = Path("obj") / f"{name}.obj"
+                (out / rel).parent.mkdir(parents=True, exist_ok=True)
+                (out / rel).write_text(obj)
+                (out / rel).with_suffix(".mtl").write_text(mtl)
+                row["converted"] = rel.as_posix()
             elif e.type == 12 and not raw_only:
                 rel = Path("wav") / f"{e.index:04d}.wav"
                 (out / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -450,7 +761,7 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT,
                     help="output folder (default: the repo's extracted/ folder)")
     ap.add_argument("--raw-only", action="store_true",
-                    help="only copy raw resources, skip WAV/PNG conversion")
+                    help="only copy raw resources, skip WAV/PNG/OBJ conversion")
     ap.add_argument("--list", action="store_true",
                     help="print the index as TSV instead of extracting")
     args = ap.parse_args()
