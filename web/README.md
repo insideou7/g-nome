@@ -18,8 +18,10 @@ python3 -m http.server 8000
 ```
 
 Today it boots the game's scripts, plays the opening movie (Esc or Space
-skips it) and shows the main menu with its music, sounds and status text.
-The GAME submenu and the credits movie work; the other screens are next.
+skips it) and runs the main menu with its music, sounds and status text.
+All submenus, the options screens, the credits and the first campaign
+briefing work. Anything that draws 3D (the LAB, unit previews, missions)
+needs the RENDER.R32 reimplementation, which is the next big piece.
 
 During development you can skip the folder picker:
 `http://localhost:8000/web/?game=/game/g-nome/G-NOME/` reads the files over

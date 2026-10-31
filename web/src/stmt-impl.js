@@ -124,6 +124,32 @@ export const STATEMENTS = {
   },
   // 0x02: no-op
   0x02() {},
+  // 0xa9: arithmetic on a variable (0x10015e8e -> 0x10018949). +2 variable,
+  // +6 count (up to 3), then 8-byte terms from +10: u32 value, u8 op
+  // (0 set, 1 add, 2 sub, 3 mul, 4 rounded div, 5 or, 6 and, 7 mod),
+  // u8 ?, u8 negate, u8 value is a variable.
+  0xa9(vm, b, dv, p) {
+    const id = u32(dv, p + 2);
+    let v = vm.getVar(id) | 0;
+    const n = Math.min(u32(dv, p + 6), 3);
+    for (let i = 0; i < n; i++) {
+      const q = p + 10 + 8 * i;
+      let x = vm.resolve(u32(dv, q), b[q + 7]) | 0;
+      if (b[q + 6]) x = -x | 0;
+      switch (b[q + 4]) {
+        case 0: v = x; break;
+        case 1: v = (v + x) | 0; break;
+        case 2: v = (v - x) | 0; break;
+        case 3: v = Math.imul(v, x); break;
+        case 4: v = x ? Math.trunc((v + Math.trunc(Math.abs(x) / 2)) / x) | 0 : 0; break;
+        case 5: v |= x; break;
+        case 6: v &= x; break;
+        case 7: v = x ? v % x | 0 : 0; break;
+        default: v = 0;
+      }
+    }
+    vm.setVar(id, v);
+  },
   // 0x6b: bind a key to a script (0x1000b38c). +2 key (0 = all keys),
   // +6 script, +0xc shift, +0xd ctrl, +0xe clear, +0xf disable, +0x10 on key up.
   0x6b(vm, b, dv, p) {

@@ -37,6 +37,14 @@ export const BUILTINS = {
   0x19(vm, [id]) {
     return vm.engine.copyResource(id);
   },
+  // 0x22: delete a copy made by CopyResource (0x100109f1); 1 on success
+  0x22(vm, [id]) {
+    const e = vm.engine;
+    if (!e.dynamic.has(id)) return 0;
+    e.dynamic.delete(id);
+    if (e.sprites.list.delete(id)) e.dirty = true;
+    return 1;
+  },
   // 0x44: table header field 10 + k (dimension sizes)
   0x44(vm, [id, k]) {
     const t = table(vm, id);
@@ -63,6 +71,21 @@ export const BUILTINS = {
     t.data[o] = value;
     return 1;
   },
+  // 0xe1: is this sprite (type 20) visible
+  0xe1(vm, [id]) {
+    const s = vm.engine.sprites.list.get(id);
+    return s && s.visible ? 1 : 0;
+  },
+  // 0xe2: sets a runtime byte flag (+0x94dd); its use is unknown
+  0xe2(vm, [v]) {
+    vm.engine.flag94dd = v & 0xff;
+    return v;
+  },
+  // 0xe8: copy pack file n from the CD to the hard disk (0x1004776f).
+  // Nothing to do: every pack is already in memory.
+  0xe8() {
+    return 0;
+  },
   // 0xce: send a message to a sprite (type 20): sprite, message, args...
   0xce(vm, [id, ...msg]) {
     return vm.engine.sprites.send(id, msg);
@@ -71,9 +94,13 @@ export const BUILTINS = {
 
 export const BUILTIN_NAMES = {
   0x19: "CopyResource",
+  0x22: "DeleteCopy",
   0x44: "TableDim",
   0x52: "TableGet",
   0x99: "Random",
   0xc1: "TableSet",
   0xce: "SpriteMsg",
+  0xe1: "SpriteIsVisible",
+  0xe2: "SetFlag94dd",
+  0xe8: "CachePack",
 };

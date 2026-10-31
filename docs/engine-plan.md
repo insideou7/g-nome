@@ -35,7 +35,8 @@ src/stmt-impl.js              fixed-size statement handlers
 src/builtins.js               RTLIB32 builtins (ids < 0xFA)
 src/sprites.js                sprite system (type 20 resources + messages)
 src/plugins/smacker.js        SMACKER.R32 (cutscenes)
-src/plugins/render.js         RENDER.R32 (3D, sound, hotspots) - to do
+src/plugins/render.js         RENDER.R32 (sound so far; 3D and hotspots to do)
+src/plugins/netgn.js          NETGN.R32 stub (no network providers)
 src/smacker.js                .SMK video/audio decoder
 src/binfile.js                G-NOME.BIN and pack access
 src/disasm.js                 linear script disassembler
@@ -78,9 +79,16 @@ Design choices:
    - [x] menu sounds and music (`render.DSPlayWave` and friends)
    - [x] type 21 text objects (status line) drawn with a canvas font
    - [x] main menu, GAME submenu, credits movie
+   - [x] all five submenus; OPTIONS screens (key mapping, difficulty,
+     sound, detail); NETWORK reports no providers (`netgn` stub)
+   - [x] NEW GAME: campaign briefing (map, objectives), training and
+     mission lists. The unit preview beside the map needs
+     `render.RenderToBitmap`, so it waits for milestone 3
+   - [x] variable arithmetic (statement 0xa9), sprite loops and mirroring
+     (queue records 6 and 7, message 7)
    - [ ] remaining sprite messages (motion paths, speed), palette fade
      timing, mouse cursor
-   - [ ] options, load/save, NEW GAME flow into mission select
+   - [ ] load/save screens
 2. **Briefings and non-3D screens**: mission select, briefings, unit
    loadout. Mostly more of the same 2D services.
 3. **3D battlefield**: reimplement the `RENDER.R32` externs on WebGL. Needs

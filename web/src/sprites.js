@@ -62,7 +62,7 @@ export class Sprites {
     }
     s = {
       id, cels, queues, level: dv.getUint32(0x1c, true), pick: r[0x21],
-      x: 0, y: 0, cel: 0, visible: false,
+      x: 0, y: 0, cel: 0, visible: false, flipX: false, flipY: false,
       queue: null, // {b, dv, pos}
       wait: 0, anim: null, click: null,
     };
@@ -81,6 +81,10 @@ export class Sprites {
         break;
       case 8: // hide
         s.visible = false;
+        break;
+      case 7: // mirror: horizontal, vertical (0x1003ea2f)
+        s.flipX = !!a[0];
+        s.flipY = !!a[1];
         break;
       case 12: // move to x, y
         s.x = a[0] | 0;
@@ -110,7 +114,8 @@ export class Sprites {
       return;
     }
     if (this.engine.bin.type(queueId) !== 18) return this.engine.log(`queue ${queueId} is not type 18`);
-    const b = this.engine.bin.resident(queueId);
+    // A copy: loop records (6) count down in place.
+    const b = this.engine.bin.resident(queueId).slice();
     s.queue = { b, dv: new DataView(b.buffer, b.byteOffset, b.byteLength), pos: 0 };
     this.step(s, 0);
   }
@@ -164,7 +169,31 @@ export class Sprites {
       }
       q.pos += size;
       this.engine.dirty = true;
+      const val = (o, flag) => (q.b[p + flag] ? this.engine.vm.getVar(dv.getUint32(p + o, true)) | 0 : dv.getInt32(p + o, true));
       switch (type) {
+        case 6: { // loop (0x1003a527): +2 counter, +6 count, +10 target offset; 0 loops forever
+          const n = dv.getInt32(p + 2, true);
+          if (n === 1) {
+            dv.setInt32(p + 2, dv.getInt32(p + 6, true), true);
+            break;
+          }
+          if (n) dv.setInt32(p + 2, n - 1, true);
+          q.pos = dv.getInt32(p + 10, true);
+          if (guard > 500) { // an empty loop
+            s.queue = null;
+            return;
+          }
+          break;
+        }
+        case 7: { // mirror (0x1003abd0): +2 x, +6 y, then move by +0xe, +0x12
+          s.flipX = !!val(2, 0xc);
+          s.flipY = !!val(6, 0xd);
+          s.x += val(0xe, 10);
+          s.y += val(0x12, 11);
+          break;
+        }
+        case 23: // a cel drawn by a plugin callback (3D models); not yet
+          break;
         case 1: // animate cels
           this.startAnim(s, dv.getInt32(p + 2, true), dv.getInt32(p + 6, true), dv.getInt32(p + 14, true));
           return;
@@ -202,7 +231,7 @@ export class Sprites {
     const id = s.cels[s.cel];
     if (id === undefined || !drawable(this.engine.bin.type(id))) return { left: s.x, top: s.y, right: s.x, bottom: s.y };
     const b = this.bitmap(id);
-    const left = s.x + b.x - (b.width >> 1), top = s.y + b.y - (b.height >> 1);
+    const left = s.x + b.x - ((b.width - 1) >> 1), top = s.y + b.y - ((b.height - 1) >> 1);
     return { left, top, right: left + b.width, bottom: top + b.height };
   }
 
@@ -215,7 +244,7 @@ export class Sprites {
       const id = s.cels[Math.min(s.cel, s.cels.length - 1)];
       const b = this.bitmap(id);
       const r = this.bounds(s);
-      blit(pixels, b, r.left + ORIGIN_X, r.top + ORIGIN_Y);
+      blit(pixels, b, r.left + ORIGIN_X, r.top + ORIGIN_Y, s.flipX, s.flipY);
     }
   }
 
@@ -227,22 +256,26 @@ export class Sprites {
       const r = this.bounds(s);
       if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) continue;
       const b = this.bitmap(s.cels[Math.min(s.cel, s.cels.length - 1)]);
-      if (b.pixels[(y - r.top) * b.width + (x - r.left)]) return s;
+      let bx = x - r.left, by = y - r.top;
+      if (s.flipX) bx = b.width - 1 - bx;
+      if (s.flipY) by = b.height - 1 - by;
+      if (b.pixels[by * b.width + bx]) return s;
     }
     return null;
   }
 }
 
-export function blit(dst, b, x0, y0) {
+export function blit(dst, b, x0, y0, flipX = false, flipY = false) {
   const { width: w, height: h, pixels } = b;
   for (let y = 0; y < h; y++) {
     const dy = y0 + y;
     if (dy < 0 || dy >= HEIGHT) continue;
     const row = dy * WIDTH;
+    const src = (flipY ? h - 1 - y : y) * w;
     for (let x = 0; x < w; x++) {
       const dx = x0 + x;
       if (dx < 0 || dx >= WIDTH) continue;
-      const c = pixels[y * w + x];
+      const c = pixels[src + (flipX ? w - 1 - x : x)];
       if (c) dst[row + dx] = c;
     }
   }
