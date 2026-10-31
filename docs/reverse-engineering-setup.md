@@ -6,11 +6,12 @@ G-NOME (7th Level, 1997) for Windows 95. Everything is 32-bit x86.
 
 | Files | What they are | Tool |
 | --- | --- | --- |
-| `G-NOME.EXE` (27 KB) | Small PE launcher. Imports only 3 functions from `Rtlib32.dll`. | REA + Ghidra |
-| `G-NOME.BIN` (1.1 MB) | Probably the real game code in 7th Level's own format (starts with `7L`, `32`, `G-Nome`). Ghidra will not load it directly; `RTLIB32.DLL` is what loads it, so reverse that first. | REA + Ghidra, then a custom loader |
-| `RTLIB32.DLL`, `*.R32` (`RENDER`, `NETGN`, `SMACKER`) | 7th Level runtime and plugins. `.R32` files are normal PE DLLs. | REA + Ghidra |
+| `G-NOME.EXE` (27 KB) | Small PE stub. Imports only 3 functions from `Rtlib32.dll`. | REA + Ghidra |
+| `RTLIB32.DLL` | The engine: 7th Level "Runtime Player 1.2", a script VM that loads `*.R32` plugins. | REA + Ghidra |
+| `*.R32` (`RENDER`, `NETGN`, `SMACKER`) | Plugin DLLs (normal PE). `RENDER.R32` is the 3D game and AI on RenderWare; `NETGN.R32` is DirectPlay networking. | REA + Ghidra |
+| `G-NOME.BIN` (1.1 MB) | Asset index. Table at `0x1A8` of 9,440 10-byte entries `{u16 flags, u32 offset, u32 size}`; the pack is `G-NOME.%03d` with `flags >> 8`, the type is `flags & 0xFF`. | Python |
 | `RWL20.DLL`, `RWDL8*20.DLL` | RenderWare 2.0 3D engine (Criterion). | REA + Ghidra |
-| `G-NOME.000` to `.060` | Data archives. Some start with a `MODL` chunk (3D models). | hex editor, `tools/inventory.py` |
+| `G-NOME.000` to `.060` | Asset packs addressed by `G-NOME.BIN`. Some start with a `MODL` chunk (3D models). Prior art for 7th Level's audio codecs: [stascorp/7thLevelFile](https://github.com/stascorp/7thLevelFile). | Python, hex editor |
 | `*.SMK` | Smacker video, 320x200. | `ffmpeg` / `ffprobe` play and convert them as is |
 | `LABTEXT.DAT`, `TRIVIA.*` | Length-prefixed text strings. | hex editor |
 
@@ -30,17 +31,17 @@ and report what it found with evidence. It is MIT licensed.
 
 ### How it is enabled
 
-`.claude/settings.json` registers REA's plugin marketplace pinned to the
-`rea-agents-6.8.0` tag and enables the `rea@rea` plugin. When you open this
-repo in Claude Code it asks you to trust and install it. To do it by hand:
+- **MCP server:** `.mcp.json` runs `npx -y rea-agents@6.8.0 mcp`, and
+  `.claude/settings.json` approves it (`enabledMcpjsonServers`). Every Claude
+  Code session opened in this repo, local or cloud, gets the `rea` tools.
+- **Skill:** `.claude/settings.json` also enables the `rea@rea` plugin, pinned
+  to the `rea-agents-6.8.0` tag. In 6.8.0 the plugin only ships REA's
+  workflow skill, not the server, which is why the server is in `.mcp.json`.
+  If you move to a release whose plugin also starts a server, drop `.mcp.json`
+  to avoid running two `rea` servers.
 
-```text
-/plugin marketplace add morluto/rea
-/plugin install rea@rea
-```
-
-Then restart Claude Code and check `/mcp` shows `rea`. To update, change the
-`ref` in `.claude/settings.json` to a newer `rea-agents-X.Y.Z` tag.
+To update, change the version in `.mcp.json` and the `ref` in
+`.claude/settings.json` together. Check with `/mcp` (should list `rea`).
 
 REA needs Node.js 22.23.4+ (or 24.22.1+), and on Linux a procps `ps` on `PATH`.
 
@@ -69,7 +70,7 @@ Ask Claude to call REA's `binary_session` with `{}`. `result.tool_availability`
 lists what is ready and why anything is not. Then try:
 
 ```text
-Open game/G-NOME/RTLIB32.DLL with REA and find the code that loads G-NOME.BIN.
+Open game/G-NOME/RTLIB32.DLL with REA and find where it loads the .R32 plugins.
 ```
 
 ## Python helpers
@@ -82,14 +83,23 @@ python3 -m venv .venv
 
 ## Claude Code on the web
 
-Cloud sessions start from a fresh container, so the plugin installs per session
-and Ghidra has to be downloaded each time. At the time of setup the cloud
-network policy blocked GitHub release downloads, so Ghidra could not be
-fetched there. To use native analysis in the cloud, allow
-`github.com` and `objects.githubusercontent.com` in the environment's network
-settings and add a setup script that downloads Ghidra and exports
-`GHIDRA_INSTALL_DIR`. Java 21, `ps` and `ffmpeg` are already in the default
-image.
+REA's MCP server and skill work in cloud sessions with no extra setup: npm is
+allowed by the default network policy, and Java 21, `ps` and `ffmpeg` are in
+the default image.
+
+Ghidra is the missing piece. To add it:
+
+1. In the cloud environment's network settings, allow `api.github.com`,
+   `github.com`, `objects.githubusercontent.com` and
+   `release-assets.githubusercontent.com` (keep package managers allowed).
+2. Set the environment's setup script to:
+
+   ```bash
+   bash scripts/install-ghidra.sh
+   ```
+
+   It installs Ghidra 12.1.4 to `/opt/ghidra`, which is where `.mcp.json`
+   points REA by default.
 
 ## Scope
 
