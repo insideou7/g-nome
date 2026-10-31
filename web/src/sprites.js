@@ -30,6 +30,7 @@ export const ORIGIN_X = WIDTH / 2;
 export const ORIGIN_Y = HEIGHT / 2;
 
 // Queue record sizes by message type (filled in at 0x10039e0b).
+// A type 2 record has 0xe + 4 x count bytes (count at +6, up to 10 cels).
 const SIZES = { 1: 0x16, 2: 0x2e, 3: 2, 4: 2, 5: 0x3c, 6: 0xe, 7: 0x16, 8: 2, 9: 0x2c, 10: 0xe, 11: 8, 12: 0xe, 13: 6, 14: 6, 15: 8, 16: 0x12, 17: 0xc, 18: 6, 19: 6, 20: 2, 21: 6, 22: 0x22, 23: 0x10 };
 
 export class Sprites {
@@ -193,7 +194,7 @@ export class Sprites {
       }
       const p = q.pos, dv = q.dv;
       const type = dv.getUint16(p, true);
-      const size = type === 21 ? dv.getUint32(p + 2, true) : SIZES[type];
+      const size = type === 21 ? dv.getUint32(p + 2, true) : type === 2 ? 0xe + 4 * dv.getUint32(p + 6, true) : SIZES[type];
       if (!size) {
         this.engine.log(`sprite ${s.id}: unknown queue record ${type}`);
         s.queue = null;
@@ -226,10 +227,38 @@ export class Sprites {
         }
         case 23: // a cel drawn by a plugin callback (3D models); not yet
           break;
+        case 2: { // show several cels at once (0x10042800): +2 ms to wait
+          // after (-1 keeps the last), +6 count, +0xb "+2 is a variable",
+          // +0xd bit i "cel i is a variable", +0xe the cel numbers. The
+          // cockpit crosshair (sprite 562) uses it for its lock states:
+          // queue 564 (cels 1 and 2) while a target is being acquired, 565
+          // (cels 3 and 4) once it is locked.
+          const n = dv.getUint32(p + 6, true), vars = q.b[p + 0xd];
+          const cels = [];
+          for (let i = 0; i < n; i++) {
+            const raw = dv.getInt32(p + 0xe + 4 * i, true);
+            const c = i < 8 && vars & (1 << i) ? this.engine.vm.getVar(raw) | 0 : raw;
+            if (c >= 0 && c < s.cels.length) cels.push(c);
+          }
+          if (cels.length) {
+            s.layers = cels;
+            s.cel = cels[0];
+            s.anim = null;
+            s.visible = true;
+          }
+          const raw = dv.getInt32(p + 2, true);
+          if (raw !== -1) s.delay = val(2, 0xb);
+          if (s.delay > 0) {
+            s.wait = s.delay;
+            return;
+          }
+          break;
+        }
         case 1: { // animate cels (0x1003a042): +2 from, +6 to, +0xe delay (-1 keeps
           // the last one), "is a variable" flags at +0x12..+0x14
           const raw = dv.getInt32(p + 0xe, true);
           const delay = raw === -1 ? s.delay ?? 0 : val(0xe, 0x14);
+          s.layers = null;
           if (this.startAnim(s, val(2, 0x12), val(6, 0x13), delay)) return;
           break;
         }
@@ -246,6 +275,7 @@ export class Sprites {
         case 18: {
           const c = dv.getInt32(p + 2, true);
           if (c >= 0 && c < s.cels.length) s.cel = c;
+          s.layers = null;
           s.visible = true;
           break;
         }

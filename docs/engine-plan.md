@@ -111,6 +111,8 @@ Design choices:
      run (sprite position/level 0x4d, 0x71, 0xb8; CD track 0x8e/0xd2 are
      remembered only, since CD audio is not in the game files)
    - [x] load screen (lists saves; saving needs a mission in progress)
+   - [x] queue record 2, several cels at once (the cockpit crosshair's
+     acquiring and locked brackets)
    - [ ] remaining sprite messages (motion paths, speed)
 
    3D work (milestones 2-3) is split across separate project threads:

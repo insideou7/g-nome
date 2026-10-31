@@ -121,5 +121,16 @@ The object keeps its root clump and stops: gravity, speed, FRME and stride 0.
 - Builtin `0x0B` `GetAngle(x1, y1, x2, y2)` (`0x1000487a`): `trunc(atan2(x2 -
   x1, y2 - y1) x 1800 / 3.14159)`, plus 3600 when negative. The cockpit
   compass uses it once a target is locked.
-- The cockpit's hit marker moves with sprite queue record 2 (a motion path),
-  which the sprite system does not run yet.
+- The cockpit crosshair (sprite 562, set up by script 576 at the vehicle's
+  HUD position) shows the lock state. Script 582 picks the target: the one
+  in G1811 (script 1230 fills it with the nearest unit) becomes G975
+  (acquiring) when it is near the line of fire, and G974 (locked) after 10
+  more checks. Script 575 then gives the crosshair queue 563 (plain, cel 0),
+  564 (acquiring: cels 1 and 2) or 565 (locked: cels 3 and 4, the red
+  bracket and the range readout, text 570 = distance / 8). Queues 564 and
+  565 are one sprite queue record 2 each, which shows several cels at once
+  (`0x10042800`): `+2` ms to wait after it (-1 keeps the last), `+6` count,
+  `+0xb` "+2 is a variable", `+0xd` bit i "cel i is a variable", `+0xe` the
+  cel numbers; the record is `0xe + 4 x count` bytes. Sprite 571 marks the
+  target's feet (`XZToScreen`, script 579), or an arrow at the screen edge
+  when it is off to the side.
