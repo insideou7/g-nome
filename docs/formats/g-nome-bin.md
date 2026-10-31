@@ -144,12 +144,22 @@ a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
 | `0x39` | 3 ints | triangle (1-based vertex indices within the clump) |
 | `0x23` | 4 ints | quad |
 | `0x1D` | n, n ints | polygon |
-| `0x2C` | r, g, b | colour |
-| `0x08` | 3 floats | surface (ambient, diffuse, specular) |
+| `0x08` | r, g, b | colour (RwSetSurfaceColor) |
+| `0x2C` | 3 floats | surface: ambient, diffuse, specular (RwSetSurface) |
 | `0x1C` | float | opacity |
 | `0x2E` | int, path | texture. The path is only there when the int is not 0. It is NUL-terminated and padded to 4 bytes. |
 | `0x2D` | int | tag: the clump's part number, used by FRME animations |
-| `0x04`, `0x0D`, `0x0F`, `0x16`, `0x19`, `0x32` | int | settings not identified yet |
+| `0x04` | int | RwSetAxisAlignment |
+| `0x0D` | int | RwSetSurfaceGeometrySampling |
+| `0x0F` | int | RwSetHints |
+| `0x16` | int | RwSetSurfaceLightSampling |
+| `0x19` | int | RwSetSurfaceMaterialModes |
+| `0x32` | int | RwSetSurfaceTextureModes (1 lit, 2 foreshorten, 4 filter) |
+
+Op `n` calls entry `n - 1` of RENDER.R32's table of RWX functions
+(`FUN_100025e5`, replayed by `FUN_10003432`). The colour and surface ops were
+swapped in this table until 2026-10-31: most models have colour 0.2 grey (or
+black under a texture) and surface 0.74 0.2 0.2.
 
 Every one of the 801 models parses to its exact end with this table. Each
 clump has its own vertex list. A transform applies to the clump that follows

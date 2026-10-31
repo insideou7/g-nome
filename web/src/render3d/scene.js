@@ -25,7 +25,7 @@ export function meshModel(spec) {
   if (!spec.normals) flatNormals(positions, normals);
   const groups = (spec.groups || [{ start: 0, count: n, material: {} }]).map((g) => ({
     start: g.start, count: g.count,
-    material: { color: [1, 1, 1], ambient: 0.4, diffuse: 0.6, specular: 0, opacity: 1, texture: "", ...g.material },
+    material: { color: [1, 1, 1], ambient: 1, diffuse: 0, specular: 0, opacity: 1, texture: "", ...g.material },
   }));
   const clump = { index: 0, parent: -1, tag: 0, local: identity(), children: [], mesh: { positions, normals, uvs, groups, count: n } };
   return { clumps: [clump], roots: [0], tagged: [], count: 0 };
@@ -90,8 +90,10 @@ export class SceneNode {
 export class Scene {
   constructor() {
     this.nodes = new Set();
-    // {type: "ambient" | "directional" | "point", color: [r, g, b],
-    //  direction: [x, y, z] (light travels along it), position}
+    // Lights (see activeLights): {type: "directional" | "point" |
+    // "conical", color: [r, g, b], direction: [x, y, z] (light travels along
+    // it), position, radius, coneAngle (radians), on}. RenderWare 2.0 has
+    // no ambient light; see materialLight.
     this.lights = [];
   }
   add(model, t) {
@@ -115,26 +117,65 @@ export function rgb01(c) {
   return c.some((v) => v > 1) ? c.map((v) => v / 255) : c;
 }
 
-// How a material takes light: ambient and diffuse weights (normalised to
-// sum to 1) and whether a texture draws at full brightness instead.
-// A texture without the TextureModes lit bit is unlit. So is a texture on
-// a surface with no ambient and no diffuse light (Surface 0 0 0): the far
-// ground tiles (MPRT 2400, 2404, 2408, 2412 and the other environments'
-// equivalents) have that surface and no TextureModes, while their near
-// versions have the same surface with TextureModes 2 (unlit). Lit, they
-// would be black, which made a black band at the horizon of every mission.
+// How a material takes light, as RWL20.DLL's lighting (FUN_1000c4b0 /
+// FUN_1000c730) does it. RenderWare 2.0 has no ambient light: every lit
+// polygon gets its surface's ambient coefficient (model op 0x2C, RwSetSurface)
+// as a white light, plus, for each light that is on, the light's colour times
+// diffuse * N.L (+ specular * (N.L)^16 when N.L > 0.7). The sum is clamped to
+// 1. Textures take the light; the surface colour (op 0x08) only colours
+// untextured polygons.
+// A texture is unlit (full brightness) when its TextureModes lack the lit
+// bit. RwCreateMaterial starts with TextureModes 1 (lit), so a texture with no
+// TextureModes op is lit.
 export function materialLight(mat, textured) {
-  const a = mat.ambient ?? 0.3, d = mat.diffuse ?? 0.7;
-  const unlit = !!textured && (mat.textureModes !== undefined ? !(mat.textureModes & 1) : a + d <= 0);
-  const k = a + d || 1;
-  return { unlit, ka: a / k, kd: d / k };
+  const unlit = !!textured && !((mat.textureModes ?? 1) & 1);
+  return { unlit, ka: mat.ambient ?? 0, kd: mat.diffuse ?? 0, ks: mat.specular ?? 0 };
 }
 
-// Lights used when a scene has none.
-export const DEFAULT_LIGHTS = [
-  { type: "ambient", color: [0.8, 0.8, 0.8] },
-  { type: "directional", color: [1, 1, 1], direction: [0.3, -0.5, -0.8] },
-];
+// N.L at or below this gets no specular term (0x3f333333 in RWL20.DLL).
+export const SPECULAR_MIN = 0.7;
+
+// Scene lights in the form both backends use. RENDER.R32 only adds lights
+// through the Light* externs (render3d/lights.js), and no G-Nome script
+// calls them, so in the original every scene has none and models show their
+// ambient coefficient alone. Lights that are off are left out.
+// Returns [{type: 1 directional | 2 point | 3 conical, color [r,g,b] 0..1,
+//   dir [x,y,z] towards the light (directional) or the way the cone points,
+//   pos [x,y,z], radius, cosCone}].
+export function activeLights(scene) {
+  const out = [];
+  for (const l of scene.lights) {
+    if (l.on === false) continue;
+    const type = l.type === "directional" ? 1 : l.type === "point" ? 2 : l.type === "conical" ? 3 : 0;
+    if (!type) continue;
+    const d = l.direction || [0, -1, 0], len = Math.hypot(d[0], d[1], d[2]) || 1;
+    const dir = type === 1 ? [-d[0] / len, -d[1] / len, -d[2] / len] : [d[0] / len, d[1] / len, d[2] / len];
+    out.push({ type, color: rgb01(l.color || [1, 1, 1]), dir, pos: l.position || [0, 0, 0], radius: l.radius ?? Infinity, cosCone: Math.cos(l.coneAngle ?? Math.PI / 6) });
+  }
+  return out;
+}
+
+// Light reaching a point p with unit normal n from the active lights
+// (diffuse and specular weights applied), added into `out` (3 floats).
+// `twoSided`: light either face (|N.L|), see CULL in soft.js.
+export function addLights(out, lights, n, p, kd, ks, twoSided) {
+  for (const L of lights) {
+    let d;
+    if (L.type === 1) d = n[0] * L.dir[0] + n[1] * L.dir[1] + n[2] * L.dir[2];
+    else {
+      const v = [L.pos[0] - p[0], L.pos[1] - p[1], L.pos[2] - p[2]];
+      const dist = Math.hypot(v[0], v[1], v[2]);
+      if (!dist || dist >= L.radius) continue;
+      if (L.type === 3 && -(v[0] * L.dir[0] + v[1] * L.dir[1] + v[2] * L.dir[2]) / dist < L.cosCone) continue;
+      d = (n[0] * v[0] + n[1] * v[1] + n[2] * v[2]) / dist;
+    }
+    if (twoSided) d = Math.abs(d);
+    if (d <= 0) continue;
+    const k = kd * d + (d > SPECULAR_MIN ? ks * d ** 16 : 0);
+    for (let i = 0; i < 3; i++) out[i] += k * L.color[i];
+  }
+  return out;
+}
 
 function cross(a, b) {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];

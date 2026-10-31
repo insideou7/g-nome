@@ -17,10 +17,15 @@ const OPS = {
   0x3b: ["vertex", "fff"], 0x3c: ["vertexext", "fff"],
   0x12: ["uv", "ff"], 0x14: ["vertexend", ""],
   0x39: ["triangle", "iii"], 0x23: ["quad", "iiii"], 0x1d: ["polygon", "P"],
-  0x2c: ["color", "fff"], 0x08: ["surface", "fff"], 0x1c: ["opacity", "f"],
+  // Op n calls entry n - 1 of RENDER.R32's RWX table (FUN_100025e5, run by
+  // FUN_10003432): 0x08 is RwSetSurfaceColor, 0x2C RwSetSurface (ambient,
+  // diffuse, specular).
+  0x08: ["color", "fff"], 0x2c: ["surface", "fff"], 0x1c: ["opacity", "f"],
   0x2e: ["texture", "is"],
-  // Int settings not identified yet (probably RWX lightsampling,
-  // geometrysampling, texturemodes and friends).
+  // Int settings read but not used: RwSetAxisAlignment (0x04),
+  // RwSetSurfaceGeometrySampling (0x0D), RwSetHints (0x0F),
+  // RwSetSurfaceLightSampling (0x16: 1 facet, 2 vertex) and
+  // RwSetSurfaceMaterialModes (0x19).
   0x04: ["op04", "i"], 0x0d: ["op0d", "i"], 0x0f: ["op0f", "i"],
   0x16: ["op16", "i"], 0x19: ["op19", "i"],
   // RWX TextureModes: 1 lit, 2 foreshorten (perspective), 4 filter. Without

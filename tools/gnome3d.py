@@ -90,12 +90,16 @@ MODEL_OPS = {
     0x3B: ("vertex", "fff"), 0x3C: ("vertexext", "fff"),
     0x12: ("uv", "ff"), 0x14: ("vertexend", ""),
     0x39: ("triangle", "iii"), 0x23: ("quad", "iiii"), 0x1D: ("polygon", "P"),
-    0x2C: ("color", "fff"), 0x08: ("surface", "fff"), 0x1C: ("opacity", "f"),
+    # Op n is entry n - 1 of RENDER.R32's RWX table (FUN_100025e5): 0x08 is
+    # RwSetSurfaceColor, 0x2C RwSetSurface (ambient, diffuse, specular).
+    0x08: ("color", "fff"), 0x2C: ("surface", "fff"), 0x1C: ("opacity", "f"),
     0x2E: ("texture", "is"),
     # 0x2D is RWX "Tag": the clump's part number. FRME animations and
     # RENDER.R32's clump externs find clumps by it.
     0x2D: ("tag", "i"),
-    # Int settings whose meaning is not known yet.
+    # Int settings: RwSetAxisAlignment, RwSetSurfaceGeometrySampling,
+    # RwSetHints, RwSetSurfaceLightSampling, RwSetSurfaceMaterialModes and
+    # RwSetSurfaceTextureModes.
     0x04: ("op04", "i"), 0x0D: ("op0d", "i"), 0x0F: ("op0f", "i"),
     0x16: ("op16", "i"), 0x19: ("op19", "i"), 0x32: ("op32", "i"),
 }

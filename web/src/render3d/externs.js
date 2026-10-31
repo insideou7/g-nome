@@ -8,6 +8,7 @@
 import { Renderer } from "./renderer.js";
 import { Objects } from "./objects.js";
 import { modelBounds } from "./model.js";
+import { Lights } from "./lights.js";
 
 // Per-copy model state. RENDER.R32 gives every CopyResource of a model its
 // own RenderWare clump, so opacity, double-siding and texture swaps are per
@@ -39,6 +40,8 @@ export function install3D(plugin) {
   const r3d = {
     renderer,
     objects: new Objects(engine),
+    // Lights of the battlefield scene (Light* externs, lights.js).
+    lights: new Lights(engine),
     instances: new Map(), // model copy id -> ModelInstance
     createScene: () => renderer.createScene(),
     createCamera: () => renderer.createCamera(),
@@ -85,7 +88,7 @@ export function install3D(plugin) {
     return 0;
   };
 
-  Object.assign(plugin.externs, {
+  Object.assign(plugin.externs, r3d.lights.externs(), {
     // 0x1001271e / 0x10016c09
     GetProperty: (obj, p) => objects.getProperty(obj, p),
     SetProperty(obj, p, v) {

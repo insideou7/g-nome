@@ -2,7 +2,10 @@
 // an offscreen canvas the battlefield view composites under the 2D sprites.
 import { mul } from "./math.js";
 import { clumpMatrices } from "./model.js";
-import { DEFAULT_LIGHTS, materialLight, rgb01 } from "./scene.js";
+import { activeLights, materialLight, rgb01, SPECULAR_MIN } from "./scene.js";
+
+// Lights the shader takes; more are dropped.
+const MAX_LIGHTS = 8;
 import { FRONT, CULL } from "./soft.js";
 
 const VS = `#version 300 es
@@ -11,11 +14,12 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 uniform mat4 uWorld, uView;
 uniform vec4 uProj; // 1/vw, 1/vh, near, far
-out vec3 vNormal;
+out vec3 vNormal, vWorld;
 out vec2 vUV;
 out float vDepth;
 void main() {
   vec4 w = uWorld * vec4(aPos, 1.0);
+  vWorld = w.xyz;
   vec4 c = uView * w;
   vNormal = mat3(uWorld) * aNormal;
   vUV = aUV;
@@ -27,15 +31,17 @@ void main() {
 
 const FS = `#version 300 es
 precision highp float;
-in vec3 vNormal;
+in vec3 vNormal, vWorld;
 in vec2 vUV;
 in float vDepth;
 uniform sampler2D uTex;
 uniform bool uTextured, uTwoSided, uUnlit;
-uniform vec3 uColor, uAmbient;
-uniform vec2 uK; // ambient, diffuse weights
-uniform vec3 uLightDir[4], uLightColor[4];
-uniform int uLights;
+uniform vec3 uColor;
+uniform vec3 uK; // ambient, diffuse, specular (see materialLight)
+// Lights as activeLights gives them: type 1 directional, 2 point, 3 conical.
+uniform int uLights, uLType[${MAX_LIGHTS}];
+uniform vec3 uLColor[${MAX_LIGHTS}], uLDir[${MAX_LIGHTS}], uLPos[${MAX_LIGHTS}];
+uniform vec2 uLParam[${MAX_LIGHTS}]; // radius, cos(cone angle)
 uniform vec2 uFrame; // frame, frames
 uniform float uAlpha;
 uniform vec4 uFog; // start, end, enabled
@@ -51,12 +57,23 @@ void main() {
     base = t.rgb;
   }
   vec3 n = normalize(vNormal);
-  vec3 light = uK.x * uAmbient;
-  for (int i = 0; i < 4; i++) {
+  vec3 light = vec3(uK.x);
+  for (int i = 0; i < ${MAX_LIGHTS}; i++) {
     if (i >= uLights) break;
-    float d = dot(n, uLightDir[i]);
-    light += uK.y * (uTwoSided ? abs(d) : max(d, 0.0)) * uLightColor[i];
+    float d;
+    if (uLType[i] == 1) d = dot(n, uLDir[i]);
+    else {
+      vec3 v = uLPos[i] - vWorld;
+      float dist = length(v);
+      if (dist <= 0.0 || dist >= uLParam[i].x) continue;
+      if (uLType[i] == 3 && -dot(v, uLDir[i]) / dist < uLParam[i].y) continue;
+      d = dot(n, v) / dist;
+    }
+    if (uTwoSided) d = abs(d);
+    if (d <= 0.0) continue;
+    light += (uK.y * d + (d > ${SPECULAR_MIN} ? uK.z * pow(d, 16.0) : 0.0)) * uLColor[i];
   }
+  light = min(light, vec3(1.0));
   if (uUnlit) light = vec3(1.0);
   vec3 c = base * light;
   if (uFog.z > 0.0) c = mix(c, uFogColor, clamp((vDepth - uFog.x) / (uFog.y - uFog.x), 0.0, 1.0));
@@ -99,7 +116,7 @@ export class WebGLBackend {
     this.gl = gl;
     this.prog = program(gl, VS, FS);
     this.u = {};
-    for (const n of ["uWorld", "uView", "uProj", "uTex", "uTextured", "uTwoSided", "uUnlit", "uColor", "uAmbient", "uK", "uLightDir", "uLightColor", "uLights", "uFrame", "uAlpha", "uFog", "uFogColor"])
+    for (const n of ["uWorld", "uView", "uProj", "uTex", "uTextured", "uTwoSided", "uUnlit", "uColor", "uK", "uLights", "uLType", "uLColor", "uLDir", "uLPos", "uLParam", "uFrame", "uAlpha", "uFog", "uFogColor"])
       this.u[n] = gl.getUniformLocation(this.prog, n);
     this.meshes = new WeakMap(); // clump mesh -> VAO
     this.textures = new WeakMap(); // texture -> {tex, key}
@@ -166,21 +183,14 @@ export class WebGLBackend {
     gl.useProgram(this.prog);
     gl.uniformMatrix4fv(u.uView, false, camera.view());
     gl.uniform4f(u.uProj, 1 / camera.viewwindow[0], 1 / camera.viewwindow[1], camera.near, camera.far);
-    const lights = scene.lights.length ? scene.lights : DEFAULT_LIGHTS;
-    const amb = [0, 0, 0], dirs = [], cols = [];
-    for (const l of lights) {
-      if (l.type === "ambient") rgb01(l.color).forEach((c, i) => (amb[i] += c));
-      else if (l.type === "directional" && dirs.length < 12) {
-        const d = l.direction, len = Math.hypot(...d) || 1;
-        dirs.push(-d[0] / len, -d[1] / len, -d[2] / len);
-        cols.push(...rgb01(l.color));
-      }
-    }
-    gl.uniform3fv(u.uAmbient, amb);
-    gl.uniform1i(u.uLights, dirs.length / 3);
-    if (dirs.length) {
-      gl.uniform3fv(u.uLightDir, dirs);
-      gl.uniform3fv(u.uLightColor, cols);
+    const lights = activeLights(scene).slice(0, MAX_LIGHTS);
+    gl.uniform1i(u.uLights, lights.length);
+    if (lights.length) {
+      gl.uniform1iv(u.uLType, lights.map((l) => l.type));
+      gl.uniform3fv(u.uLColor, lights.flatMap((l) => l.color));
+      gl.uniform3fv(u.uLDir, lights.flatMap((l) => l.dir));
+      gl.uniform3fv(u.uLPos, lights.flatMap((l) => l.pos));
+      gl.uniform2fv(u.uLParam, lights.flatMap((l) => [Math.min(l.radius, 1e30), l.cosCone]));
     }
     const fog = camera.fogRange();
     gl.uniform4f(u.uFog, fog ? fog.start : 0, fog ? fog.end : 1, fog ? 1 : 0, 0);
@@ -202,7 +212,7 @@ export class WebGLBackend {
       const m = g.material;
       const tex = this.renderer.textureOf(m, node);
       const ml = materialLight(m, !!tex);
-      gl.uniform2f(u.uK, ml.ka, ml.kd);
+      gl.uniform3f(u.uK, ml.ka, ml.kd, ml.ks);
       gl.uniform3fv(u.uColor, m.color || [1, 1, 1]);
       gl.uniform1i(u.uTwoSided, two || !CULL ? 1 : 0);
       gl.uniform1f(u.uAlpha, alpha);

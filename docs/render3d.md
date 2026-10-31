@@ -41,10 +41,27 @@ behaviour can be checked against the original.
   the z-buffer, and lighting uses |N.L|.
 - Model op `0x32` is RWX TextureModes (1 lit, 2 foreshorten, 4 filter). A
   texture without the lit bit draws at full brightness; ground tiles use 2.
-- A texture on a material with `Surface 0 0 0` and no TextureModes also
-  draws at full brightness (`materialLight` in `scene.js`). 176 models are
-  like that, among them the far ground tiles, trees and bushes; lit, they
-  came out black (a black band at the horizon, black trees).
+- Model op `0x08` is the surface colour and `0x2C` the surface (ambient,
+  diffuse, specular); they were read the other way round before
+  2026-10-31. Most models have colour 0.2 grey (black under textures) and
+  surface 0.74 0.2 0.2. A texture with no TextureModes op is lit
+  (RwCreateMaterial's default is 1).
+- Lighting is RWL20.DLL's (`FUN_1000c4b0`, `FUN_1000c730`), in
+  `materialLight` / `addLights` (`scene.js`): RenderWare 2.0 has no ambient
+  light, so a lit polygon gets its surface ambient as white light, plus per
+  light `colour * (diffuse * N.L + specular * (N.L)^16 if N.L > 0.7)`,
+  clamped to 1. Textures take the light; the colour is only used without a
+  texture. Point and cone lights stop at their radius; the original's
+  distance falloff past an inner radius (light fields 0x68-0x70) is not
+  copied.
+- No G-Nome script calls a `Light*` extern, so in the original the
+  battlefield and preview scenes have no lights at all and every model shows
+  its ambient alone (0.74 for most). The far ground tiles (MPRT 2400, 2404,
+  ...) are lit and come out at 70%, the near ones (TextureModes 2) at full
+  brightness.
+- Lights: the `Light*` externs and `AllocLights` are in
+  `render3d/lights.js` (`engine.render3d.lights`); the battlefield view
+  copies them into its scene each frame.
 - `ObjectSetState(obj, 1)` (flag `0x100`) hides the object: the ground
   tiles' last level of detail (script 2140) and the unit the camera rides
   in (script 2171) use it.
@@ -82,8 +99,9 @@ node.remove();
 - Draw order follows `FUN_10006446`: level ascending, then distance
   descending. Nodes with `depth: false` (ground layers, decals) draw without
   depth test or depth write so coplanar layers stack.
-- `scene.lights`: `[{type: "ambient" | "directional", color, direction}]`.
-  With none, a default ambient plus one directional light are used.
+- `scene.lights`: `[{type: "directional" | "point" | "conical", color,
+  direction, position, radius, coneAngle, on}]`. Empty means no lights, as
+  in the original: models show their surface ambient.
 - `render(..., {backend: "soft"})` returns a `SoftTarget` `{width, height,
   rgba}` instead of a canvas. `renderer.toIndexed(rgba)` maps RGBA to the
   game palette (colours 10-245; alpha 0 becomes colour 0, transparent).
@@ -209,10 +227,9 @@ the script swaps those pointers for RenderWare names.
 
 ## Not done yet
 
-- Lights from the scripts (`LightAdd*`, `AllocLights`) are not wired to
-  `scene.lights`.
-- Material settings ops `0x04`, `0x0D` (likely GeometrySampling), `0x0F`,
-  `0x16` (likely LightSampling), `0x19` are read but not used.
+- Material settings ops `0x04` (AxisAlignment), `0x0D` (GeometrySampling),
+  `0x0F` (Hints), `0x16` (LightSampling: lighting is per face either way),
+  `0x19` (MaterialModes) are read but not used.
 - Ground textures look like noise in the menu palette; the mission palette
   presumably fixes them.
 - Whether screen-left really is +X (as in RenderWare 3) is not confirmed

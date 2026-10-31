@@ -4,7 +4,7 @@
 // flat shading, perspective-correct textures, a z-buffer.
 import { mul } from "./math.js";
 import { clumpMatrices } from "./model.js";
-import { DEFAULT_LIGHTS, materialLight, rgb01 } from "./scene.js";
+import { activeLights, addLights, materialLight, rgb01 } from "./scene.js";
 
 // Front faces wind this way in screen space (+1 or -1). Checked by eye on
 // the unit models: with the other sign the mechs render inside out.
@@ -43,16 +43,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
   const view = camera.view();
   const [vw, vh] = camera.viewwindow;
   const near = camera.near;
-  const lights = scene.lights.length ? scene.lights : DEFAULT_LIGHTS;
-  let amb = [0, 0, 0];
-  const dirs = [];
-  for (const l of lights) {
-    if (l.type === "ambient") amb = amb.map((v, i) => v + l.color[i]);
-    else if (l.type === "directional") {
-      const d = l.direction, len = Math.hypot(d[0], d[1], d[2]) || 1;
-      dirs.push({ d: [-d[0] / len, -d[1] / len, -d[2] / len], c: l.color });
-    }
-  }
+  const lights = activeLights(scene);
 
   const cam = new Float32Array(8 * 6); // clip buffers: x y z u v per vertex
   for (const node of scene.ordered()) {
@@ -72,7 +63,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
         const texel = tex ? rgbaOf(tex) : null;
         const alpha = (mat.opacity ?? 1) * clumpAlpha;
         if (alpha <= 0.01) continue;
-        const { unlit, ka, kd } = materialLight(mat, !!tex);
+        const { unlit, ka, kd, ks } = materialLight(mat, !!tex);
         for (let t = g.start; t < g.start + g.count; t += 3) {
           // Flat lighting from the face normal in world space.
           const nx0 = N[t * 3], ny0 = N[t * 3 + 1], nz0 = N[t * 3 + 2];
@@ -81,13 +72,15 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
           let nz = nx0 * w[2] + ny0 * w[6] + nz0 * w[10];
           const nl = Math.hypot(nx, ny, nz) || 1;
           nx /= nl; ny /= nl; nz /= nl;
-          const light = [ka * amb[0], ka * amb[1], ka * amb[2]];
+          const light = [ka, ka, ka];
           if (unlit) light.fill(1);
-          else for (const L of dirs) {
-            const d = nx * L.d[0] + ny * L.d[1] + nz * L.d[2];
-            const dd = CULL && !twoSided ? Math.max(0, d) : Math.abs(d);
-            for (let i = 0; i < 3; i++) light[i] += kd * dd * L.c[i];
+          else if (lights.length) {
+            // Point and cone lights reach the face at its first vertex.
+            const x = P[t * 3], y = P[t * 3 + 1], z = P[t * 3 + 2];
+            const p = [x * w[0] + y * w[4] + z * w[8] + w[12], x * w[1] + y * w[5] + z * w[9] + w[13], x * w[2] + y * w[6] + z * w[10] + w[14]];
+            addLights(light, lights, [nx, ny, nz], p, kd, ks, !CULL || twoSided);
           }
+          for (let i = 0; i < 3; i++) light[i] = Math.min(1, light[i]);
           // To camera space.
           let n = 0;
           for (let j = 0; j < 3; j++) {
