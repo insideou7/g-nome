@@ -2,6 +2,7 @@
 // resource file, the VM, the message queue that drives scripts, and the
 // plugins (smacker, render, netgn) that provide extern functions.
 
+import { peCursors } from "./pe.js";
 import { BinFile, palette256 } from "./binfile.js";
 import { VM } from "./vm.js";
 import { installStatements, stmtLength } from "./statements.js";
@@ -62,6 +63,8 @@ export class Engine {
     this.hover = -1;
     this.dirty = true;
     this.timers = new Map(); // statement 0xc4: id -> {script, ms, due, repeat}
+    this.fades = []; // queued palette fades {to, ms}
+    this.fadedOut = false;
     this.lists = new Map(); // type 14 statement lists
   }
 
@@ -157,6 +160,12 @@ export class Engine {
   }
 
   async init() {
+    // The mouse cursors are resources of RTLIB32.DLL (next to G-NOME.BIN).
+    try {
+      this.cursors = peCursors(await this.files.read("RTLIB32.DLL"));
+    } catch {
+      this.cursors = new Map();
+    }
     const binBytes = await this.files.read("G-NOME.BIN");
     const packs = new Map();
     this.bin = new BinFile(binBytes, (n) => packs.get(n));
@@ -227,6 +236,7 @@ export class Engine {
     for (const p of this.plugins) if (p.service) p.service(ms);
     this.sprites.tick(ms);
     this.serviceTimers();
+    this.serviceFades(ms);
     if (this.display) {
       this.compose?.();
       this.display.present();
@@ -283,13 +293,61 @@ export class Engine {
     this.dirty = true;
   }
 
-  // Statements 0x3c / 0x3d: fade in / out. `speed` is a percentage step.
+  // Statement 0x1b (0x100226c8, 0x10022d83): 0 leaves the cursor alone,
+  // 1 is the Windows arrow, 4 hides it, 2-3 and 5-9 are RTLIB32.DLL's
+  // cursors 1001-1007. Calls onCursor(cursor or "default" or null).
+  setCursor(mode) {
+    if (this.traceOn) this.log(`cursor mode ${mode}`);
+    this.cursorMode = mode;
+    if (!mode || !this.onCursor) return;
+    const ids = { 2: 1001, 3: 1002, 5: 1003, 6: 1004, 7: 1005, 8: 1006, 9: 1007 };
+    if (mode === 1) this.onCursor("default");
+    else if (ids[mode]) this.onCursor(this.cursors.get(ids[mode]) || "default");
+    else this.onCursor(null);
+  }
+
+  // Statements 0x3c / 0x3d: palette fade in / out (0x1000c4d0). In 256
+  // colour mode RTLIB32 fades colours 10-245 in `speed` steps (1-100, 0
+  // means 100), one per frame, and the script waits for it. Here scripts
+  // carry on, so a fade-out freezes the last frame while it darkens and the
+  // next fade-in reveals whatever the scripts drew meanwhile.
   fade(fadeIn, speed) {
-    this.fadeTarget = fadeIn ? 1 : 0;
-    this.fadeStep = Math.max(1, Math.min(100, speed || 100)) / 100;
+    if (fadeIn === !this.fadedOut) return; // already there (flag +0x94b1)
+    this.fadedOut = !fadeIn;
     if (!this.display) return;
-    // A fade blocks the original until done; do it immediately for now.
-    this.display.fade = this.fadeTarget;
-    this.display.dirty = true;
+    const steps = speed > 0 && speed <= 100 ? speed : 100;
+    if (!fadeIn) {
+      this.compose?.();
+      this.display.freeze();
+    }
+    this.fades.push({ to: fadeIn ? 1 : 0, ms: (steps * 1000) / 60 });
+  }
+
+  // Advance queued fades by `ms`.
+  serviceFades(ms) {
+    const d = this.display;
+    while (d && this.fades.length && ms > 0) {
+      const f = this.fades[0];
+      if (f.to === 1 && d.frozen) d.unfreeze();
+      const left = Math.abs(f.to - d.fade) * f.ms;
+      if (left <= ms) {
+        d.fade = f.to;
+        ms -= left;
+        this.fades.shift();
+        if (f.to === 1 && d.frozen) d.unfreeze();
+      } else {
+        d.fade += Math.sign(f.to - d.fade) * (ms / f.ms);
+        ms = 0;
+      }
+      d.dirty = true;
+    }
+  }
+
+  // A movie owns the whole palette: stop fades without changing the state.
+  cancelFades() {
+    this.fades = [];
+    if (!this.display) return;
+    this.display.unfreeze();
+    this.display.fade = 1;
   }
 }

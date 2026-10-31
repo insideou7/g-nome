@@ -48,6 +48,7 @@ for (let t = 1; t <= secs; t++) {
   }
   if (t === secs || t % 5 === 0) await page.locator("#screen").screenshot({ path: `${out}-${t}s.png` });
 }
+console.log("cursor:", (await page.evaluate(() => document.getElementById("screen").style.cursor)).slice(0, 60));
 console.log((await page.locator("#log").textContent()).split("\n").slice(-25).join("\n"));
 await browser.close();
 server.close();
