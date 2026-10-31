@@ -10,6 +10,7 @@ import { ScriptFiles } from "../anim/files.js";
 import { Hotspots } from "../anim/hotspots.js";
 import { motionExterns } from "../anim/motion.js";
 import { taskExterns } from "../anim/tasks.js";
+import { aimExterns } from "../battlefield/aim.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -29,6 +30,7 @@ export class RenderPlugin {
       ...this.files.externs(),
       ...motionExterns(engine),
       ...taskExterns(engine),
+      ...aimExterns(engine),
       // Sound. Scripts identify a playing sound by its resource id.
       DSInitWavePlay: ok,
       DSDeInitWavePlay() {

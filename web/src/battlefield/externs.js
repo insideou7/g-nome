@@ -5,10 +5,12 @@
 import { World, STATE, UNIT } from "./world.js";
 import { headingOf, normalize, scale, add } from "./math.js";
 import { Controls } from "./controls.js";
+import { Mission } from "./mission.js";
 
 export function battlefieldExterns(engine) {
   const world = new World(engine);
   engine.world = world;
+  engine.mission = new Mission(engine);
   const controls = (world.controls = new Controls(engine));
   const vm = () => engine.vm;
   const obj = (id) => world.get(id);
