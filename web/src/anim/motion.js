@@ -175,6 +175,8 @@ export function leadDirection(pos, s, target, vel, tMax = 10) {
 }
 
 export function motionExterns(engine) {
+  // The battlefield's UpdatePosOrient / UpdateTimeStep use this for their spin.
+  engine.spinStep = spinStep;
   const obj = (id) => engine.world?.get?.(id) || null;
   const prop = (id, n) => engine.render3d?.objects?.getProperty(id, n) ?? 0;
   const setProp = (id, n, v) => engine.render3d?.objects?.setProperty(id, n, v);
