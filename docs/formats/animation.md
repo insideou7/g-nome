@@ -1,4 +1,4 @@
-# 3D animation, objects, lists, files and hotspots
+# 3D animation, objects, motion, tasks, lists, files and hotspots
 
 How G-Nome animates its 3D models, and the other `RENDER.R32` data the
 mission scripts use. Everything here was read from the Ghidra decompile of
@@ -10,10 +10,13 @@ Code:
 - `tools/gnome3d.py`: Python decoders for models, FRME and OB3D/OPRT, plus
   OBJ and glTF export (used by `tools/gnome_extract.py`).
 - `web/src/anim/`: the browser engine's decoders (`formats.js`) and the
-  externs: animation (`animation.js`), lists (`lists.js`), files
-  (`files.js`) and hotspots (`hotspots.js`).
+  externs: animation (`animation.js`), motion and steering (`motion.js`),
+  tasks (`tasks.js`), lists (`lists.js`), files (`files.js`) and hotspots
+  (`hotspots.js`).
 - `web/tests/anim-check.mjs`: decodes every FRME and object and runs a real
   unit's animation set through idle, walk and stop.
+- `web/tests/motion-check.mjs`: speed, turning, steering and the task list
+  on stand-in objects (no game files needed).
 
 Conventions: matrices are RenderWare's, 4x4 for row vectors (`v' = v * M`)
 with the translation in the last row. Scripts pass numbers as integers;
@@ -104,7 +107,7 @@ property list in `manifest.csv`'s note column.
 | Offset | Field |
 | --- | --- |
 | `+0x04` | the object's resource id |
-| `+0x10` | float written by trigger conditions 8 and 9 (unknown, maybe a bob height) |
+| `+0x10` | position y; trigger conditions 8 and 9 write it (a walking bob) |
 | `+0x54` | flags; `\|= 8` marks the pose dirty |
 | `+0x80` | forward speed, world units per second |
 | `+0x98` | linked model (`LinkModel`) |
@@ -202,7 +205,7 @@ set by the unit scripts.
 | 5 | `v > property 15` (running) |
 | 6 | speed > 0 |
 | 7 | speed < 0 |
-| 8 | never; sets object `+0x10` to `0.018757 * k` with `k` = frame + 1 moving forwards, 17 - frame backwards, 0 stopped |
+| 8 | never; sets the object's height (`+0x10`, position y) to `0.018757 * k` with `k` = frame + 1 moving forwards, 17 - frame backwards, 0 stopped |
 | 9 | never; the same with the directions swapped |
 | 10 | property 12 and the speed have opposite signs |
 
@@ -223,6 +226,149 @@ The stop clip's `next` is idle, and its end script is 1721.
 | `getCurrentAnimationType(obj)` | `0x1000b5c7` | the current slot's type, 0 if none |
 | `removeAnimations(obj)` | `0x1000ab87` | free the slots |
 | `animationSetupProps()` | `0x1000aac0` | nothing |
+
+## Motion
+
+The velocity, steering and movement externs (`web/src/anim/motion.js`).
+They act on the battlefield's world object; the struct fields are:
+
+| Offset | Field |
+| --- | --- |
+| `+0x0C` | position (x, y, z) |
+| `+0x18` | velocity, world units per second |
+| `+0x24` | position before the last move |
+| `+0x30`, `+0x3C`, `+0x48` | `at`, `right`, `up` (rows of the matrix) |
+| `+0x54` | flags: `8` dirty, `0x10` velocity kept in the ground plane |
+| `+0x60`, `+0x64`, `+0x68` | pitch, yaw and roll rates, degrees per second |
+| `+0x6C` | twist rate (a turret), degrees per second |
+| `+0x70` | twist still to go, degrees |
+| `+0x74` | yaw still to go, degrees (worked off by the spin step) |
+| `+0x78` | cosine of the angle to the target when `+0x74` was set |
+| `+0x7C` | gravity |
+| `+0x80` | forward speed |
+| `+0xC0` | maximum acceleration |
+| `+0xC4`, `+0xC8`, `+0xCC` | maximum angular acceleration: pitch, yaw, roll |
+| `+0xD0`, `+0xD4`, `+0xD8` | maximum angular velocity: pitch, yaw, roll |
+
+`FUN_100050d0(obj, roll, pitch, yaw)` turns about the object's own axes:
+pitch about `right`, then yaw about `up`, then roll about `at` (degrees,
+RenderWare's right-hand rotation).
+
+### The spin step
+
+`FUN_1001a290(obj, dt)`, used by `UpdateOrient`, `UpdatePosOrient` and
+`UpdateTimeStep`: while a yaw target (`+0x74`) is pending, take one step of
+the controller below on the yaw rate and subtract it from the target; when
+the step passes the target, or the target is under 0.5° with a step of at
+most 0.1°, clear both the target and the yaw rate. Then turn by
+`rate * dt` on all three axes.
+
+The controller `FUN_1001c460(angle, brake, accel, &rate, dt, maxVel)`
+returns the angle to turn this step:
+
+- From rest it turns `accel·dt²` (and sets the rate to `±accel·dt` when the
+  angle is more than twice that), or nothing for a tiny angle.
+- With `brake` set (the target is ahead: cosine > 0) and the stopping
+  distance `(r² + 2·accel·dt·r) / (4·accel)` of the next rate `r` beyond
+  the angle, it slows by `2·accel·dt` without reversing.
+- Otherwise it speeds up by `accel·dt` towards the angle (`2·accel·dt` when
+  turning back), clamped to `±maxVel`.
+
+### Steering
+
+Each steering extern takes a mode: 1 = pitch, 2 = yaw. Yaw mode only sets
+the target (`FUN_1001c7df`): `+0x74 = ±acos(at·d)` in the ground plane,
+positive when the direction `d` is on the `right` side, and returns 0.
+Pitch mode (`FUN_1001c926`) turns at once: when `d` is ahead in x/z, the
+angle between the two elevations (positive towards `up`) goes through the
+controller with the pitch rate negated (positive pitch looks down) and the
+step is returned; when it is behind, the pitch rate is zeroed. The externs
+return the step ×100.
+
+| Extern | Address | Does |
+| --- | --- | --- |
+| `MoveToPursue(obj, target, mode, heightProp, ms)` | `0x100133c2` | steer at the target; with `SetGroundFlag` on, aim `property / 2000` above it |
+| `MoveToEvade(obj, target, mode, ms)` | `0x10013575` | steer directly away |
+| `MoveToFollow(obj, target, radius, mode)` | `0x10013179` | yaw only: blend the direction to the target with its perpendicular on the target's side, weight `radius / distance` (x+z distance); inside the radius, head out. Behind the target the radius is scaled by `d · target.right` |
+| `MoveInCircle(obj, target, radius, mode)` | `0x10013054` | the same, with the perpendicular chosen by the object's own `right`: circles the target |
+| `MoveToParallel(obj, target, mode, ms)` | `0x1001328c` | turn to the target's heading (pitch: its `at` with x = 0) |
+| `MoveToTrueLead(obj, speed, target, mode, ms)` | `0x1001368c` | steer for the meeting point: bisection on `t` in [0, 10] s of `\|target + vel·t - pos\| - speed·t` (`FUN_1001d51a`); (0, 0, 1) when there is none |
+| `MoveToFlock`, `ObjectDeviate` | `0x10013167`, `0x10013fc6` | empty, return 0 |
+| `SetTargetAxis(obj, dir, axis, ms)` | `0x10016dd9` | ramp the pitch (1) or yaw (2) rate towards `dir · maxVel` by `accel · dt` (4× when braking, `accel / 100` from rest); dir 0 brakes to 0. Skipped while a yaw target is pending, unless dir ≠ 0 |
+| `SetTargetAxisAngle(obj, angle, axis)` | `0x100170de` | axis 2 only: `+0x74 = angle / 100` |
+| `SetTargetTwist(obj, dir, ms)` | `0x1001714a` | the same ramp on the twist rate (yaw limits), while no twist angle is pending; returns `rate · dt · 100` |
+| `SetTargetTwistAngle(obj, angle, prop)` | `0x10017408` | `+0x70 = (angle - property prop) / 100`; returns it ×100 |
+| `StepTwist(obj, ms, twistProp, limitProp)` | `0x100177a4` | one controller step of the pending twist, kept within ±limit when the limit is under 180°; returns the step ×100 (the script adds it to its twist property) |
+| `UpdateOrient(obj, ms)` | `0x100180fe` | the spin step |
+| `UpdatePos(obj, ms)` | `0x1001817e` | `vel.y += gravity·dt`, `pos += vel·dt` (`FUN_1001a754`) |
+
+### Speed
+
+| Extern | Address | Does |
+| --- | --- | --- |
+| `SetVelocityForward(obj, v)` | `0x10017516` | `speed = v / 100`, `vel = at · speed`, clear flag `0x10`, `rate = speed / stride` |
+| `SetVelocityXZ(obj, v)` | `0x100175dc` | the same along `at` flattened and normalised; sets flag `0x10` |
+| `GetVelocityForward(obj)` | `0x1001284e` | `speed · 100` |
+| `SetMaxAccel(obj, a)` | `0x1001671e` | `+0xC0 = a / 100` |
+| `SetMaxAngularAccel(obj, roll, pitch, yaw)` | `0x10016835` | the three limits / 100 |
+| `SetMaxAngularVelocity(obj, roll, pitch, yaw)` | `0x1001678e` | the same for the rates |
+| `SetObjectMotion(obj, stride)` | `0x10016b20` | `+0xB8 = stride / 1000` |
+| `ApproachTargetSpeed(obj, ms)` | `0x1000ba71` | see below |
+
+`ApproachTargetSpeed` moves the speed towards property 12 by at most
+`maxAccel · ms / 1000`. An animated object that is moving never goes below
+property 33 in size (so walkers don't creep). Property 34 gets the new speed
+×100. Objects of class 181 or 182 (property 0: flyers) keep their velocity
+along `at`; the rest move in the ground plane with y pinned to 0. The
+frame rate is resynced. It returns minus a cost the scripts subtract from
+an energy property: `property 95 · |target| · 7 / (property 35 · 10)` while
+changing speed, `· 5` at the target speed.
+
+### Orientation and position
+
+| Extern | Address | Does |
+| --- | --- | --- |
+| `PointAt(obj, target, heightProp)` | `0x100144af` | `at` towards the target (plus `property / 2000` in y with the ground flag), `right = (at.z, 0, -at.x)`, `up = at × right`. The original leaves `right` and `up` unnormalised; the browser engine normalises them |
+| `PointAtXZ(obj, target)` | `0x100146b7` | the same in the ground plane |
+| `SetObjectDirection(obj, x, y, z)` | `0x100168dc` | `at = (x, y, z) / 100`, `right = (0, 1, 0) × at`, `up = at × right` |
+| `ObjectDistance(obj, other)` | `0x10013fd8` | distance ×100 |
+| `ObjectMoveForwardUp(obj, forward, up)` | `0x1001849d` | `pos += normalise(at) · forward / 100 + (0, up / 100, 0)`, and `last = pos` |
+| `DotProduct(obj, clump, target, tclump)` | `0x10011b21` | `normalise(at) · normalise(target - pos)` ×10000; a clump number uses that clump's direction or origin |
+| `DotProduct2D(...)` | `0x10011cea` | the same in the ground plane |
+| `SphericalToRectangular(r, a, b, which)` | `0x1001766d` | `r·sin b·cos a` (0), `r·cos b` (1), `r·sin b·sin a` (2); angles in tenths of a degree |
+| `Srand(seed)` | `0x10017766` | seeds the C runtime's `rand` and RTLIB32's generator |
+
+## Tasks
+
+A unit's AI keeps a prioritised task list (`web/src/anim/tasks.js`,
+`0x1001ac50`-`0x1001c37e`). `setTaskProps(listProp, currentProp)` names two
+object properties: the first holds a copy of a type 11 table (script 412
+copies table 411: 10 rows of 9 ints), the second the current row.
+
+| Column | Field |
+| --- | --- |
+| 0 | task: the script that runs it |
+| 1 | active |
+| 2, 4, 5, 6 | parameters (`a`, `b`, `c`, `d`) |
+| 3 | target (an object id) |
+| 7 | next row, -1 = none |
+| 8 | priority |
+
+| Extern | Does |
+| --- | --- |
+| `insertTask(obj, task, priority, target, b, c, d, a, next)` | fill the first inactive row; returns it or -1 |
+| `setCurrentTask(...)` | overwrite the current row |
+| `setNextTask(...)` | insert, and chain it as the current row's `next` |
+| `doNextTask(obj)` | move to the current row's `next` (when active and set); returns the old row's target |
+| `TaskSetHighestIndex(obj)` | make the active row with the highest priority current (ties keep the current one); returns the old row's target if it changed, else 0 |
+| `completeTask(obj, row)` | mark inactive |
+| `clearTask(obj, row)`, `clearTaskList(obj)` | zero rows (next = -1) |
+| `getTaskField(obj, row, col)`, `setTaskField(obj, row, col, v)` | access a cell |
+| `changeTaskPriority(obj, row, delta)` | add to the priority, not below 0 |
+| `existsGoal(obj, task, target)` | the row with this task and target, active or not, or -1 |
+| `activateGoal(obj, row, p)` | activate; priority -4 lowest, -3 highest, -2 highest + 1, -1 leave it, other values keep the row's own |
+| `equalizeGoalPriorities(obj, p)` | every row gets `p` (-3 highest, -4 lowest) |
+| `getHighestPriority(obj)`, `getLowestPriority(obj)` | over active rows |
 
 ## Lists
 

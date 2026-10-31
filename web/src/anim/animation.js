@@ -53,7 +53,11 @@ export class AnimationSystem {
       hasModel: (id) => !!engine.render3d?.objectModel(id),
       applyFrame: (id, frme, f) => setPose(engine.render3d?.objectModel(id), frme, f),
       poseModel: (model, frme, f) => setPose(engine.render3d?.instance(model), frme, f),
-      setBob: () => {},
+      // Conditions 8 and 9 write the object's height (+0x10 = pos.y).
+      setBob: (id, v) => {
+        const o = engine.world?.get?.(id);
+        if (o) o.pos[1] = v;
+      },
       ...host,
     };
   }

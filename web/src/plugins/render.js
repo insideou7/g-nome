@@ -6,6 +6,8 @@ import { AnimationSystem, animationExterns } from "../anim/animation.js";
 import { listExterns } from "../anim/lists.js";
 import { ScriptFiles } from "../anim/files.js";
 import { Hotspots } from "../anim/hotspots.js";
+import { motionExterns } from "../anim/motion.js";
+import { taskExterns } from "../anim/tasks.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -23,6 +25,8 @@ export class RenderPlugin {
       ...animationExterns(this.anim),
       ...listExterns(engine),
       ...this.files.externs(),
+      ...motionExterns(engine),
+      ...taskExterns(engine),
       // Sound. Scripts identify a playing sound by its resource id.
       DSInitWavePlay: ok,
       DSDeInitWavePlay() {
