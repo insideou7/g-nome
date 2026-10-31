@@ -264,7 +264,11 @@ second scene (`DAT_1003d618[10]`, made the same way as the main one in
 `Init3D`), renders that scene and takes the object out again, so its
 polygons are sorted on their own. Units do this for their near level of
 detail (script 2166 sets property 139, and LOD script 2147 passes it on),
-so the browser engine draws flagged objects like any other.
+so the browser engine draws flagged objects like any other. What the draw
+pass does skip is an object with flag `0x100` or `0x400` (byte `+0x55` bits
+1 and 4). `ObjectSetState(id, 1)` (`0x10014335`) sets `0x100`, and LOD script
+2147 calls it for a unit with property 133 set: that is how the player's own
+vehicle, with the camera inside it, is kept out of the view.
 
 ## Collisions
 
