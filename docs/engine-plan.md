@@ -125,8 +125,12 @@ Design choices:
    - [x] world, cameras, ground tiles, fixed-tick update loop with
      interpolation, controls (`src/battlefield/`,
      [battlefield.md](battlefield.md)); `?mission=N` starts a mission
-   - [ ] movement, tasks and animation (`src/anim/`), collisions,
-     hotspots, weapons
+   - [x] movement, tasks and animation (`src/anim/`)
+   - [x] collisions and hotspots (`src/battlefield/collision.js`), level of
+     detail at AddObject, ObjectSetScene/UpdateLOD
+   - [x] weapons: recharge, projectiles, hits, explosions and debris
+     (`src/combat/`, [combat.md](combat.md))
+   - [ ] radar
    - [x] enemy AI and mission goals: the AI and win/lose logic are the
      game's own scripts; turret aiming (`RotateSubClump`,
      `MoveSubClumpToFace`) and `OrientModels` are in

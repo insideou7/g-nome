@@ -232,5 +232,116 @@ modifiers, 4 a mouse button (1 left, 2 right, 3 middle; only while
 `MouseOnOff(1)`), 3 and 6 joystick axes and buttons. `CheckActionState`
 returns 1 when a binding is held, 0 when the action is bound but not held,
 and -1 when it is not bound or not allowed in this mode. In the default map
-actions 0 and 1 (turn) are the left and right arrows and action 7 is the down
-arrow; Space presses action 9.
+actions 0 and 1 (turn) are the left and right arrows, 7 and 8 the up and
+down arrows; Space presses action 9.
+
+In the default map the throttle is action 2 and 3: numpad `+` and `-`, or
+Ctrl+Up and Ctrl+Down. Up and Down (actions 7 and 8) tilt the gun, Left and
+Right (0 and 1) turn, `,` and `.` (5 and 6) twist the torso. The browser
+engine maps numpad and punctuation keys by `KeyboardEvent.code`.
+
+## Level of detail when an object is added
+
+`AddObject` (`0x100100f0`) chooses the level of detail at once, not on the
+next frame: every behaviour record of kind 4 or 5 whose range holds the
+object's x/z distance to the camera over the far plane is applied, from the
+last record to the first. Kind 5 runs its script with the object id, so a
+unit's LOD script (2145 and friends: copy the model into property 79, link
+it) has run before the rest of its setup. Later per-frame changes
+(`FUN_10029059`) only run for objects with an update record.
+`UpdateLOD(id)` (`0x10029743`) forgets the current choice and picks again.
+`ObjectSetScene(id, 0)` puts the model in the RenderWare scene, any other
+value takes it out (object flag `0x80`; the draw loop skips such objects).
+
+## Collisions
+
+The browser engine's version is
+[`web/src/battlefield/collision.js`](../web/src/battlefield/collision.js),
+exposed to other modules as `engine.collision`.
+
+A unit's update script (1723 -> 1728) moves it with `UpdateTimeStep`, then:
+
+1. `UpdateCollideCheck(id, list, extra, ignore)` (`0x100182d0`) returns the
+   nearest object in the list (global 1814) whose octagonal x/z distance
+   (`dx + dz - min(dx, dz) / 2`, `FUN_1001ab5c`) is under both radii plus
+   `extra / 100`. Scripts 2229 (class < 100, people) and 2239 (100-199,
+   vehicles) then use `ClumpToClump` and `DotProduct2D` to decide whether
+   it is a hatch to climb into, a bump (`RevertPosition`, back off) or a
+   unit to run over.
+2. Otherwise script 437 calls `Process_Sector_Collisions(id, &hotspot,
+   &object, fast, &G1861[0])` (`0x100289d0`). It skips movers of class
+   200-270, runs `G1861[6]` (script 430) to get the list for the mover's
+   map cell (table 427: 26 x 26 cells of 1200 units, 25 object ids each, -1
+   ends a list, -2 is a free slot), and tests the hotspots in each listed
+   object's property 16 with `ObjectPositionCollision` (or
+   `FastmovingHotspotCollide` when `fast`, for projectiles). The first hit
+   is returned with its hotspot and object; class 500 objects are triggers:
+   their property 2 script runs with `(mover, object, hotspot)` and they are
+   never returned. Objects below class 240 with property 133 set are
+   skipped.
+
+Calls from inside a plugin to a script (`RtRunMsg` with a type 1 message)
+run at once and return the script's value; the browser engine's
+`vm.callValue` does the same with the frame below the caller's locals.
+
+### Hotspots
+
+`AddHotSpot` (`0x1002232a`) stores four callback values (`+0x1C`..`+0x28`).
+`GetCallbackParm(n, k)` / `SetCallbackParm(n, k, v)` read and write values
+1-3, `SetCallbackID` value 0. Scripts 438 and 439 put the owning object in
+value 1 and a kind in value 2; script 2231 switches on the kind (16 and 7:
+solid, `DeflectHotspot`; 3, 8, 11, 15: other handlers).
+
+Flags: 1 enabled, 2 solid with the mover's radius, 4 run the callback in
+`CollideHotSpot`. `ObjectPositionCollision(n, id)` (`0x1002338f`) returns
+1 when the object's position is inside and 2 when only its radius reaches
+in (flag 2), after a height test (0 <= y <= height, unless height is 0):
+
+| Type | Shape |
+| --- | --- |
+| `0x10` | circle, radius in the model field (script units) |
+| 8 | footprint the object must stay inside (1 when outside) |
+| other | footprint polygon; with flag 2 the point `radius` ahead along `at` (behind when reversing) counts as 2 |
+
+The footprint is the vertex list of the hotspot model's root clump
+(`RwGetClumpVertex`, in order), turned by the pose object's root clump
+matrix without its translation and moved to the hotspot. Vertices whose x
+or z lies on the 12-unit grid (within 0.04) push the edges that meet there
+out by 0.2 so neighbouring footprints overlap, and an edge along a grid line
+is flagged `0x10`; deflection ignores flagged edges. The inside test
+(`FUN_1001d780`) is the even-odd ray test in x/z.
+
+### Deflection
+
+`DeflectObject(id, other, limit, both)` (`0x10023dac`) and round
+`DeflectHotspot`s compare the mover against a circle around `other` of its
+radius (plus the mover's when `both`). Outside it: 1. Inside: with `d` the
+unit vector from the circle's centre to the mover and `f = -(at . d) x
+10000`, a mover heading away (forward with `f < 0`, reversing with `f > 0`)
+gets 1; `|f| < limit` pushes it out to the circle and returns 1; anything
+more head-on returns 0 and the script undoes the move.
+
+A footprint `DeflectHotspot` (`FUN_1001e608`) finds the edge the step from
+the last position crossed (`FUN_10018a72`, with 0.01 tolerance). With `e`
+the unit vector along the edge and `n = (e.z, -e.x)`, the sine `s = n .
+step` refuses the move when `s <= -limit / 10000`, accepts it when `s > 0`
+and otherwise slides the mover along the edge by the step's projection, plus
+1/100 along `n`. Without a crossing a mover found inside is put back on the
+nearest edge along its step (extended 8 units) or across its right vector
+(`FUN_1001e95e`).
+
+### Clumps
+
+`ClumpToClump(a, b, tolerance)` (`0x100107cc`) walks the tagged clumps of
+both models (the root when none are tagged) and returns the first clump of
+`b` within `tolerance / 100` of a clump origin of `a` whose world bounding
+boxes overlap on every axis; -1 if none. `CollisionClump(mover, target)`
+does the same for the mover's last step against the target's clump boxes
+(projectile hits).
+
+### Radius
+
+Object `+0x58` is the radius `SetModelDimensions` (half the larger of the
+posed model's x and z size), `SetRadius` and `GetRadius` share. In mission 1
+the player starts on foot as a pilot with radius 0.039 (3.9 script units);
+cliffs and buildings use footprints instead.

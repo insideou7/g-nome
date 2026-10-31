@@ -422,10 +422,9 @@ Accessors take a 1-based hotspot number.
 `AddHotSpot(model, x, y, z, height, flags, type, dx, dy, dz, a, b, c, d,
 poseObj)` poses the footprint model like `poseObj`'s model when that is not
 0. The browser engine keeps the table and accessors in
-`web/src/anim/hotspots.js`; computing footprints and the collision tests
-(`CollideHotSpot`, `DeflectHotspot`, `FastmovingHotspotCollide`,
-`CheckPositionCollision`, `ObjectPositionCollision`) are left to the
-battlefield's motion code.
+`web/src/anim/hotspots.js`; footprints and the collision tests are in
+`web/src/battlefield/collision.js` (see "Collisions" in
+[battlefield.md](../battlefield.md)).
 
 ## glTF export
 
