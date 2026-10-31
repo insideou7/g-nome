@@ -76,8 +76,8 @@ export class Sprites {
     if (!s) return 0;
     const [type, ...a] = msg;
     switch (type) {
-      case 1: // animate cels a..b, ?, delay
-        this.startAnim(s, a[0] | 0, a[1] | 0, a[3] | 0);
+      case 1: // animate cels a..b, delay (0x1003e476)
+        this.startAnim(s, a[0] | 0, a[1] | 0, a[2] | 0);
         break;
       case 8: // hide
         s.visible = false;
@@ -90,8 +90,8 @@ export class Sprites {
         s.x = a[0] | 0;
         s.y = a[1] | 0;
         break;
-      case 18: // show, at cel n (none or -1: the current one)
-        if (a.length && a[0] >= 0) s.cel = a[0];
+      case 18: // show, at cel n; out of range keeps the current cel (SpriteShow)
+        if (a.length && a[0] >= 0 && a[0] < s.cels.length) s.cel = a[0];
         s.visible = true;
         break;
       default:
@@ -120,10 +120,14 @@ export class Sprites {
     this.step(s, 0);
   }
 
+  // Cels out of range start nothing (0x10036cc1). Returns true if started.
   startAnim(s, from, to, delay) {
+    if (from >>> 0 >= s.cels.length || to >>> 0 >= s.cels.length) return false;
+    s.delay = delay;
     s.anim = { cur: from, to, step: to >= from ? 1 : -1, delay: Math.max(delay, 1), t: 0 };
     s.cel = from;
     s.visible = true;
+    return true;
   }
 
   // Advance every sprite by `ms` (SpriteAnimate).
@@ -194,9 +198,13 @@ export class Sprites {
         }
         case 23: // a cel drawn by a plugin callback (3D models); not yet
           break;
-        case 1: // animate cels
-          this.startAnim(s, dv.getInt32(p + 2, true), dv.getInt32(p + 6, true), dv.getInt32(p + 14, true));
-          return;
+        case 1: { // animate cels (0x1003a042): +2 from, +6 to, +0xe delay (-1 keeps
+          // the last one), "is a variable" flags at +0x12..+0x14
+          const raw = dv.getInt32(p + 0xe, true);
+          const delay = raw === -1 ? s.delay ?? 0 : val(0xe, 0x14);
+          if (this.startAnim(s, val(2, 0x12), val(6, 0x13), delay)) return;
+          break;
+        }
         case 8:
           s.visible = false;
           break;
@@ -209,7 +217,7 @@ export class Sprites {
           break;
         case 18: {
           const c = dv.getInt32(p + 2, true);
-          if (c >= 0) s.cel = c;
+          if (c >= 0 && c < s.cels.length) s.cel = c;
           s.visible = true;
           break;
         }
@@ -228,7 +236,7 @@ export class Sprites {
 
   // Bounds of the current cel, in script coordinates (SpriteGetBounds).
   bounds(s) {
-    const id = s.cels[s.cel];
+    const id = s.cels[Math.min(s.cel, s.cels.length - 1)];
     if (id === undefined || !drawable(this.engine.bin.type(id))) return { left: s.x, top: s.y, right: s.x, bottom: s.y };
     const b = this.bitmap(id);
     const left = s.x + b.x - ((b.width - 1) >> 1), top = s.y + b.y - ((b.height - 1) >> 1);
