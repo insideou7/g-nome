@@ -13,6 +13,16 @@
 //
 // Coordinates are relative to the screen centre (320, 240), and a bitmap is
 // drawn centred on the sprite position plus the bitmap's own x/y offset.
+//
+// Motion: messages and queue records 5 (curve), 9 (line) and 10 (step) move
+// a sprite one step each time its move clock runs out. The clock interval
+// is the sprite's "speed" (SpriteSetSpeed, sprite +0x54; message/record
+// 17), and its cel interval is its "motion" (SpriteSetMotion, +0x58;
+// message/record 15, also the delay of records 1 and 2). While a sprite
+// moves along a path, its cel range (records 1 and 16) cycles at the
+// motion rate. No G-NOME script or queue uses paths or speeds, so this
+// follows RTLIB32 (0x1003a613 and the functions it calls) without a game
+// screen to compare against; web/tests/sprite-motion-check.mjs tests it.
 
 import { decodeBitmap } from "./bitmap.js";
 import { WIDTH, HEIGHT } from "./display.js";
@@ -80,6 +90,12 @@ export class Sprites {
       wait: 0, anim: null, click: null,
       layers: null, // cel numbers shown together (message 2)
       radar: null, // {w, h, pixels} painted by RadarClear/RadarDraw
+      // Motion clocks, in engine time (ms): speed is the move interval,
+      // delay (set by startAnim and message 15) the cel interval.
+      speed: 0, moveAt: 0, celAt: 0,
+      keepTime: false, // message 13: clocks advance from the last deadline, not from now
+      range: null, // {from, to}: the cels that cycle while the sprite moves
+      path: null, // the motion record running (see runPath)
     };
     this.list.set(id, s);
     return s;
@@ -123,11 +139,133 @@ export class Sprites {
         s.visible = true;
         break;
       }
+      case 5: // curve: x1, y1 (passed halfway), x2, y2, steps, relative (0x1003e7f8)
+      case 9: // line: x1, y1, steps, steps-are-pixels, relative (0x1003ec3c)
+      case 10: { // step: x, y, relative (0x1003edba; needs all three)
+        if (type === 10 && a.length < 3) return 0;
+        const v = (i) => a[i] | 0;
+        // A sent motion replaces the queue (0x1003e606) and runs at once.
+        s.queue = null;
+        s.anim = null;
+        s.wait = 0;
+        if (type === 5) this.startCurve(s, v(0), v(1), v(2), v(3), v(4), !!a[5]);
+        else if (type === 9) this.startLine(s, v(0), v(1), v(2), !!a[3], !!a[4]);
+        else s.path = { kind: "step", x: v(0), y: v(1), rel: !!a[2] };
+        if (this.runPath(s)) s.path = null;
+        break;
+      }
+      case 13: // keep time: flag (0x1003f0ff)
+        s.keepTime = !!a[0];
+        s.moveAt = s.celAt = 0;
+        break;
+      case 14:
+        // Sets bit 15 of the sprite's flags (0x1003f25a -> 0x10036e10): it
+        // switches the position between the sprite and its current frame
+        // record, and back. The port keeps one position, so only redraw.
+        break;
+      case 15: // motion: cel interval in ms (0x1003f2de)
+        this.setMotion(s, a[0] | 0);
+        break;
+      case 16: // cel range: current, from, to (0x1003f1b4 -> 0x10036cc1)
+        this.setRange(s, a[0] | 0, a[1] | 0, a[2] | 0);
+        break;
+      case 17: // speed: move interval in ms[, motion] (0x1003f391)
+        this.setSpeed(s, a[0] | 0);
+        if (a.length > 1) this.setMotion(s, a[1] | 0);
+        break;
       default:
         this.engine.vm.noteUnknown("sprite message", type);
     }
     this.engine.dirty = true;
     return 1;
+  }
+
+  // SpriteSetSpeed (0x10035caa) and SpriteSetMotion (0x10035c02): set an
+  // interval and restart its clock from now.
+  setSpeed(s, ms) {
+    s.speed = ms;
+    s.moveAt = this.engine.time + ms;
+  }
+
+  setMotion(s, ms) {
+    s.delay = ms;
+    s.celAt = this.engine.time + ms;
+  }
+
+  // 0x10036cc1: the cels from..to cycle (backwards when to < from) and
+  // `cur` is shown, or `from` when cur is outside them. Out of range: no-op.
+  setRange(s, cur, from, to) {
+    const n = s.cels.length;
+    if (from >>> 0 >= n || to >>> 0 >= n) return false;
+    s.range = { from, to };
+    const lo = Math.min(from, to), hi = Math.max(from, to);
+    s.cel = cur < lo || cur > hi ? from : cur;
+    s.layers = null;
+    return true;
+  }
+
+  // 0x10036f00: the next cel of the range, wrapping to `from`.
+  cycleCel(s) {
+    const { from, to } = s.range;
+    let c = s.cel + (to >= from ? 1 : -1);
+    if (to >= from ? c > to : c < to) c = from;
+    s.cel = c;
+    this.engine.dirty = true;
+  }
+
+  // Record 5 set up (0x1003a042): a quadratic curve from the sprite's
+  // position through (x1, y1) at its midpoint to (x2, y2), in `steps` steps.
+  startCurve(s, x1, y1, x2, y2, steps, rel) {
+    if (rel) {
+      x1 += s.x; y1 += s.y; x2 += s.x; y2 += s.y;
+    }
+    s.path = { kind: "curve", x0: s.x, y0: s.y, x1, y1, x2, y2, i: 0, n: steps >>> 0 };
+  }
+
+  // Record 9 set up: a line from the sprite's position to (x1, y1). With
+  // `pixels`, `steps` is the step length instead (0x10039e82).
+  startLine(s, x1, y1, steps, pixels, rel) {
+    if (rel) {
+      x1 += s.x; y1 += s.y;
+    }
+    let n = steps >>> 0;
+    if (pixels) {
+      const d = Math.max(Math.abs(x1 - s.x), Math.abs(y1 - s.y));
+      n = Math.ceil(d / (n || 1));
+    }
+    s.path = { kind: "line", x0: s.x, y0: s.y, x1, y1, i: 0, n };
+  }
+
+  // One service of a motion record (0x10043fb0, 0x10043bf0, 0x10043e0a).
+  // Returns true when it is finished.
+  runPath(s) {
+    const now = this.engine.time, p = s.path;
+    const due = (at) => (s.keepTime && at ? at : now);
+    // While the sprite moves, its cel range cycles at the motion rate.
+    if (s.range && s.range.from !== s.range.to && now >= s.celAt) {
+      s.celAt = due(s.celAt) + (s.delay ?? 0);
+      this.cycleCel(s);
+    }
+    if (now < s.moveAt) return false;
+    s.moveAt = due(s.moveAt) + s.speed;
+    this.engine.dirty = true;
+    if (p.kind === "step") {
+      if (p.rel) {
+        s.x += p.x;
+        s.y += p.y;
+      } else {
+        s.x = p.x;
+        s.y = p.y;
+      }
+      return true;
+    }
+    p.i++;
+    if (p.i <= p.n) {
+      const [x, y] = p.kind === "line" ? linePoint(p.i, p.n, p.x0, p.y0, p.x1, p.y1) : curvePoint(p.i, p.n, p.x0, p.y0, p.x1, p.y1, p.x2, p.y2);
+      s.x = x;
+      s.y = y;
+    }
+    return p.i >= p.n;
   }
 
   // Statement 0xb9 (0x10018f65): give a sprite a queue (type 18), or clear
@@ -139,6 +277,7 @@ export class Sprites {
     s.anim = null;
     s.layers = null;
     s.wait = 0;
+    s.path = null;
     if (!queueId) {
       s.queue = null;
       return;
@@ -154,6 +293,7 @@ export class Sprites {
   startAnim(s, from, to, delay) {
     if (from >>> 0 >= s.cels.length || to >>> 0 >= s.cels.length) return false;
     s.delay = delay;
+    s.range = { from, to };
     s.anim = { cur: from, to, step: to >= from ? 1 : -1, delay: Math.max(delay, 1), t: 0 };
     s.cel = from;
     s.visible = true;
@@ -166,6 +306,10 @@ export class Sprites {
   }
 
   step(s, ms) {
+    if (s.path) {
+      if (!this.runPath(s)) return;
+      s.path = null;
+    }
     if (s.anim) {
       s.anim.t += ms;
       while (s.anim && s.anim.t >= s.anim.delay) {
@@ -266,6 +410,37 @@ export class Sprites {
         case 8:
           s.visible = false;
           break;
+        case 5: // curve: +2 steps, +6 u8 relative, +0xc x1, +0x10 y1, +0x14 x2,
+          // +0x18 y2; "is a variable" flags +7..+0xb
+          this.startCurve(s, val(0xc, 7), val(0x10, 8), val(0x14, 9), val(0x18, 0xa), val(2, 0xb), !!q.b[p + 6]);
+          if (!this.runPath(s)) return;
+          s.path = null;
+          break;
+        case 9: // line: +2 steps, +6 u8 relative, +7 u8 steps-are-pixels,
+          // +0xc x1, +0x10 y1; flags +8, +9, +0xa
+          this.startLine(s, val(0xc, 8), val(0x10, 9), val(2, 0xa), !!q.b[p + 7], !!q.b[p + 6]);
+          if (!this.runPath(s)) return;
+          s.path = null;
+          break;
+        case 10: // step: +2 u8 relative, +6 x, +0xa y (flags +3, +4)
+          s.path = { kind: "step", x: val(6, 3), y: val(0xa, 4), rel: !!q.b[p + 2] };
+          if (!this.runPath(s)) return;
+          s.path = null;
+          break;
+        case 13: // keep time: +2 flag
+          s.keepTime = !!(dv.getUint32(p + 2, true) & 1);
+          s.moveAt = s.celAt = 0;
+          break;
+        case 15: // motion: +2 ms (flag +6)
+          this.setMotion(s, val(2, 6));
+          break;
+        case 16: // cel range: +2 current, +6 from, +0xa to (flags +0xe..+0x10)
+          this.setRange(s, val(2, 0xe), val(6, 0xf), val(0xa, 0x10));
+          break;
+        case 17: // speed: +2 ms, +6 motion if not 0 (flags +0xa, +0xb)
+          this.setSpeed(s, val(2, 0xa));
+          if (dv.getInt32(p + 6, true) !== 0) this.setMotion(s, val(6, 0xb));
+          break;
         case 11: // wait ms
           s.wait = dv.getInt32(p + 2, true);
           return;
@@ -353,6 +528,22 @@ export class Sprites {
     }
     return null;
   }
+}
+
+// SpriteLinePoint (0x100373ca -> 0x10042ff0): point i of n along a line,
+// each coordinate rounded half away from zero.
+export function linePoint(i, n, x0, y0, x1, y1) {
+  const h = n >>> 1;
+  const f = (d) => (d >= 0 ? Math.floor((d * i + h) / n) : Math.trunc((d * i - h) / n));
+  return [x0 + f(x1 - x0), y0 + f(y1 - y0)];
+}
+
+// 0x10042f50: point i of n on the quadratic curve from (x0, y0) to (x2, y2)
+// that passes through (x1, y1) halfway; t is in 1/1024ths.
+export function curvePoint(i, n, x0, y0, x1, y1, x2, y2) {
+  const t = Math.floor((i * 0x400 + (n >>> 1)) / n), k = t * (0x400 - t);
+  const f = (a0, a1, a2) => a0 + (Math.floor((t * t * (a2 - a0) + k * (4 * (a1 - a0) - (a2 - a0))) / 0x100000) | 0);
+  return [f(x0, x1, x2), f(y0, y1, y2)];
 }
 
 export function blit(dst, b, x0, y0, flipX = false, flipY = false) {

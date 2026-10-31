@@ -113,7 +113,9 @@ Design choices:
    - [x] load screen (lists saves; saving needs a mission in progress)
    - [x] queue record 2, several cels at once (the cockpit crosshair's
      acquiring and locked brackets)
-   - [ ] remaining sprite messages (motion paths, speed)
+   - [x] sprite motion paths (curve, line, step), speed, motion, cel
+     ranges and keep-time (messages and queue records 5, 9, 10, 13-17;
+     see rtlib32-engine.md). No G-NOME screen uses them
 
    3D work (milestones 2-3) is split across separate project threads:
    unit previews / renderer core, the battlefield, and 3D animation data
