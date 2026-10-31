@@ -45,6 +45,12 @@ behaviour can be checked against the original.
   draws at full brightness (`materialLight` in `scene.js`). 176 models are
   like that, among them the far ground tiles, trees and bushes; lit, they
   came out black (a black band at the horizon, black trees).
+- 15 models (2813, 2815, 3033, 3035, 3072-3084, 3350, 3352, 3619, 3621)
+  have an untextured material with op `0x08` = 0 0 0. Each uses it only on
+  one tagged clump (tag 17, 18 or 24) holding one or 16 triangles, most of
+  them zero-area, with opacity 0: marker points, not visible parts. Neither
+  backend draws a polygon with opacity 0.01 or less, so they do not draw
+  black. `web/tests/models-check.mjs` checks this for all 801 models.
 - `ObjectSetState(obj, 1)` (flag `0x100`) hides the object: the ground
   tiles' last level of detail (script 2140) and the unit the camera rides
   in (script 2171) use it.
@@ -187,6 +193,9 @@ work, with saves kept in localStorage).
 
 ## Checking it
 
+- `node web/tests/models-check.mjs game/g-nome/G-NOME` parses all 801
+  models and fails if one has a visible untextured polygon that would draw
+  black.
 - `web/tests/render3d.html?game=/game/g-nome/G-NOME/&models=2583&frame=2597`
   shows WebGL and software renderings side by side. Serve the repo root.
 - `NODE_PATH=$(npm root -g) node web/tools/shot.mjs 16 /tmp/brief 3:Escape
