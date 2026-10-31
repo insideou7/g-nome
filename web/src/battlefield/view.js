@@ -35,6 +35,8 @@ export class BattleView {
     if (!r3d) return null;
     const w = this.world;
     if (!this.scene) this.scene = r3d.createScene();
+    // Script-made lights (render3d/lights.js); none in G-Nome's scripts.
+    this.scene.lights = r3d.lights?.list() ?? [];
     const pose = w.cameraPose();
     for (const o of w.objects.values()) {
       let h = this.handles.get(o.id);

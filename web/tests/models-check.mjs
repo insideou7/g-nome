@@ -1,7 +1,7 @@
 // Parse every model (MODL type 7, MPRT type 8) and look for untextured
 // polygons that would draw black: a material with no texture whose colour is
 // 0 0 0 or whose surface has no ambient and no diffuse light, and which is
-// not invisible (opacity 0). The 15 models with an untextured Surface 0 0 0
+// not invisible (opacity 0). The 15 models with an untextured colour 0 0 0
 // material (2813, 2815, 3033, 3035, 3072-3084, 3350, 3352, 3619, 3621) use
 // it only on one tagged marker clump with opacity 0, which neither backend
 // draws, so the expected result is none.
