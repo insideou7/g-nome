@@ -27,7 +27,6 @@ import { table } from "../src/builtins.js";
 // Not implemented yet, and reached by this walk. Remove an entry when it is
 // done; the run says when one is no longer hit.
 const KNOWN_GAPS = new Set([
-  "extern:render.FreeAllTextures",
 ]);
 
 const opts = {};

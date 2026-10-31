@@ -185,6 +185,7 @@ swaps the tag). Properties seen so far:
 | `SetObjPerspective`, `SetClumpHints` | `0x1000a381`, `0x1000a04b` | rendering hints, no visible effect here |
 | `SetModelTexture(model, bitmap)` | `0x1000a592` | type 1 bitmap on every polygon |
 | `RenderToBitmap(model, frme, frame, texFrame, x, y, z, sprite, angle)` | `0x10008b3a` | see below |
+| `FreeAllTextures()` | `0x100121d5` | see below |
 
 ### RenderToBitmap
 
@@ -208,6 +209,25 @@ sprites.
 The LAB screens read their text from `LABTEXT.DAT` through RENDER.R32's
 file externs. Those now live in `web/src/anim/files.js` (from the animation
 work, with saves kept in localStorage).
+
+### FreeAllTextures and UncachePack
+
+The scripts call `render.FreeAllTextures()` when they leave a LAB screen
+and at the end of a mission. If any texture is loaded, the original destroys
+every texture in its name table (`0x1000439d`) and then restarts RenderWare
+(`0x10027f48`): `RtUnload` of every resource of type 7, 8, 9 and 10, so
+every model, model copy and OB3D/OPRT object is read again from its
+resource on next use, then `RwClose`, a fresh `RWL20.DLL` and `RwOpen`, and
+a new camera. The browser does the same to its caches
+(`Renderer.freeTextures`, `models`, `instances`, `objects.records`) and
+deletes its WebGL textures.
+
+RTLIB32's builtin `0xF2` UncachePack(pack) deletes the hard-disk copy of a
+pack that `0xE8` CachePack made (script 22 swaps the next mission's packs in
+this way, so missions 2 and 19 reach it). The browser keeps every pack in
+memory (resources are read synchronously), so `Engine.uncachePack` drops
+what was decoded from that pack instead: bitmaps, sounds not playing,
+animation clips, models and textures.
 
 ## Handedness (no mirroring)
 
@@ -236,6 +256,10 @@ the screen is flipped.
 - `node web/tests/models-check.mjs game/g-nome/G-NOME` parses all 801
   models and fails if one has a visible untextured polygon that would draw
   black.
+- `node web/tests/free-check.mjs game/g-nome/G-NOME` checks
+  FreeAllTextures and UncachePack, then plays missions 1, 19 and 1 again
+  and fails if mission 1 holds more models, objects or textures the second
+  time.
 - `web/tests/render3d.html?game=/game/g-nome/G-NOME/&models=2583&frame=2597`
   shows WebGL and software renderings side by side. Serve the repo root.
 - `NODE_PATH=$(npm root -g) node web/tools/shot.mjs 16 /tmp/brief 3:Escape
