@@ -15,6 +15,7 @@ import { Sprites, ORIGIN_X, ORIGIN_Y, blit } from "./sprites.js";
 import { Debug } from "./debug.js";
 import { CdMusic } from "./music.js";
 import { VolumePanel } from "./volume-panel.js";
+import { KeyConflicts } from "./key-conflicts.js";
 
 // 7THLEVEL.INI stand-in: section -> key -> value. Persisted by the shell.
 export class Ini {
@@ -81,7 +82,13 @@ export class Engine {
     this.debug = new Debug(this); // DEBUG button on the OPTIONS screen (debug.js)
     this.music = new CdMusic(this);
     this.volumes = new VolumePanel(this); // OPTIONS > SOUND sliders
-    if (this.display) this.display.overlay = (ctx, fade) => this.volumes.draw(ctx, fade);
+    this.keyConflicts = new KeyConflicts(this); // OPTIONS > INTERFACE conflict marks
+    if (this.display) {
+      this.display.overlay = (ctx, fade) => {
+        this.volumes.draw(ctx, fade);
+        this.keyConflicts.draw(ctx, fade);
+      };
+    }
   }
 
   // Run one statement outside any script (sprite queue record 21, type 14
@@ -179,6 +186,10 @@ export class Engine {
   }
   mouseMove(cx, cy) {
     this.setMousePos(cx, cy);
+    // A key capture also sees mouse moves, as (0, 0): after the prompt's
+    // Clear or Cancel its script returns 1 to the next one, which ends the
+    // capture (RENDER.R32 0x1000ddb9). Without this the next click is eaten.
+    if (this.input.captureScript) this.input.captured(0, 0);
     this.debug.mouseMove(cx, cy);
     if (this.volumes.mouseMove(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
@@ -292,6 +303,7 @@ export class Engine {
     this.serviceTimers();
     this.serviceFades(ms);
     this.volumes.update();
+    this.keyConflicts.update();
     if (this.display) {
       this.compose?.();
       this.display.present();

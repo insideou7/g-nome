@@ -69,7 +69,7 @@ const USE_SAVE = [424, 78];
 const PROMPT_SPRITE = 6400;
 const KEY_MAP = 6323; // the bindings on screen: rows of {action, ?, device, key} x 3
 const HELD_BINDINGS = 2546; // what missions read: {action, device, key} rows
-const VK_D = 0x44, VK_Q = 0x51, VK_W = 0x57;
+const VK_D = 0x44, VK_G = 0x47, VK_W = 0x57; // D and G are free in the default map
 const LAB_PREVIEW = [150, 60, 330, 330]; // the turning model on LAB screens
 const BRIEF_MAP = [130, 40, 330, 240];
 const BRIEF_PREVIEW = [340, 40, 510, 240];
@@ -224,13 +224,14 @@ const SECTIONS = {
     await toMainMenu(p);
     await press(p, MAIN.OPTIONS);
     await press(p, LEFT[0], 60);
+    check(p.engine.keyConflicts.shown && p.engine.keyConflicts.cells.length === 0, "the default keys have no conflicts", JSON.stringify(p.engine.keyConflicts.cells));
     await press(p, CELL(ROW.FIRE1, 0), 10);
     check(!!p.sprite(PROMPT_SPRITE) && !!p.engine.input.captureScript, "clicking a binding asks for a key");
     p.shot("prompt");
-    p.key(VK_Q);
+    p.key(VK_G);
     await p.wait(10);
-    check(same(binding(p, ROW.FIRE1, 0), [0, VK_Q]), "a key press rebinds Fire Weapon 1 to Q", `${binding(p, ROW.FIRE1, 0)}`);
-    check(p.texts().includes("Q") && !p.sprite(PROMPT_SPRITE) && !p.engine.input.captureScript, "the cell shows Q and the prompt closes");
+    check(same(binding(p, ROW.FIRE1, 0), [0, VK_G]), "a key press rebinds Fire Weapon 1 to G", `${binding(p, ROW.FIRE1, 0)}`);
+    check(p.texts().includes("G") && !p.sprite(PROMPT_SPRITE) && !p.engine.input.captureScript, "the cell shows G and the prompt closes");
     await press(p, CELL(ROW.FIRE1, 1), 10);
     await press(p, PROMPT.CLEAR, 10);
     check(same(binding(p, ROW.FIRE1, 1), [0, 0]), "Clear empties a binding", `${binding(p, ROW.FIRE1, 1)}`);
@@ -240,12 +241,22 @@ const SECTIONS = {
     p.key(VK_W);
     await p.wait(10);
     check(same(binding(p, ROW.FIRE2, 0), before) && !p.engine.input.captureScript, "Cancel keeps the old binding");
+    // G on Fire Weapon 2 as well: both cells are marked, and Clear fixes it.
+    await press(p, CELL(ROW.FIRE2, 2), 10);
+    p.key(VK_G);
+    await p.wait(10);
+    const marked = p.engine.keyConflicts.visibleCells().map((c) => `${c.row}.${c.col}`).sort();
+    check(same(marked, [`${ROW.FIRE1}.0`, `${ROW.FIRE2}.2`]), "a key used twice marks both cells", marked.join(" "));
+    p.shot("conflict");
+    await press(p, CELL(ROW.FIRE2, 2), 10);
+    await press(p, PROMPT.CLEAR, 10);
+    check(p.engine.keyConflicts.cells.length === 0, "clearing one of them removes the marks");
     await press(p, CELL(ROW.TURN_RIGHT, 0), 10);
     p.key(VK_D);
     await p.wait(10);
     await press(p, USE_SAVE, 30);
     const held = bindRows(p, HELD_BINDINGS);
-    check(held.includes(`29/0/${VK_Q}`) && held.includes(`1/0/${VK_D}`) && !held.includes("1/5/39"), "Use/Save hands the new keys to the game", held.slice(0, 12).join(" "));
+    check(held.includes(`29/0/${VK_G}`) && held.includes(`1/0/${VK_D}`) && !held.includes("1/5/39"), "Use/Save hands the new keys to the game", held.slice(0, 12).join(" "));
     check(p.storage.getItem("g-nome.file.GKEY0.MAP") !== null, "Use/Save keeps the key map in browser storage");
     finish(p);
 
