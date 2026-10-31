@@ -266,6 +266,42 @@ What the menus, LAB and mission 1 hit: statements `0x4D`, `0x71`, `0xB8`,
 did not implement yet; they are in now. G-Nome's scripts call 17 of the 181
 builtins in all (`python3 -I tools/r32script.py G-NOME.BIN --summary`).
 
+## Sprite motion: paths, speed and motion
+
+Sprite messages (builtin `0xCE` SpriteSendMessage runs one now, `0xCD`
+SpritePostMessage queues it; dispatcher `0x1003e1dd`) and type 18 queue
+records share their type numbers. The queue step is `0x1003a613`; record
+set-up is `0x1003a042`. Each sprite has two clocks:
+
+- **speed** (`SpriteSetSpeed` `0x10035caa`, sprite `+0x54`, deadline
+  `+0x4c`): ms between path steps. 0 steps on every service.
+- **motion** (`SpriteSetMotion` `0x10035c02`, `+0x58`, deadline `+0x50`):
+  ms between cels. Records 1 and 2 set it from their delay.
+
+A deadline restarts from now when it passes, unless keep-time (flag bit 13)
+is on: then it advances from the old deadline.
+
+| type | message args | record layout | what it does |
+|---|---|---|---|
+| 5 | x1, y1, x2, y2, steps, relative | +2 steps, +6 u8 relative, +0xc x1, +0x10 y1, +0x14 x2, +0x18 y2; var flags +7..+0xb; 0x3c bytes | Quadratic curve from the sprite through (x1, y1) at its midpoint to (x2, y2): `t = (i*1024 + n/2)/n`, `p = p0 + (t^2 (p2-p0) + t(1024-t)(4(p1-p0) - (p2-p0))) >> 20` (`0x10042f50`). |
+| 9 | x1, y1, steps, pixels, relative | +2 steps, +6 u8 relative, +7 u8 pixels, +0xc x1, +0x10 y1; var flags +8, +9, +0xa; 0x2c bytes | Line to (x1, y1), each coordinate `d*i/n` rounded half away from zero (`0x10042ff0`, also `SpriteLinePoint`). With pixels, steps is the step length: `n = ceil(max(abs dx, abs dy) / steps)` (`0x10039e82`). |
+| 10 | x, y, relative (needs all 3) | +2 u8 relative, +6 x, +0xa y; var flags +3, +4 | One move to (x, y), or by (x, y), at the next speed tick. |
+| 13 | flag | +2 flag | Keep-time on or off; both deadlines reset to 0. |
+| 14 | flag | +2 flag | Bit 15 of the flags: where the position is kept (sprite or frame record). No visible effect in the port. |
+| 15 | ms | +2 ms (var flag +6) | Sets motion. |
+| 16 | current, from, to | +2, +6, +0xa (var flags +0xe..+0x10) | Cel range (`0x10036cc1`); backwards when to < from. |
+| 17 | ms[, motion] | +2 ms, +6 motion if not 0 (var flags +0xa, +0xb) | Sets speed, and motion. |
+
+A message 5, 9 or 10 sent now empties the queue first (`0x1003e606`) and
+takes its first step at once. While a path runs, a range of more than one
+cel cycles at the motion rate, wrapping to `from` (`0x10036f00`).
+
+No G-NOME script or queue uses records or messages 5, 9, 10, 13, 15, 16 or
+17: the queues use 1, 2, 6, 8, 11, 18, 21 and 23, and the scripts send
+messages 1, 2, 7, 8, 12, 14 and 18 only. The web engine implements them all
+(`web/src/sprites.js`) and tests them on made-up sprites
+(`web/tests/sprite-motion-check.mjs`).
+
 ## Disassembler
 
 `tools/r32script.py` implements all of the above. On `G-NOME.BIN` it parses
