@@ -11,6 +11,7 @@ import { Hotspots } from "../anim/hotspots.js";
 import { motionExterns } from "../anim/motion.js";
 import { taskExterns } from "../anim/tasks.js";
 import { aimExterns } from "../battlefield/aim.js";
+import { combatExterns } from "../combat/externs.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -31,6 +32,7 @@ export class RenderPlugin {
       ...motionExterns(engine),
       ...taskExterns(engine),
       ...aimExterns(engine),
+      ...combatExterns(engine),
       // Sound. Scripts identify a playing sound by its resource id.
       DSInitWavePlay: ok,
       DSDeInitWavePlay() {
@@ -45,9 +47,9 @@ export class RenderPlugin {
         if (id) self.stop(id);
         return 1;
       },
-      // DSPlayWave(id, volume (10000 = full), pan, loop, ?, ?, ?)
+      // DSPlayWave(id, volume (10000 = full), pan (-10000..10000), loop, ?, ?, ?)
       DSPlayWave(id, volume, pan, loop) {
-        return self.play(id, volume, loop);
+        return self.play(id, volume, loop, pan);
       },
       DSStopWave(id) {
         if (id) self.stop(id);
@@ -98,13 +100,13 @@ export class RenderPlugin {
     return s;
   }
 
-  play(id, volume, loop) {
+  play(id, volume, loop, pan = 0) {
     const e = this.engine;
     const s = this.sound(id);
     if (!s) return 0;
     this.stop(id);
     if (!e.audio) return id;
-    const src = e.audio.play(s, { loop: !!loop, volume: Math.min(1, (volume || 10000) / 10000) });
+    const src = e.audio.play(s, { loop: !!loop, volume: Math.min(1, (volume || 10000) / 10000), pan: Math.max(-1, Math.min(1, (pan || 0) / 10000)) });
     if (src) {
       this.playing.set(id, src);
       src.addEventListener?.("ended", () => this.playing.get(id) === src && this.playing.delete(id));
