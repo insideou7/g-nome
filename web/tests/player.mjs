@@ -13,7 +13,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { deflateSync, crc32 } from "node:zlib";
-import { Engine } from "../src/engine.js";
+import { Engine, Ini } from "../src/engine.js";
 import { Display, WIDTH, HEIGHT } from "../src/display.js";
 import { ORIGIN_X, ORIGIN_Y } from "../src/sprites.js";
 
@@ -35,14 +35,42 @@ export function gameFiles(dir) {
   };
 }
 
+// localStorage's interface over a Map.
+export class MemoryStorage {
+  constructor() {
+    this.map = new Map();
+  }
+  get length() {
+    return this.map.size;
+  }
+  key(i) {
+    return [...this.map.keys()][i] ?? null;
+  }
+  getItem(k) {
+    return this.map.has(k) ? this.map.get(k) : null;
+  }
+  setItem(k, v) {
+    this.map.set(k, String(v));
+  }
+  removeItem(k) {
+    this.map.delete(k);
+  }
+}
+
 export class Player {
   static async start(dir, opts = {}) {
     const p = new Player();
     p.logs = [];
     p.errors = []; // log lines matching BAD_LOG, and exceptions from tick()
     p.display = new Display();
+    // Settings and written files live in memory; pass the same ones to a
+    // second start() to see what survives a restart.
+    p.ini = opts.ini || new Ini();
+    p.storage = opts.storage || new MemoryStorage();
     p.engine = new Engine(gameFiles(dir), {
       display: p.display,
+      ini: p.ini,
+      storage: p.storage,
       log: (m) => {
         p.logs.push(m);
         if (BAD_LOG.test(m)) p.errors.push(m);
@@ -131,8 +159,8 @@ export class Player {
     const e = this.engine;
     const out = [];
     for (const s of e.sprites.visibleSorted()) {
-      const cel = s.cels[s.cel];
-      if (cel && e.bin.type(cel) === 21) {
+      for (const cel of e.sprites.shownCels(s)) {
+        if (!cel || e.bin.type(cel) !== 21) continue;
         const t = e.texts.get(cel);
         if (t && t.text) out.push(t.text);
       }
