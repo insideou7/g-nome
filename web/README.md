@@ -70,6 +70,9 @@ mission numpad `+` and `-` (or Ctrl+Up and Ctrl+Down) set the speed, Left
 and Right turn, Up and Down tilt the gun, and you bump into units, trees and
 cliffs.
 
+When the game quits (EXIT, then Y, or the end of the campaign), it starts
+over from the opening movie, without reading the game files again.
+
 ## Debug menu
 
 OPTIONS has a DEBUG button in the first empty slot on the right. It opens a
