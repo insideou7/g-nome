@@ -98,7 +98,7 @@ export class SmackerPlugin {
     }
     // The movie loads its own palette, which replaces a faded-out one.
     if (f.paletteChanged) d.setPalette(f.palette);
-    d.fade = 1;
+    this.engine.cancelFades();
     d.dirty = true;
   }
 

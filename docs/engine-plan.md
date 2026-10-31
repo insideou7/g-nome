@@ -39,6 +39,7 @@ src/plugins/render.js         RENDER.R32 (sound so far; 3D and hotspots to do)
 src/plugins/netgn.js          NETGN.R32 stub (no network providers)
 src/smacker.js                .SMK video/audio decoder
 src/binfile.js                G-NOME.BIN and pack access
+src/pe.js                     cursors from RTLIB32.DLL
 src/disasm.js                 linear script disassembler
 tools/run-headless.mjs        run the engine in Node and list what is missing
 tools/disasm.mjs              disassemble scripts
@@ -86,9 +87,15 @@ Design choices:
      `render.RenderToBitmap`, so it waits for milestone 3
    - [x] variable arithmetic (statement 0xa9), sprite loops and mirroring
      (queue records 6 and 7, message 7)
-   - [ ] remaining sprite messages (motion paths, speed), palette fade
-     timing, mouse cursor
-   - [ ] load/save screens
+   - [x] palette fades over `speed` frames (colours 10-245, as RTLIB32
+     does in 256-colour mode)
+   - [x] mouse cursors from `RTLIB32.DLL`'s resources (statement 0x1b)
+   - [x] load screen (lists saves; saving needs a mission in progress)
+   - [ ] remaining sprite messages (motion paths, speed)
+
+   3D work (milestones 2-3) is split across separate project threads:
+   unit previews / renderer core, the battlefield, and 3D animation data
+   and object properties.
 2. **Briefings and non-3D screens**: mission select, briefings, unit
    loadout. Mostly more of the same 2D services.
 3. **3D battlefield**: reimplement the `RENDER.R32` externs on WebGL. Needs

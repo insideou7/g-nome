@@ -207,8 +207,8 @@ export const STATEMENTS = {
     e.setString(u32(dv, p + 2), sprintf(fmt, args));
   },
   // 0x1b: set the cursor/input mode (0x100226c8)
-  0x1b(vm, b) {
-    vm.engine.cursorMode = b[2];
+  0x1b(vm, b, dv, p) {
+    vm.engine.setCursor(b[p + 2]);
   },
   // 0x39: quit, or switch to the scene named by 0x3a
   0x39(vm) {
