@@ -115,7 +115,10 @@ export class Engine {
     this.dirty = false;
     const d = this.display;
     const bg = this.background;
-    if (bg.mode === 0 && this.bin.type(bg.bitmap) === 1) {
+    // While the battlefield is shown, the 3D view is the background
+    // (Resume3D: SpriteSetBackground(-1)); colour 0 lets it show through.
+    if (this.world?.shown) d.pixels.fill(0);
+    else if (bg.mode === 0 && this.bin.type(bg.bitmap) === 1) {
       d.pixels.fill(0);
       const b = this.sprites.bitmap(bg.bitmap);
       blit(d.pixels, b, 0, 0);
@@ -126,7 +129,12 @@ export class Engine {
   }
 
   // Mouse, in canvas pixels (0..639, 0..479).
+  mouseUp(cx, cy, button = 0) {
+    this.world?.controls.mouseUp(button);
+  }
+
   mouseDown(cx, cy, button = 0) {
+    this.world?.controls.mouseDown(button);
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
     if (s && s.click) return this.runLater(s.click.script, [s.id, s.click.arg]);

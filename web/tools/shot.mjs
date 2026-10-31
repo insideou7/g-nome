@@ -1,5 +1,6 @@
 // Open the engine in headless Chromium, let it run, save screenshots.
-// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [second:Key | second:click@x,y ...]
+// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [?query] [second:Key | second:click@x,y ...]
+// A ?query argument is added to the page URL, e.g. ?mission=1.
 // Serves the repo root on :8642; game files are read from game/g-nome/G-NOME.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -23,12 +24,13 @@ const server = createServer(async (req, res) => {
 
 const secs = Number(process.argv[2] || 5);
 const out = process.argv[3] || "shot";
-const keys = process.argv.slice(4).map((s) => { const [t, k] = s.split(":"); return [Number(t), k]; });
+const query = process.argv.slice(4).find((s) => s.startsWith("?")) || "";
+const keys = process.argv.slice(4).filter((s) => !s.startsWith("?")).map((s) => { const [t, k] = s.split(":"); return [Number(t), k]; });
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 const page = await browser.newPage({ viewport: { width: 1000, height: 1000 } });
 page.on("console", (m) => console.log("console:", m.text()));
 page.on("pageerror", (e) => console.log("pageerror:", e.message));
-await page.goto("http://localhost:8642/web/index.html?game=/game/g-nome/G-NOME/");
+await page.goto("http://localhost:8642/web/index.html?game=/game/g-nome/G-NOME/" + query.replace("?", "&"));
 for (let t = 1; t <= secs; t++) {
   await page.waitForTimeout(1000);
   for (const [at, k] of keys) {
