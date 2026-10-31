@@ -165,6 +165,16 @@ sprites.
   and the scripts then mirror the sprite vertically (sprite message 7, 0, 1).
   The extern writes rows bottom up to match.
 
+## File externs (`web/src/plugins/files.js`)
+
+The LAB screens (VEHICLES, STRUCTURES, PERSONNEL, WEAPONS) read their text
+from `LABTEXT.DAT` with `FileOpen`, `FileSeek`, `FileGetC` and `FileRead`, so
+those are implemented too (`0x1000f3d0` and on, Win32 `mmio` calls in the
+original). `FileGetC/S/L` read 1, 2 or 4 byte values into consecutive
+script variables; `FileRead` reads up to 255 bytes into a string slot.
+`LABTEXT.DAT`, `TRIVIA.IDX` and `TRIVIA.DAT` are loaded at startup so reads
+stay synchronous. Written files live in memory for the session only.
+
 ## Checking it
 
 - `web/tests/render3d.html?game=/game/g-nome/G-NOME/&models=2583&frame=2597`
@@ -172,6 +182,8 @@ sprites.
 - `NODE_PATH=$(npm root -g) node web/tools/shot.mjs 16 /tmp/brief 3:Escape
   6:click@163,455 8:click@42,165 10:click@600,165` opens GAME > NEW >
   CAMPAIGN; the briefing's unit preview turns on the right.
+- `... shot.mjs 14 /tmp/lab 3:Escape 6:click@322,455 8:click@42,165` opens
+  LAB > VEHICLES (y 210, 255, 292 for the other three).
 
 ## Regenerating the decompile
 
