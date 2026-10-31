@@ -45,13 +45,16 @@ const MAX_LOCALS = 32;
 
 export class Engine {
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
-  // opts: { log, trace, display, audio, ini, storage }
+  // opts: { log, trace, display, audio, ini, storage, net }
+  // net: { providers } for NETGN (see plugins/netgn.js); browsers default to
+  // BroadcastChannel and, when web/tools/net-server.mjs serves the page, WebRTC
   constructor(files, opts = {}) {
     this.files = files;
     this.log = opts.log || console.log;
     this.traceOn = !!opts.trace;
     this.display = opts.display || null; // see display.js
     this.audio = opts.audio || null;
+    this.netOptions = opts.net || null;
     this.queue = [];
     this.time = 0;
     this.quit = false;

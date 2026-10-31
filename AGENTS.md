@@ -40,6 +40,10 @@ Setup, the Ghidra backend and troubleshooting are in
   (scope, architecture, milestones, status). It is published to GitHub
   Pages by `.github/workflows/pages.yml` (code only; players load their
   own game folder or .zip through `web/src/gamefiles.js`).
+- [docs/netgn.md](docs/netgn.md): NETGN.R32 (DirectPlay 3): lobby externs,
+  the in-game message kinds and their byte layouts, and the browser version
+  (`web/src/plugins/netgn.js`, `web/src/net/`, `web/tools/net-server.mjs`).
+  Test with `web/tests/netgn-check.mjs` and `web/tests/net-tabs.mjs`.
 - `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
   mission 1 on the game files. Run it after engine changes; add a check
   when you fix a bug a player would see.

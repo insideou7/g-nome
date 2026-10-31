@@ -226,7 +226,7 @@ export const STATEMENTS_INFO = {
   0x1e: ["debug_print", "+6 string", "Writes a string to the debug output."],
   0x23: ["ini_delete_section", "+2 section string (0 = the game's)", "Deletes a 7THLEVEL.INI section."],
   0x2b: ["sprite_drag", "+2 sprite, +6 drag script, +10 drop script, +0xe u8 off", "Makes a sprite draggable; off ends a drag in progress."],
-  0x2c: ["text_edit", "+2 text (0 = stop), +6 ?", "Starts typing into a type 21 text (keys go to it)."],
+  0x2c: ["text_edit", "+2 text, +6 script, +0xa string, +0x12 u8 max length (0 = 255), +0x13 u8 digits only (flags +0x14, +0x15)", "Types into a type 21 text with a _ caret (handler 0x10021160). Enter keeps the text, Esc restores it; either way the string gets the text and script(enter ? 1 : 0) runs. Backspace deletes, Delete clears."],
   0x36: ["goto_scene", "+2 name[16], +0x12 u8 free resources, +0x13 u8 return to previous", "Switches scene."],
   0x39: ["quit", "", "Quits, or goes to the scene set by 0x3A."],
   0x3a: ["set_quit_scene", "+2 name[16]", "Scene that 0x39 goes to instead of quitting."],

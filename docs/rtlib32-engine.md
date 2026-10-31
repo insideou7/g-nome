@@ -209,6 +209,11 @@ Variables are 32-bit ints. Ids below `0x13FE` (5,118) are globals at
 `rt+0x3E2F`. Ids from `0x13FE` up are locals and arguments in the current
 frame (`rt+0x35CF`), so `0x13FE` is `L0`, the first argument.
 
+The runtime itself writes a few globals. On every mouse message RTLIB32
+(`0x1000af10`, via `0x100134e9`) stores the pointer position relative to
+the screen centre in `G5005` (x) and `G5006` (y), at `rt+0x8C63` and
+`rt+0x8C67`. List screens read the clicked row from `G5006`.
+
 ## Naming the builtins and statements
 
 Both dispatchers are MSVC two-level switches, so the case tables can be read

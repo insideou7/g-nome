@@ -46,6 +46,30 @@ All submenus, the options screens, the credits and the first campaign
 briefing work. Anything that draws 3D (the LAB, unit previews, missions)
 needs the RENDER.R32 reimplementation, which is the next big piece.
 
+### Network play
+
+NETWORK > HOST or JOIN offers two providers:
+
+* **Browser Tabs On This Computer**: open the game in two tabs (or windows)
+  of the same browser. Good for trying it out.
+* **Internet (WebRTC)**: shown when the page is served by the network
+  server, which serves the repo like `python3 -m http.server` and also
+  introduces the players' browsers to each other:
+
+  ```bash
+  node web/tools/net-server.mjs 8000
+  # every player opens http://<host machine>:8000/web/
+  ```
+
+  Game traffic then goes browser to browser over WebRTC, or through the
+  server when WebRTC can't connect. The server also serves the git-ignored
+  `game/` folder used by `?game=`, so only share it with people you would
+  lend the game to; players can load their own copy instead.
+
+The host types a game name and a player name, picks a map and waits in the
+lobby; the others pick the game from GAMES AVAILABLE. A tab in the
+background keeps the game running.
+
 ### Music and volume
 
 G-Nome's music is CD audio (tracks 2-20 on the game CD), which a browser
@@ -99,6 +123,12 @@ node web/tools/run-headless.mjs game/g-nome/G-NOME --ticks 300 --mission 1 --wor
 node web/tests/walkthrough.mjs game/g-nome/G-NOME
 # ...one section, with a PNG of each screen it visits
 node web/tests/walkthrough.mjs game/g-nome/G-NOME --only lab --shots /tmp/walk
+
+# Network: DirectPlay stand-in and the NETGN message formats
+node web/tests/netgn-check.mjs
+# ...and two headless players hosting, joining, chatting and launching
+# (tabs, or webrtc through the network server; screenshots in /tmp/net-*)
+NODE_PATH=$(npm root -g) node web/tests/net-tabs.mjs /tmp/net tabs
 
 # Battlefield checks (maths; plus mission 1 when given the game folder)
 node web/tests/battlefield-check.mjs game/g-nome/G-NOME
