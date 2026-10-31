@@ -14,6 +14,10 @@ export class Display {
     this.ctx = canvas ? canvas.getContext("2d") : null;
     this.image = this.ctx ? this.ctx.createImageData(WIDTH, HEIGHT) : { data: new Uint8ClampedArray(WIDTH * HEIGHT * 4) };
     this.dirty = true;
+    // 3D view drawn under the sprites: {canvas, x, y}. Where it is set,
+    // colour 0 (transparent in every bitmap) shows the 3D view instead.
+    this.underlay = null;
+    this.layer = null; // offscreen canvas for the sprite layer
   }
   setPalette(rgb768, first = 0, count = 256) {
     this.palette.set(rgb768.subarray(first * 3, (first + count) * 3), first * 3);
@@ -39,13 +43,24 @@ export class Display {
     const px = src.pixels, pal = src.palette.slice();
     for (let c = 30; c < 246 * 3; c++) pal[c] = pal[c] * this.fade;
     const d = this.image.data;
+    const under = !this.frozen && this.underlay;
     for (let i = 0, o = 0; i < px.length; i++, o += 4) {
       const c = px[i] * 3;
       d[o] = pal[c];
       d[o + 1] = pal[c + 1];
       d[o + 2] = pal[c + 2];
-      d[o + 3] = 255;
+      d[o + 3] = under && px[i] === 0 ? 0 : 255;
     }
-    if (this.ctx) this.ctx.putImageData(this.image, 0, 0);
+    if (!this.ctx) return;
+    if (!under) return this.ctx.putImageData(this.image, 0, 0);
+    if (!this.layer) {
+      this.layer = new OffscreenCanvas(WIDTH, HEIGHT);
+      this.layerCtx = this.layer.getContext("2d");
+    }
+    this.layerCtx.putImageData(this.image, 0, 0);
+    this.ctx.fillStyle = "#000";
+    this.ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    this.ctx.drawImage(under.canvas, under.x || 0, under.y || 0);
+    this.ctx.drawImage(this.layer, 0, 0);
   }
 }
