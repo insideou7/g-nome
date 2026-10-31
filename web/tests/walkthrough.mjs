@@ -68,6 +68,7 @@ const ROW = { FIRE1: 0, FIRE2: 1, TURN_RIGHT: 5 };
 const PROMPT = { CLEAR: [372, 385], USE: [424, 385], CANCEL: [476, 385] };
 const USE_SAVE = [424, 78];
 const PROMPT_SPRITE = 6400;
+const CROSSHAIR = 562; // cockpit crosshair sprite (scripts 575-577)
 const KEY_MAP = 6323; // the bindings on screen: rows of {action, ?, device, key} x 3
 const HELD_BINDINGS = 2546; // what missions read: {action, device, key} rows
 const VK_CTRL = 0x11;
@@ -450,6 +451,25 @@ const SECTIONS = {
     check((r3d.objects.get(mech.id).flags & 0x80) !== 0, "a unit 4 units away uses its near model", `lod ${mech.lod}`);
     check(w.view.handles.get(mech.id)?.visible === true, "a unit up close is still drawn");
     p.shot("near-unit");
+    // Pick the nearest unit as the target (script 1230 fills G1811, as the
+    // target key does), then face it: script 582 locks on and script 575
+    // gives the crosshair (sprite 562) queue 564 while acquiring and 565
+    // once locked. Both show two cels at once with a type 2 queue record
+    // (the bracket and the range readout).
+    p.engine.run(1230);
+    const xhair = () => p.engine.sprites.list.get(CROSSHAIR);
+    const states = new Set();
+    const lock = await p.waitFor(() => {
+      states.add(String(xhair()?.layers));
+      return p.engine.vm.getGlobal(974);
+    }, "a target lock", 120);
+    await p.wait(2);
+    check(states.has("1,2"), "the crosshair shows the acquiring bracket", [...states].join(" "));
+    check(String(xhair()?.layers) === "3,4" && xhair().visible, "a locked target turns the crosshair into the lock bracket", `${lock} ticks, layers ${xhair()?.layers}`);
+    // Sprite 571 marks the target's feet on screen (XZToScreen, script 579).
+    const mark = p.engine.sprites.list.get(571);
+    check(!!mark?.visible && Math.abs(mark.x) < 40 && mark.y > 0, "the target marker sits under the target", `${mark?.x}, ${mark?.y}`);
+    p.shot("locked");
     // In a vehicle the camera sits inside the player's own model; the LOD
     // script hides it with ObjectSetState (flag 0x100).
     p.engine.debug.swapVehicle(0); // Union Sentry HAWC
