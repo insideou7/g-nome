@@ -47,7 +47,7 @@ export class Audio {
     src.onended = () => this.sources.delete(src);
   }
   // One-shot or looping sound effect. Returns a handle.
-  play(snd, { loop = false, volume = 1 } = {}) {
+  play(snd, { loop = false, volume = 1, pan = 0 } = {}) {
     const frames = snd.samples.length / snd.channels;
     if (!frames) return null;
     const buf = this.ctx.createBuffer(snd.channels, frames, snd.rate);
@@ -60,7 +60,13 @@ export class Audio {
     src.loop = loop;
     const gain = this.ctx.createGain();
     gain.gain.value = volume;
-    src.connect(gain).connect(this.buses.effects);
+    let out = src.connect(gain);
+    if (pan && this.ctx.createStereoPanner) {
+      const p = this.ctx.createStereoPanner();
+      p.pan.value = pan;
+      out = out.connect(p);
+    }
+    out.connect(this.buses.effects);
     src.start();
     return src;
   }

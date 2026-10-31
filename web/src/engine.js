@@ -12,6 +12,7 @@ import { installPlugins } from "./plugins/index.js";
 import { Input } from "./input.js";
 import { Texts } from "./text.js";
 import { Sprites, ORIGIN_X, ORIGIN_Y, blit } from "./sprites.js";
+import { Debug } from "./debug.js";
 import { CdMusic } from "./music.js";
 import { VolumePanel } from "./volume-panel.js";
 
@@ -35,6 +36,9 @@ export const MSG = {
   RUN_SCRIPT: 0x7fff0001, // our own: run wparam with args lparam
   QUIT: 0x10,
 };
+
+// Scripts use at most 29 locals (L0-L28).
+const MAX_LOCALS = 32;
 
 export class Engine {
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
@@ -68,6 +72,7 @@ export class Engine {
     this.fades = []; // queued palette fades {to, ms}
     this.fadedOut = false;
     this.lists = new Map(); // type 14 statement lists
+    this.debug = new Debug(this); // DEBUG button on the OPTIONS screen (debug.js)
     this.music = new CdMusic(this);
     this.volumes = new VolumePanel(this); // OPTIONS > SOUND sliders
     if (this.display) this.display.overlay = (ctx, fade) => this.volumes.draw(ctx, fade);
@@ -130,6 +135,7 @@ export class Engine {
     } else if (bg.mode === 1) d.pixels.fill(bg.color);
     else d.pixels.fill(0);
     this.sprites.draw(d.pixels);
+    this.debug.draw(d.pixels);
     d.dirty = true;
   }
 
@@ -142,6 +148,7 @@ export class Engine {
   mouseDown(cx, cy, button = 0) {
     if (button === 0 && this.volumes.mouseDown(cx, cy)) return;
     this.world?.controls.mouseDown(button);
+    if (this.debug.mouseDown(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
     if (s && s.click && !s.clickOff) return this.runLater(s.click.script, [s.id, s.click.arg]);
@@ -151,6 +158,7 @@ export class Engine {
     }
   }
   mouseMove(cx, cy) {
+    this.debug.mouseMove(cx, cy);
     if (this.volumes.mouseMove(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     let hit = -1;
@@ -224,20 +232,21 @@ export class Engine {
     this.run(this.bin.entryScript);
   }
 
-  // Run a script now. Called from inside a plugin call (a script is already
-  // running), its frame goes below the caller's locals and the caller's
-  // return value is kept, as RtRunMsg does.
+  // From inside a running script (an extern calling back into scripts) the
+  // new frame goes below the caller's locals, and the caller's result is
+  // kept, as statement-level calls do.
   callScript(id, args) {
     const vm = this.vm;
     const nested = vm.depth > 0;
-    const saved = vm.retval;
+    const savedRet = vm.retval;
     try {
-      return vm.callScript(id, nested ? 256 : 0, args);
+      const ok = vm.callScript(id, nested ? MAX_LOCALS : 0, args);
+      return ok;
     } catch (e) {
       this.log(`script ${id} failed: ${e.message}`);
       return 0;
     } finally {
-      if (nested) vm.retval = saved;
+      if (nested) vm.retval = savedRet;
     }
   }
 

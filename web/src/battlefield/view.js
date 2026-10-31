@@ -48,7 +48,15 @@ export class BattleView {
         h = this.scene.add(model, {});
         this.handles.set(o.id, h);
       }
-      if (h.instance) h.pose = h.instance.pose; // FRME frames replace the array
+      // The instance's model, pose and texture frame change after the node
+      // was made (animation, damage, animated textures): follow them.
+      const inst = h.instance;
+      if (inst) {
+        h.model = inst.model;
+        h.pose = inst.pose;
+        h.textureOverride = inst.textureOverride;
+      }
+      h.textureFrame = o.textureFrame ?? inst?.textureFrame ?? 0;
       const p = w.pose(o.id);
       const d = sub(p.pos, pose.pos);
       h.setTransform({

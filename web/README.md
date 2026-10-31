@@ -70,6 +70,13 @@ mission numpad `+` and `-` (or Ctrl+Up and Ctrl+Down) set the speed, Left
 and Right turn, Up and Down tilt the gun, and you bump into units, trees and
 cliffs.
 
+## Debug menu
+
+OPTIONS has a DEBUG button in the first empty slot on the right. It opens a
+panel with a level select (any campaign mission, in any vehicle or as any
+soldier), a frame rate counter, and the game's own cheat codes. See
+[docs/cheats.md](../docs/cheats.md).
+
 ## Developer tools
 
 ```bash
@@ -113,6 +120,9 @@ node web/tests/motion-check.mjs
 
 # Check the OPTIONS > SOUND volume sliders and CD track file names
 node web/tests/sound-options-check.mjs game/g-nome/G-NOME
+
+# Weapons: fire at the walker in mission 1 until it blows up
+node web/tests/combat-check.mjs game/g-nome/G-NOME
 
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK

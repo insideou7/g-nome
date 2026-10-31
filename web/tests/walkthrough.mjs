@@ -24,10 +24,6 @@ import { Player, VK } from "./player.mjs";
 // done; the run says when one is no longer hit.
 const KNOWN_GAPS = new Set([
   "extern:render.FreeAllTextures",
-  "extern:render.MakeSpriteExtern",
-  "extern:render.Decrement_Recharge_Timers",
-  // Reached since AddObject runs level-of-detail scripts at once.
-  "extern:render.DefaultClumpHealths",
   // Sets bit 15 of the sprite's flags (0x1003f25a -> 0x10036e10) and then
   // copies a position from the sprite's +0x1c record. Sent while quitting.
   "sprite message:14",

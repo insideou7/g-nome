@@ -34,6 +34,8 @@ Setup, the Ghidra backend and troubleshooting are in
 - [docs/missions.md](docs/missions.md): enemy AI (unit update, tasks,
   targeting, aiming) and mission goals (hooks, win/lose, debrief). In the
   engine: `web/src/battlefield/aim.js`, `mission.js` (`engine.mission`).
+- [docs/combat.md](docs/combat.md): weapons, projectiles, hits and
+  explosions (RENDER.R32's combat natives and the scripts' callbacks).
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
   (scope, architecture, milestones, status). It is published to GitHub
   Pages by `.github/workflows/pages.yml` (code only; players load their
@@ -41,3 +43,6 @@ Setup, the Ghidra backend and troubleshooting are in
 - `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
   mission 1 on the game files. Run it after engine changes; add a check
   when you fix a bug a player would see.
+- [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
+  actions they unlock, and the DEBUG button on the OPTIONS screen
+  (`web/src/debug.js`).

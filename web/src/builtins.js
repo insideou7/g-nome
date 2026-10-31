@@ -101,6 +101,13 @@ export const BUILTINS = {
   0x03(vm, [x]) {
     return Math.abs(x | 0) | 0;
   },
+  // 0x0b: GetAngle(x1, y1, x2, y2) (0x1000487a -> 0x1002b1e4): the angle
+  // from point 1 to point 2 in tenths of a degree, 0 along +y and 900 along
+  // +x: trunc(atan2(dx, dy) x 1800 / 3.14159), plus 3600 when negative.
+  0x0b(vm, [x1, y1, x2, y2]) {
+    const a = Math.trunc(Math.atan2((x2 | 0) - (x1 | 0), (y2 | 0) - (y1 | 0)) * 572.9746936176986);
+    return a < 0 ? a + 3600 : a;
+  },
   // 0xd5 / 0xd6: lstrcmp / lstrcmpi of two strings (0x10004340, 0x100042b5).
   // A missing string returns nothing, which leaves 0.
   0xd5(vm, [a, b]) {
