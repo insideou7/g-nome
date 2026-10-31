@@ -1,0 +1,24 @@
+{
+  // Type checking only: plain JavaScript with JSDoc, checked by
+  // `npm run typecheck` (tsc --noEmit). The site has no build step.
+  // Started lenient; tighten one flag at a time (see docs/engine-plan.md).
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": [],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    "strict": false,
+    "alwaysStrict": true,
+    "noImplicitThis": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.js", "src/**/*.d.ts"]
+}

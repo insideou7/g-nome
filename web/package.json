@@ -1,0 +1,12 @@
+{
+  "name": "g-nome-web",
+  "private": true,
+  "type": "module",
+  "description": "Browser engine for G-Nome. No build step: the site is web/index.html plus web/src as is. TypeScript only checks the JSDoc-annotated JavaScript.",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "devDependencies": {
+    "typescript": "6.0.2"
+  }
+}

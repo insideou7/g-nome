@@ -44,6 +44,9 @@ Setup, the Ghidra backend and troubleshooting are in
   the in-game message kinds and their byte layouts, and the browser version
   (`web/src/plugins/netgn.js`, `web/src/net/`, `web/tools/net-server.mjs`).
   Test with `web/tests/netgn-check.mjs` and `web/tests/net-tabs.mjs`.
+- Type checking: `cd web && npm ci && npm run typecheck` (TypeScript over the
+  JSDoc-annotated JavaScript, no build step; CI runs it on PRs). See the
+  Type checking section of [web/README.md](web/README.md).
 - `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
   mission 1 on the game files. Run it after engine changes; add a check
   when you fix a bug a player would see.

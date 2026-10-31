@@ -147,6 +147,7 @@ export class Collision {
   constructor(engine) {
     this.engine = engine;
     this.boxes = new Map(); // model id -> per-clump local bounds
+    this.captureKey = 0; // CaptureKey's virtual key
   }
 
   get world() {

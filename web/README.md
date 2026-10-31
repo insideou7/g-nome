@@ -174,3 +174,21 @@ node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK
 the engine in Node, clicks and presses keys at screen coordinates, and reads
 back click regions, visible text, sprites and the screen (with the 3D view).
 New tests can drive the game the same way.
+
+## Type checking
+
+The engine stays plain JavaScript with no build step, but TypeScript checks
+it from the JSDoc comments (`web/tsconfig.json`, `tsc --noEmit`):
+
+```sh
+cd web && npm ci && npm run typecheck
+```
+
+`.github/workflows/typecheck.yml` runs the same check on pull requests that
+touch `web/`. The settings started lenient (`strict` off; `noImplicitThis`,
+`strictBindCallApply`, `strictFunctionTypes` and `noFallthroughCasesInSwitch`
+on). Tighten them one flag at a time, fixing what each one finds;
+`strictNullChecks` is next (about 90 errors, mostly fields that start as
+`null`). A property that is set outside its class's constructor needs a
+declaration there, such as `/** @type {World | undefined} */ this.world;`,
+and browser APIs TypeScript does not know yet go in `web/src/globals.d.ts`.

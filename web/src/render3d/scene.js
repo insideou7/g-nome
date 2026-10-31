@@ -55,6 +55,7 @@ export class SceneNode {
     const inst = source.model ? source : null;
     this.instance = inst;
     this.model = inst ? inst.model : source;
+    /** @type {Float32Array} */
     this.matrix = identity();
     this.pose = inst ? inst.pose : null;
     this.clumpOpacity = inst ? inst.clumpOpacity : [];
