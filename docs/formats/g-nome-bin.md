@@ -89,7 +89,9 @@ Colour 0 is transparent. Every RLE row in the game decodes to exactly
 
 The 640x480 screens and other flag 0 bitmaps use RTLIB32's
 `DecompressBitmapData`. The output is `width x height` palette indices in
-rows padded to a multiple of 4 bytes, top row first.
+rows padded to a multiple of 4 bytes, bottom row first like a Windows DIB
+(the main menu backdrop, resource 8400, has its button labels upside down
+otherwise).
 
 The stream is a list of blocks, each starting with a u16:
 

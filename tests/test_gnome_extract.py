@@ -114,9 +114,9 @@ class PackedBitmapTest(unittest.TestCase):
         body = (struct.pack("<H", 0x6000 | len(lzw_block)) + lzw_block
                 + struct.pack("<H", len(stored)) + stored + struct.pack("<H", 0xE000))
         self.assertEqual(bytes(gx.decompress_packed(body)), bytes(range(1, 9)))
-        # 3x2 image: rows are padded to 4 bytes.
+        # 3x2 image: rows are padded to 4 bytes and stored bottom row first.
         bm = gx.Bitmap(3, 2, 0, 0, 0, 0, body)
-        self.assertEqual(gx.bitmap_pixels(bm), bytes([1, 2, 3, 5, 6, 7]))
+        self.assertEqual(gx.bitmap_pixels(bm), bytes([5, 6, 7, 1, 2, 3]))
 
 
 def op(code, fmt="", *args):
