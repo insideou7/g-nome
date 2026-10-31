@@ -115,6 +115,11 @@ export class Player {
     this.engine.input.keyDown(vk);
     this.engine.input.keyUp(vk);
   }
+  // Type into the text being edited (statement 0x2c), as WM_CHAR does;
+  // "\r" is Enter.
+  type(text) {
+    for (const c of text) this.engine.input.char(c.charCodeAt(0));
+  }
   async holdKey(vk, ticks) {
     this.engine.input.keyDown(vk);
     await this.wait(ticks);

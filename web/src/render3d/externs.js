@@ -195,6 +195,20 @@ export function install3D(plugin) {
       if (inst && engine.bin.type(engine.dynamic?.get(bitmap) ?? bitmap) === 1) inst.textureOverride = r3d.renderer.textures.resource(bitmap);
       return 0;
     },
+    // 0x100121d5 FreeAllTextures(): called when leaving a LAB screen and at
+    // the end of a mission. If any texture is loaded it destroys them all
+    // (0x1000439d), then restarts RenderWare (0x10027f48): RtUnload of every
+    // resource of type 7, 8, 9 and 10 (models and OB3D/OPRT objects), RwClose
+    // and RwOpen, and a new camera. So afterwards every model copy and
+    // object starts again from its resource, as here. No return value.
+    FreeAllTextures() {
+      if (!renderer.textures.byName.size && !renderer.textures.byRes.size) return 0;
+      renderer.freeTextures();
+      renderer.models.clear();
+      r3d.instances.clear();
+      r3d.objects.records.clear();
+      return 0;
+    },
     // 0x10008b3a: draw a model into a sprite's bitmap (unit previews).
     // (model, FRME or 0, frame, texture frame, x, y, z in thousandths,
     //  sprite, angle in hundredths of a degree about Y)

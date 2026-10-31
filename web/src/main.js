@@ -4,6 +4,7 @@ import { Display } from "./display.js";
 import { Audio } from "./audio.js";
 import { vkFromEvent } from "./input.js";
 import { DebugPanel } from "./debug-panel.js";
+import { exportSaves, importSaves, scriptFilesOf } from "./saves.js";
 import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberFolder, rememberedFolder, forgetFolder } from "./gamefiles.js";
 
 /** @type {(id: string) => any} */
@@ -35,6 +36,41 @@ function status(msg, error = false) {
   el.textContent = msg;
   el.classList.toggle("error", error);
 }
+
+// One INI for every run of the engine (and for save export/import before
+// the game is loaded).
+const ini = new Ini(loadIni());
+ini.onChange = (/** @type {object} */ d) => {
+  try {
+    localStorage.setItem("g-nome.ini", JSON.stringify(d));
+  } catch {}
+};
+/** @type {Engine | null} */
+let running = null;
+
+// Saved games live in this browser's storage; export them to a file so they
+// survive clearing it, and import them back (src/saves.js).
+$("export-saves").onclick = () => {
+  const data = exportSaves(localStorage, ini);
+  if (!data.saves.length) return status("No saved games to export yet (GAME > SAVE in the game makes one).");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
+  a.download = "g-nome-saves.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  status(`Exported ${data.saves.length} saved game${data.saves.length === 1 ? "" : "s"}.`);
+};
+$("import-saves").onchange = async (/** @type {any} */ e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const n = importSaves(await file.text(), { storage: localStorage, ini, files: scriptFilesOf(running) });
+    status(`Imported ${n} saved game${n === 1 ? "" : "s"}; they are on GAME > LOAD.`);
+  } catch (err) {
+    status(`Could not import ${file.name}: ${err.message}`, true);
+  }
+};
 
 let started = false;
 // Open a source of game files (see gamefiles.js) and start the engine.
@@ -200,12 +236,6 @@ function cachedFiles(files) {
 async function start(rawFiles) {
   const files = cachedFiles(rawFiles);
   const display = new Display($("screen"));
-  const ini = new Ini(loadIni());
-  ini.onChange = (d) => {
-    try {
-      localStorage.setItem("g-nome.ini", JSON.stringify(d));
-    } catch {}
-  };
   const canvas = $("screen");
   const cursorCss = new Map();
   /** @type {Engine} */
@@ -245,7 +275,7 @@ async function start(rawFiles) {
       canvas.style.cursor = cursorCss.get(c);
     };
     engine.boot();
-    window.engine = engine; // for poking at it from the console
+    window.engine = running = engine; // for poking at it from the console
     if (panel) panel.attach(engine);
     else panel = new DebugPanel(engine, $("stage"), canvas);
   }

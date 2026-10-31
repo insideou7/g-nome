@@ -170,6 +170,9 @@ node web/tests/combat-check.mjs game/g-nome/G-NOME
 # Aim in every drivable unit: crosshair position, where shots fly, lock-on
 node web/tests/aim-check.mjs game/g-nome/G-NOME [--verbose]
 
+# FreeAllTextures and UncachePack: caches do not grow from mission to mission
+node web/tests/free-check.mjs game/g-nome/G-NOME
+
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK
 ```

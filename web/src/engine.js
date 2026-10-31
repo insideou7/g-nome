@@ -136,9 +136,11 @@ export class Engine {
         this.keyConflicts.draw(ctx, fade);
       };
     }
-    // Set later (type declarations only): by battlefieldExterns
-    // and the browser shell (main.js).
+    // Set later (type declarations only): by the plugins (battlefieldExterns,
+    // plugins/render.js, render3d/externs.js) and the browser shell (main.js).
     /** @type {import("./battlefield/world.js").World | undefined} */ this.world;
+    /** @type {import("./anim/animation.js").AnimationSystem | undefined} */ this.animation;
+    /** @type {any} */ this.render3d; // render3d/externs.js
     /** @type {((msg: number, wparam: any, lparam: any) => void) | undefined} */ this.onMessage;
     /** @type {((cursor: any) => void) | undefined} */ this.onCursor; // a peCursors() cursor, "default" or null
   }
@@ -280,6 +282,33 @@ export class Engine {
     this.hover = hit;
     const r = this.hoverRects[hit];
     if (r && r.enter) this.runLater(r.enter, [1, r.enterArg]);
+  }
+
+  // Builtin 0xf2 (UncachePack): the original deletes the hard-disk copy of
+  // pack n made by CachePack. Here every pack stays in memory (resources are
+  // read synchronously), so drop what was decoded from that pack instead:
+  // bitmaps, sounds that are not playing, animation clips, models and
+  // textures. They are decoded again if a script uses them later.
+  /** @param {number} n */
+  uncachePack(n) {
+    const bin = this.bin;
+    const inPack = (/** @type {number} */ id) => {
+      const src = this.dynamic.get(id) ?? id;
+      return src >= 0 && src < bin.count && !bin.isResident(src) && bin.pack(src) === n;
+    };
+    const forget = (/** @type {Map<number, any> | undefined} */ map, keep = (/** @type {number} */ _id) => false) => {
+      if (!map) return;
+      for (const id of [...map.keys()]) if (inPack(id) && !keep(id)) map.delete(id);
+    };
+    forget(this.sprites.bitmaps);
+    const render = this.plugins?.find((p) => p.name === "render");
+    if (render) forget(render.cache, (id) => render.playing.has(id));
+    forget(this.animation?.frmes);
+    const r = this.render3d?.renderer;
+    if (r) {
+      forget(r.models);
+      r.textures.forgetPack(inPack);
+    }
   }
 
   // Builtin 0x19 (ResCopyResource): a new id that behaves like `id`.

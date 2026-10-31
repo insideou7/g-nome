@@ -88,6 +88,25 @@ export class TextureStore {
     return t;
   }
 
+  // FreeAllTextures: forget every decoded texture. Models look theirs up
+  // again by name when they are next drawn. The name index stays.
+  free() {
+    this.byName.clear();
+    this.byRes.clear();
+  }
+
+  // UncachePack: forget the textures decoded from resources for which
+  // inPack(id) is true.
+  /** @param {(id: number) => boolean} inPack */
+  forgetPack(inPack) {
+    for (const id of [...this.byRes.keys()]) if (inPack(id)) this.byRes.delete(id);
+    for (const key of [...this.byName.keys()]) {
+      const c = key.indexOf(":");
+      const id = c > 0 ? Number(key.slice(0, c)) : this.index?.get(key)?.id;
+      if (id !== undefined && inPack(id)) this.byName.delete(key);
+    }
+  }
+
   // Texture from a type 1 bitmap resource.
   /**
    * @param {number} id

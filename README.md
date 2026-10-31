@@ -10,9 +10,18 @@ the game's data. It does not contain the game itself.
 | Path | What it is |
 | --- | --- |
 | [docs/formats/g-nome-bin.md](docs/formats/g-nome-bin.md) | `G-NOME.BIN` and the `G-NOME.###` packs: resource table, palette, bitmaps, textures, sounds, 3D models |
+| [docs/formats/animation.md](docs/formats/animation.md) | FRME animation clips, OB3D/OPRT objects, and `RENDER.R32`'s animation, motion, task and hotspot externs |
 | [docs/rtlib32-engine.md](docs/rtlib32-engine.md) | How `RTLIB32.DLL` loads the `.R32` plugins and runs the script bytecode in `G-NOME.BIN` |
+| [docs/rtlib32-names.md](docs/rtlib32-names.md) | Names, arguments and record layouts of all RTLIB32 builtins and statements |
+| [docs/render3d.md](docs/render3d.md), [docs/battlefield.md](docs/battlefield.md) | The 3D renderer, lighting, terrain, camera and mission world |
+| [docs/missions.md](docs/missions.md), [docs/combat.md](docs/combat.md) | Enemy AI, mission goals, weapons, projectiles and explosions |
+| [docs/netgn.md](docs/netgn.md) | `NETGN.R32` multiplayer (DirectPlay 3) and its browser version |
+| [docs/cheats.md](docs/cheats.md) | The cheat codes and the hidden debug actions |
+| [docs/engine-plan.md](docs/engine-plan.md) | The browser engine: scope, architecture and status |
 | [docs/reverse-engineering-setup.md](docs/reverse-engineering-setup.md) | Full setup for REA, Ghidra and the Python helpers |
+| `web/` | The browser engine, which runs the game from your own files ([web/README.md](web/README.md)) |
 | `tools/gnome_extract.py` | Extracts every resource and converts sounds, images and models |
+| `tools/gnome3d.py` | Decodes models, FRME animations and OB3D/OPRT objects; exports OBJ and glTF |
 | `tools/r32script.py` | Disassembles the game's script bytecode |
 | `tools/inventory.py` | Prints a quick inventory of a game folder (file types, PE imports and exports) |
 | `scripts/install-ghidra.sh` | Installs a pinned, checksum-verified Ghidra to `/opt/ghidra` |
@@ -52,6 +61,7 @@ The output goes to `extracted/` (also git-ignored):
 - `wav/`: sounds, decoded from 7th Level ADPCM
 - `png/`: bitmaps and textures
 - `obj/`: 3D models with `.mtl` materials, which open in Blender or any 3D viewer
+- `gltf/`: the same models as glTF, with their FRME animations
 - `raw/`: every resource exactly as stored, for further reverse engineering
 - `bin-sections/`: the other sections of `G-NOME.BIN` (strings, palette, script)
 - `manifest.csv`: one row per resource
@@ -60,8 +70,19 @@ Useful options: `--game` and `--out` pick other folders, `--raw-only` skips
 conversion, and `--list` prints the resource table. Run the tests with
 `python -m unittest discover tests`.
 
-Not decoded yet: animation data (`FRME`, `OB3D`, `OPRT` chunks) and resource
-type 11.
+Every resource type in the packs is decoded. The animation and object formats
+(`FRME`, `OB3D`, `OPRT`) are in
+[docs/formats/animation.md](docs/formats/animation.md); type 11 resources are
+the scripts' integer tables (see `web/src/builtins.js`).
+
+## Playing in the browser
+
+`web/` is a reimplementation of the game's engine that runs in a browser from
+your own copy of the game. It is published at
+<https://insideou7.github.io/g-nome/>: pick your game folder or a .zip of it,
+and the files are read locally, never uploaded. The menus, the LAB, the
+campaign missions and multiplayer run. To run it yourself, see
+[web/README.md](web/README.md).
 
 ## Reading the scripts
 

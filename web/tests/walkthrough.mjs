@@ -7,7 +7,7 @@
 //   [--only name,...] [--verbose]
 //   --shots   save a PNG of each screen the walk visits
 //   --only    run only these sections (boot, menus, options, controls,
-//             network, game, lab, exit, mission1)
+//             network, game, lab, exit, mission1, saves)
 //   --verbose print the engine log
 // Exits non-zero if a check fails. Each section boots a fresh engine, so a
 // failure in one does not hide the others. A full run takes about 15 s.
@@ -18,14 +18,15 @@
 //     it is in KNOWN_GAPS below (work in progress elsewhere)
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { Player, VK } from "./player.mjs";
+import { Player, VK, MemoryStorage } from "./player.mjs";
+import { Ini } from "../src/engine.js";
+import { exportSaves, importSaves } from "../src/saves.js";
 import { basisFromAt } from "../src/battlefield/math.js";
 import { table } from "../src/builtins.js";
 
 // Not implemented yet, and reached by this walk. Remove an entry when it is
 // done; the run says when one is no longer hit.
 const KNOWN_GAPS = new Set([
-  "extern:render.FreeAllTextures",
 ]);
 
 const opts = {};
@@ -75,6 +76,24 @@ const BRIEF_MAP = [130, 40, 330, 240];
 const BRIEF_PREVIEW = [340, 40, 510, 240];
 const VIEWPORT = [60, 90, 570, 265]; // the 3D view through the cockpit
 const RADAR = [230, 370, 410, 455]; // inside the HAWC cockpit's radar oval
+const SAVE_SLOT = 6287; // a row on the LOAD and SAVE lists (script 6287)
+const CAMPAIGN = 2119, CURRENT_MISSION = 2141; // next campaign mission, the one briefed
+const PROGRESS = 6984; // what a save holds: rows of {key, table}, the tables' first columns
+// The values script 6291 writes to a save, as text: for each row of
+// table 6984 with a key under 30, the key and column 0 of its table.
+const progress = (p) => {
+  const vm = p.engine.vm;
+  const get = (id, i, j) => {
+    const t = table(vm, id);
+    return t.data[t.strides[0] * i + t.strides[1] * j];
+  };
+  const out = [];
+  for (let i = 0; i < table(vm, PROGRESS).header[10] && get(PROGRESS, i, 0) < 30; i++) {
+    const sub = get(PROGRESS, i, 1);
+    out.push(`${get(PROGRESS, i, 0)}:${Array.from({ length: table(vm, sub).header[10] }, (_, j) => get(sub, j, 0)).join(",")}`);
+  }
+  return out.join(" ");
+};
 
 let failures = 0;
 let section = "";
@@ -492,6 +511,73 @@ const SECTIONS = {
     check(marked.length >= 3, "the radar marks the player's unit at its centre", `${marked.length} pixels`);
     p.shot("in-hawc");
     finish(p);
+  },
+
+  // Win mission 1, save on GAME > SAVE, export and import the save, then
+  // restart, load it and play mission 2. G-NOME saves the campaign between
+  // missions (scripts 6290/6291: G2119 and table 6984), not a mission in
+  // progress: SAVE is offered once a campaign mission is briefed.
+  async saves(p) {
+    await toMainMenu(p);
+    await launchMission1(p);
+    await p.wait(60);
+    p.engine.mission.destroyEnemies();
+    await p.waitFor(() => !p.engine.world?.shown, "the end of mission 1", 600);
+    await p.waitFor(() => hasText(p, "1-2: Drawbridge"), "mission 2's briefing", 400);
+    await fadedIn(p, "mission 2's briefing");
+    const vm = p.engine.vm;
+    check(vm.getGlobal(CAMPAIGN) === 2 && vm.getGlobal(CURRENT_MISSION) === 2, "winning mission 1 moves the campaign on to mission 2");
+    const saved = progress(p);
+    await press(p, MAIN.GAME);
+    await press(p, LEFT[2], 60);
+    const slots = p.rects().filter((r) => r.script === SAVE_SLOT);
+    check(hasText(p, "Save the Current Game") && slots.length === 8, "SAVE lists eight slots", `${slots.length}`);
+    p.shot("save");
+    await press(p, [slots[0].l + 20, slots[0].t + 8], 10);
+    check(!!p.engine.input.edit, "clicking a slot asks for a name");
+    p.type("WALKTHROUGH\r");
+    await p.wait(60);
+    check(p.storage.getItem("g-nome.file.SGNOME0.SAV") !== null, "Enter writes SGNOME0.SAV to browser storage");
+    check(p.ini.get("GnomeGames", "savegame_0") === "WALKTHROUGH", "the save's name goes to the INI");
+    check(hasText(p, "1-2: Drawbridge"), "the game goes back to mission 2's briefing");
+    finish(p);
+
+    // Export, then import into an empty browser.
+    const exported = JSON.parse(JSON.stringify(exportSaves(p.storage, p.ini)));
+    check(exported.saves.length === 1 && exported.saves[0].name === "WALKTHROUGH", "Export saves writes the save and its name");
+    const storage = new MemoryStorage(), ini = new Ini();
+    check(importSaves(exported, { storage, ini }) === 1, "Import saves reads it back");
+    let bad = "";
+    try {
+      importSaves({ format: "something else" }, { storage, ini });
+    } catch (e) {
+      bad = e.message;
+    }
+    check(!!bad, "Import saves turns down a file that is not a save export");
+
+    const p2 = await Player.start(dir, { verbose, ini, storage });
+    p2.shot = p.shot;
+    await toMainMenu(p2);
+    await press(p2, MAIN.GAME);
+    await press(p2, LEFT[1], 60);
+    check(hasText(p2, "WALKTHROUGH"), "LOAD lists the imported save by name", JSON.stringify(p2.texts()));
+    p2.shot("load");
+    const row = p2.rects().filter((r) => r.script === SAVE_SLOT)[0];
+    await press(p2, [row.l + 20, row.t + 8], 60);
+    await p2.waitFor(() => hasText(p2, "1-2: Drawbridge"), "mission 2's briefing after LOAD", 200);
+    const vm2 = p2.engine.vm;
+    check(vm2.getGlobal(CAMPAIGN) === 2 && vm2.getGlobal(CURRENT_MISSION) === 2, "loading it briefs mission 2", `${vm2.getGlobal(CAMPAIGN)}/${vm2.getGlobal(CURRENT_MISSION)}`);
+    check(progress(p2) === saved, "the campaign's tables come back as they were saved", `${saved.slice(0, 80)} / ${progress(p2).slice(0, 80)}`);
+    p2.key(VK.ENTER);
+    await p2.waitFor(() => p2.hasRect(8360), "LAUNCH", 60);
+    p2.click(...RIGHT[0]);
+    await p2.waitFor(() => p2.engine.world?.shown, "mission 2's battlefield", 300);
+    await p2.wait(60);
+    check(p2.engine.world.shown && vm2.getGlobal(CURRENT_MISSION) === 2, "LAUNCH plays mission 2 from the loaded save");
+    const view = p2.region(...VIEWPORT);
+    check(view.colours > 30 && view.lit > view.area * 0.9, "mission 2 draws its 3D view", JSON.stringify(view));
+    p2.shot("mission2");
+    finish(p2);
   },
 };
 

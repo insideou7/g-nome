@@ -8,7 +8,7 @@
 /** @import { Engine } from "../engine.js" */
 
 
-const STORE = "g-nome.file.";
+export const STORE = "g-nome.file.";
 // Every file G-Nome's scripts open (names built with "GKEY%d.map" and
 // "SGNOME%d.SAV" included).
 const KNOWN = [
@@ -30,7 +30,7 @@ const F_EXISTS = 0x200; // only test whether the file exists
 /**
  * @param {Uint8Array} bytes
  */
-function toBase64(bytes) {
+export function toBase64(bytes) {
   let s = "";
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s);
@@ -39,7 +39,7 @@ function toBase64(bytes) {
 /**
  * @param {string} text
  */
-function fromBase64(text) {
+export function fromBase64(text) {
   const s = atob(text);
   const out = new Uint8Array(s.length);
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
