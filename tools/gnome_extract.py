@@ -306,13 +306,14 @@ def bitmap_pixels(bm: Bitmap) -> bytes:
     """width*height palette indices for either bitmap encoding."""
     if bm.flags & FLAG_RLE:
         return bytes(decode_rle(bm))
-    # Packed bitmaps are DIB-style rows padded to 4 bytes, top row first.
+    # Packed bitmaps are DIB rows: padded to 4 bytes, bottom row first.
     raw = decompress_packed(bm.body)
     stride = (bm.width + 3) & ~3
     if len(raw) < stride * bm.height:
         raise ValueError(f"packed bitmap decoded to {len(raw)} bytes, "
                          f"expected {stride * bm.height}")
-    return b"".join(raw[r * stride:r * stride + bm.width] for r in range(bm.height))
+    return b"".join(raw[r * stride:r * stride + bm.width]
+                    for r in reversed(range(bm.height)))
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
