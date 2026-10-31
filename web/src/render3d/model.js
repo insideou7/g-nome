@@ -178,12 +178,14 @@ function buildMesh(verts, tris) {
 }
 
 // World matrices for every clump, given the model's placement and optional
-// per-clump pose overrides (pose[i] replaces clump i's local matrix).
-export function clumpMatrices(model, world, pose = null) {
+// per-clump pose overrides (pose[i] replaces clump i's local matrix) and
+// joint matrices (RotateSubClump; joints[i] applies before the local one).
+export function clumpMatrices(model, world, pose = null, joints = null) {
   const out = new Array(model.clumps.length);
   const visit = (i, parentM) => {
     const c = model.clumps[i];
-    out[i] = mul((pose && pose[i]) || c.local, parentM);
+    const local = (pose && pose[i]) || c.local;
+    out[i] = mul(joints && joints[i] ? mul(joints[i], local) : local, parentM);
     for (const k of c.children) visit(k, out[i]);
   };
   for (const r of model.roots) visit(r, world);

@@ -130,13 +130,13 @@ export const STATEMENTS = {
     vm.engine.dirty = true;
   },
   // 0x8e / 0xd2: play / stop a CD audio track (AudioPlayCDTrack,
-  // AudioStopCD). The music is red book audio on the CD, which the browser
-  // never sees, so only remember the track.
+  // AudioStopCD). The music is red book audio on the CD; it plays only if
+  // the player supplies ripped tracks (music.js).
   0x8e(vm, b, dv, p) {
-    vm.engine.cdTrack = b[p + 2];
+    vm.engine.music.play(b[p + 2]);
   },
   0xd2(vm) {
-    vm.engine.cdTrack = 0;
+    vm.engine.music.stop();
   },
   // 0x6d: stop timer +2 (+6 set: stop all) (0x10021894).
   0x6d(vm, b, dv, p) {

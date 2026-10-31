@@ -208,7 +208,7 @@ export class WebGLBackend {
       gl.drawArrays(gl.TRIANGLES, g.start, g.count);
     };
     for (const node of scene.ordered()) {
-      const worlds = clumpMatrices(node.model, node.matrix, node.pose);
+      const worlds = clumpMatrices(node.model, node.matrix, node.pose, node.instance?.joints);
       node.model.clumps.forEach((clump, ci) => {
         if (node.clumpHidden[ci] || !clump.mesh.count) return;
         for (const g of clump.mesh.groups) {

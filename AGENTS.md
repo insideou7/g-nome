@@ -31,6 +31,9 @@ Setup, the Ghidra backend and troubleshooting are in
   clips, OB3D/OPRT objects and RENDER.R32's animation, motion, steering,
   task, list, file and hotspot externs. `tools/gnome3d.py` exports models to glTF with their
   animations.
+- [docs/missions.md](docs/missions.md): enemy AI (unit update, tasks,
+  targeting, aiming) and mission goals (hooks, win/lose, debrief). In the
+  engine: `web/src/battlefield/aim.js`, `mission.js` (`engine.mission`).
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
   (scope, architecture, milestones, status). It is published to GitHub
   Pages by `.github/workflows/pages.yml` (code only; players load their

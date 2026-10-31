@@ -39,7 +39,8 @@ src/names.js                  names of every builtin and statement (shared
 src/sprites.js                sprite system (type 20 resources + messages)
 src/plugins/smacker.js        SMACKER.R32 (cutscenes)
 src/plugins/render.js         RENDER.R32: sound, plus the 3D externs below
-src/battlefield/              world, camera, fixed-tick loop, mission view, controls
+src/battlefield/              world, camera, fixed-tick loop, mission view, controls,
+                              aiming externs, mission state (engine.mission)
 src/render3d/                 models, textures, objects, WebGL renderer
 src/plugins/netgn.js          NETGN.R32 stub (no network providers)
 src/smacker.js                .SMK video/audio decoder
@@ -89,6 +90,10 @@ Design choices:
    - [x] main menu, GAME submenu, credits movie
    - [x] all five submenus; OPTIONS screens (key mapping, difficulty,
      sound, detail); NETWORK reports no providers (`netgn` stub)
+   - [x] OPTIONS > SOUND volume sliders for music and SFX/Dialogue (a port
+     addition: the original only has On/Off), and CD music from ripped
+     track files when the player has them (`src/music.js`,
+     `src/volume-panel.js`)
    - [x] NEW GAME: campaign briefing (map, objectives), training and
      mission lists. The unit preview beside the map needs
      `render.RenderToBitmap`, so it waits for milestone 3
@@ -118,6 +123,12 @@ Design choices:
      [battlefield.md](battlefield.md)); `?mission=N` starts a mission
    - [ ] movement, tasks and animation (`src/anim/`), collisions,
      hotspots, weapons
+   - [x] enemy AI and mission goals: the AI and win/lose logic are the
+     game's own scripts; turret aiming (`RotateSubClump`,
+     `MoveSubClumpToFace`) and `OrientModels` are in
+     `src/battlefield/aim.js`, mission state and test shortcuts in
+     `src/battlefield/mission.js` ([missions.md](missions.md)). Mission 1's
+     win and loss run through the fly-by and doors to the next briefing
 4. **Saves and settings**: `SGNOME*.SAV`, INI values (now kept in
    `localStorage`).
 5. Networking (`NETGN.R32`, DirectPlay) is out of scope; the scripts already

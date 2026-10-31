@@ -18,6 +18,7 @@ export class Display {
     // colour 0 (transparent in every bitmap) shows the 3D view instead.
     this.underlay = null;
     this.layer = null; // offscreen canvas for the sprite layer
+    this.overlay = null; // (ctx, brightness 0..1) => void, after each frame
   }
   setPalette(rgb768, first = 0, count = 256) {
     this.palette.set(rgb768.subarray(first * 3, (first + count) * 3), first * 3);
@@ -52,15 +53,19 @@ export class Display {
       d[o + 3] = under && px[i] === 0 ? 0 : 255;
     }
     if (!this.ctx) return;
-    if (!under) return this.ctx.putImageData(this.image, 0, 0);
-    if (!this.layer) {
-      this.layer = new OffscreenCanvas(WIDTH, HEIGHT);
-      this.layerCtx = this.layer.getContext("2d");
+    if (!under) this.ctx.putImageData(this.image, 0, 0);
+    else {
+      if (!this.layer) {
+        this.layer = new OffscreenCanvas(WIDTH, HEIGHT);
+        this.layerCtx = this.layer.getContext("2d");
+      }
+      this.layerCtx.putImageData(this.image, 0, 0);
+      this.ctx.fillStyle = "#000";
+      this.ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      this.ctx.drawImage(under.canvas, under.x || 0, under.y || 0);
+      this.ctx.drawImage(this.layer, 0, 0);
     }
-    this.layerCtx.putImageData(this.image, 0, 0);
-    this.ctx.fillStyle = "#000";
-    this.ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    this.ctx.drawImage(under.canvas, under.x || 0, under.y || 0);
-    this.ctx.drawImage(this.layer, 0, 0);
+    // Browser-port additions drawn on top in true colour (volume-panel.js).
+    this.overlay?.(this.ctx, this.frozen ? 0 : this.fade);
   }
 }

@@ -43,6 +43,7 @@ export class BattleView {
         h = this.scene.add(model, {});
         this.handles.set(o.id, h);
       }
+      if (h.instance) h.pose = h.instance.pose; // FRME frames replace the array
       const p = w.pose(o.id);
       const d = sub(p.pos, pose.pos);
       h.setTransform({
