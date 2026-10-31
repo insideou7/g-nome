@@ -20,7 +20,7 @@ G-NOME (7th Level, 1997) for Windows 95. Everything is 32-bit x86.
 ## Extracting the assets
 
 `tools/gnome_extract.py` copies all 9,440 resources out of the packs and
-converts sounds to WAV and RLE bitmaps and textures to PNG. It needs only
+converts sounds to WAV, images and textures to PNG, and 3D models to OBJ. It needs only
 Python 3.8 or newer, no packages. To run it on your own machine:
 
 1. Clone the repo.
@@ -33,11 +33,17 @@ Python 3.8 or newer, no packages. To run it on your own machine:
    python tools/gnome_extract.py
    ```
 
-The output goes to `extracted/` at the repo root: `raw/`, `wav/`, `png/`,
-`bin-sections/` and a `manifest.csv` with one row per resource. Both `game/`
-and `extracted/` are git-ignored. Use `--game` and `--out` to pick other
-folders, and `--raw-only` to skip the WAV and PNG conversion. The formats are written up
-in [formats/g-nome-bin.md](formats/g-nome-bin.md). Tests:
+The output goes to `extracted/` at the repo root:
+
+- `wav/`: sounds
+- `png/`: images and textures
+- `obj/`: 3D models with `.mtl` materials (open them in Blender or any 3D viewer)
+- `raw/`: every resource exactly as stored, for further reverse engineering
+- `bin-sections/` and `manifest.csv` (one row per resource)
+
+Both `game/` and `extracted/` are git-ignored. Use `--game` and `--out` to
+pick other folders, and `--raw-only` to skip conversion. The formats are
+written up in [formats/g-nome-bin.md](formats/g-nome-bin.md). Tests:
 `python -m unittest discover tests`.
 
 ## Where the game files go
