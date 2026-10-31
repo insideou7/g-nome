@@ -51,6 +51,8 @@
   <div class="row">
     <button id="skip" disabled>Esc (skip movie)</button>
     <label><input id="trace" type="checkbox"> trace statements</label>
+    <button id="export-saves" title="Download your saved games as a file, so they survive clearing the browser">Export saves</button>
+    <label class="btn" title="Load saved games from an exported file; they replace saves in the same slots">Import saves<input id="import-saves" type="file" accept=".json,application/json" hidden></label>
   </div>
   <div id="stage"><canvas id="screen" width="640" height="480" tabindex="0"></canvas></div>
   <div id="log"></div>

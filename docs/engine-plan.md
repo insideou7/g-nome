@@ -110,7 +110,8 @@ Design choices:
    - [x] every RTLIB32 statement and builtin the menus, LAB and mission 1
      run (sprite position/level 0x4d, 0x71, 0xb8; CD track 0x8e/0xd2 are
      remembered only, since CD audio is not in the game files)
-   - [x] load screen (lists saves; saving needs a mission in progress)
+   - [x] load screen (lists saves; SAVE is offered once a campaign mission
+     is briefed)
    - [x] queue record 2, several cels at once (the cockpit crosshair's
      acquiring and locked brackets)
    - [x] sprite motion paths (curve, line, step), speed, motion, cel
@@ -143,8 +144,16 @@ Design choices:
      `src/battlefield/aim.js`, mission state and test shortcuts in
      `src/battlefield/mission.js` ([missions.md](missions.md)). Mission 1's
      win and loss run through the fly-by and doors to the next briefing
-4. **Saves and settings**: `SGNOME*.SAV`, INI values (now kept in
-   `localStorage`).
+4. **Saves and settings**: done. INI values and written files are kept in
+   `localStorage`. G-NOME saves the campaign between missions, not a mission
+   in progress: GAME > SAVE (scripts 6290/6291) writes the next mission
+   (G2119) and the campaign tables under table 6984 to `SGNOME<n>.SAV`
+   and the slot's name to the INI (`[GnomeGames] savegame_<n>`); LOAD
+   (6289/6292) reads them back and briefs that mission. The page's
+   Export saves / Import saves buttons (`src/saves.js`) move them to and
+   from a JSON file, so they survive clearing the browser. The walkthrough's
+   `saves` section wins mission 1, saves, exports, imports into an empty
+   browser, loads and plays mission 2.
 5. Networking (`NETGN.R32`, DirectPlay): done, see [netgn.md](netgn.md).
    `src/plugins/netgn.js` implements all 57 externs over a small DirectPlay
    stand-in (`src/net/dplay.js`). Players pick "Browser Tabs On This

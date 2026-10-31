@@ -97,6 +97,11 @@ export const BUILTINS = {
   0xe8() {
     return 0;
   },
+  // 0xf2: drop a pack copied by CachePack (the campaign does this after a
+  // mission). Nothing to do either.
+  0xf2() {
+    return 0;
+  },
   // 0x03: absolute value (0x10004164)
   0x03(vm, [x]) {
     return Math.abs(x | 0) | 0;
