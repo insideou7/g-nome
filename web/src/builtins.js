@@ -134,6 +134,13 @@ export const BUILTINS = {
     vm.engine.spriteSync = on & 0xff;
     return on;
   },
+  // 0xc8: ScreenShake(dx, dy) (0x10005004 -> SpriteScreenShake): jolt the
+  // stage by (dx, dy) and back (Display.shake). Script 1709 calls it twice,
+  // (-3, -3) then (8, 8), when the player is hit by weapon kind 301 or 302.
+  0xc8(vm, [dx, dy]) {
+    vm.engine.display?.shake(dx | 0, dy | 0);
+    return 0;
+  },
   // 0xce: send a message to a sprite (type 20): sprite, message, args...
   0xce(vm, [id, ...msg]) {
     return vm.engine.sprites.send(id, msg);
