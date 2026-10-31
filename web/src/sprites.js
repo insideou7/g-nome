@@ -78,6 +78,7 @@ export class Sprites {
       queue: null, // {b, dv, pos}
       wait: 0, anim: null, click: null,
       layers: null, // cel numbers shown together (message 2)
+      radar: null, // {w, h, pixels} painted by RadarClear/RadarDraw
     };
     this.list.set(id, s);
     return s;
@@ -292,6 +293,12 @@ export class Sprites {
 
   draw(pixels) {
     for (const s of this.visibleSorted()) {
+      // The cockpit radar (battlefield/radar.js) paints its sprite's bounds;
+      // the sprite's own cels go over it.
+      if (s.radar) {
+        const r = this.bounds(s);
+        if (r.right - r.left === s.radar.w && r.bottom - r.top === s.radar.h) blit(pixels, { width: s.radar.w, height: s.radar.h, pixels: s.radar.pixels }, r.left + ORIGIN_X, r.top + ORIGIN_Y);
+      }
       for (const id of this.shownCels(s)) {
         if (!drawable(this.engine.bin.type(id))) continue;
         const b = this.bitmap(id);
