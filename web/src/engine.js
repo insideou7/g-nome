@@ -241,11 +241,12 @@ export class Engine {
     const savedRet = vm.retval;
     try {
       const ok = vm.callScript(id, nested ? MAX_LOCALS : 0, args);
-      if (nested) vm.retval = savedRet;
       return ok;
     } catch (e) {
       this.log(`script ${id} failed: ${e.message}`);
       return 0;
+    } finally {
+      if (nested) vm.retval = savedRet;
     }
   }
 

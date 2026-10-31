@@ -69,6 +69,8 @@ export class Hotspots {
           poseObj,
           footprint: null, // +0x2C vertices, +0x30 edge flags, +0x34 count
         };
+        // The footprint is posed as poseObj is now (battlefield/collision.js).
+        this.engine.collision?.footprint(this.table[this.count - 1]);
         return this.count;
       },
       GetHotSpotFlags: (n) => this.get(n)?.flags ?? 0,

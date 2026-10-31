@@ -1,5 +1,8 @@
 // Open the engine in headless Chromium, let it run, save screenshots.
-// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [?query] [second:Key | second:click@x,y | second:eval@js ...]
+// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [?query] [second:Key | second:click@x,y
+//   | second:eval@js | second:down:Key | second:up:Key | second:shot ...]
+// down/up hold and release a key (e.g. 5:down:NumpadAdd 7:up:NumpadAdd);
+// shot saves an extra screenshot at that second.
 // A ?query argument is added to the page URL, e.g. ?mission=1.
 // Serves the repo root on :8642; game files are read from game/g-nome/G-NOME.
 import { createServer } from "node:http";
@@ -46,9 +49,13 @@ for (let t = 1; t <= secs; t++) {
       await page.waitForTimeout(300);
       await page.mouse.down();
       await page.mouse.up();
+    } else if (k === "shot") {
+      await page.locator("#screen").screenshot({ path: `${out}-${t}s.png` });
     } else {
       await page.focus("#screen");
-      await page.keyboard.press(k);
+      if (k.startsWith("down:")) await page.keyboard.down(k.slice(5));
+      else if (k.startsWith("up:")) await page.keyboard.up(k.slice(3));
+      else await page.keyboard.press(k);
     }
   }
   if (t === secs || t % 5 === 0) await page.locator("#screen").screenshot({ path: `${out}-${t}s.png` });
