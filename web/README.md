@@ -106,6 +106,9 @@ node web/tests/motion-check.mjs
 # Check the OPTIONS > SOUND volume sliders and CD track file names
 node web/tests/sound-options-check.mjs game/g-nome/G-NOME
 
+# Weapons: fire at the walker in mission 1 until it blows up
+node web/tests/combat-check.mjs game/g-nome/G-NOME
+
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK
 ```
