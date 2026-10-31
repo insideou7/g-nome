@@ -18,6 +18,21 @@ const STACK_TOP = (MEM_WORDS - 16) * 4;
 const HEAP_BASE = GLOBAL_BASE + 4 * LOCAL_BASE + 0x1000;
 const MAX_DEPTH = 30;
 
+// Statements 0x59 and 0x5a compare two values (0x10017f36): op bit 1 ==,
+// 2 >, 4 <, 8 |, 0x10 &, 0x20 %; none of them: a != 0. 0x80 negates.
+function compare(op, a, b) {
+  let r;
+  if (op & 1) r = a === b;
+  else if (op & 2) r = a > b;
+  else if (op & 4) r = a < b;
+  else if (op & 8) r = a | b;
+  else if (op & 0x10) r = a & b;
+  else if (op & 0x20) r = b ? a % b : 0;
+  else r = a !== 0;
+  if (op & 0x80) r = !r;
+  return !!r;
+}
+
 export class ScriptError extends Error {}
 
 export class VM {
@@ -162,6 +177,28 @@ export class VM {
       case 0xe3: // if
         len = this.evalExpr(b, dv, pos + 10) ? dv.getInt32(pos + 6, true) : dv.getInt32(pos + 2, true);
         break;
+      case 0x5a: {
+        // compare and skip (0x100155ab -> 0x10018078): +2 else delta, +6 a,
+        // +10 b, +0xe op, +0xf / +0x10 "is a variable" flags
+        const a = this.resolve(dv.getUint32(pos + 6, true), b[pos + 0xf]);
+        const c = this.resolve(dv.getUint32(pos + 10, true), b[pos + 0x10]);
+        len = compare(b[pos + 0xe], a, c) ? 0x12 : dv.getInt32(pos + 2, true);
+        break;
+      }
+      case 0x59: {
+        // compare and call (0x1001553a -> 0x10017e6e): +2 then script, +6
+        // else script, +10 has else, +0xe a, +0x12 b, +0x16 op; flags +0xb,
+        // +0xc, +0x17, +0x18. Script 0 stops.
+        len = 0x1a;
+        const a = this.resolve(dv.getUint32(pos + 0xe, true), b[pos + 0x17]);
+        const c = this.resolve(dv.getUint32(pos + 0x12, true), b[pos + 0x18]);
+        let script = -1;
+        if (compare(b[pos + 0x16], a, c)) script = this.resolve(dv.getUint32(pos + 2, true), b[pos + 0xb]);
+        else if (b[pos + 10]) script = this.resolve(dv.getUint32(pos + 6, true), b[pos + 0xc]);
+        if (script === 0) len = 0;
+        else if (script > 0) ok = this.runScript(script);
+        break;
+      }
       case 0xaf: // expression
         this.evalExpr(b, dv, pos + 6);
         len = dv.getUint32(pos + 2, true);

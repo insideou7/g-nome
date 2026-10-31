@@ -46,6 +46,19 @@ All submenus, the options screens, the credits and the first campaign
 briefing work. Anything that draws 3D (the LAB, unit previews, missions)
 needs the RENDER.R32 reimplementation, which is the next big piece.
 
+### Music and volume
+
+G-Nome's music is CD audio (tracks 2-20 on the game CD), which a browser
+can't read from a disc. If you have ripped the tracks, put them in the game
+folder or in a `MUSIC` folder inside it, named like `TRACK02.OGG`,
+`Track 02.mp3` or `02.wav` (OGG, MP3, WAV, FLAC, Opus or M4A), and they play
+when the game asks for them. Like the original, the menus have no music; the
+missions do.
+
+OPTIONS > SOUND keeps the game's own On/Off switches for CD Music and
+SFX/Dialogue, and adds a volume slider for each (movie sound follows the
+SFX/Dialogue slider). The levels are saved in the browser.
+
 During development you can skip the folder picker:
 `http://localhost:8000/web/?game=/game/g-nome/G-NOME/` reads the files over
 HTTP from the repo's git-ignored `game/` folder; `?game=<url>.zip` reads a
@@ -74,6 +87,9 @@ node web/tests/walkthrough.mjs game/g-nome/G-NOME --only lab --shots /tmp/walk
 # Battlefield checks (maths; plus mission 1 when given the game folder)
 node web/tests/battlefield-check.mjs game/g-nome/G-NOME
 
+# Enemy AI and mission goals: a guard attacks, winning and losing mission 1
+node web/tests/mission-check.mjs game/g-nome/G-NOME
+
 # Disassemble scripts (linear, includes else branches and switch cases)
 node web/tools/disasm.mjs game/g-nome/G-NOME/G-NOME.BIN 7 9 11
 node web/tools/disasm.mjs game/g-nome/G-NOME/G-NOME.BIN all > re-output/scripts.txt
@@ -88,9 +104,15 @@ NODE_PATH=$(npm root -g) node web/tools/shot.mjs 12 /tmp/m1 '?mission=1' 2:Escap
 # Collision maths, plus walking into a cliff in mission 1
 node web/tests/collision-check.mjs game/g-nome/G-NOME
 
+# ...and win it at 12 s (eval@ runs JavaScript in the page; see docs/missions.md)
+NODE_PATH=$(npm root -g) node web/tools/shot.mjs 30 /tmp/win '?mission=1' 2:Escape 3:Escape 4:Escape '12:eval@engine.mission.destroyEnemies()'
+
 # Check the FRME/OB3D decoders and the animation system on a real unit
 node web/tests/anim-check.mjs game/g-nome/G-NOME
 node web/tests/motion-check.mjs
+
+# Check the OPTIONS > SOUND volume sliders and CD track file names
+node web/tests/sound-options-check.mjs game/g-nome/G-NOME
 
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK

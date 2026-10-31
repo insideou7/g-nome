@@ -29,10 +29,14 @@ export function gameFolder(entries) {
   }
   if (!best) throw new NoGameError();
   const byName = new Map();
+  // Ripped CD music may also sit in a MUSIC folder inside it (music.js).
+  const music = best.dir ? `${best.dir}/MUSIC` : "MUSIC";
   for (const e of entries) {
     const i = e.path.lastIndexOf("/");
-    if (e.path.slice(0, Math.max(i, 0)).toUpperCase() !== best.dir) continue;
-    byName.set(e.path.slice(i + 1).toUpperCase(), e);
+    const dir = e.path.slice(0, Math.max(i, 0)).toUpperCase();
+    const name = e.path.slice(i + 1).toUpperCase();
+    if (dir === best.dir) byName.set(name, e);
+    else if (dir === music) byName.set(`MUSIC/${name}`, e);
   }
   return {
     dir: best.dir,

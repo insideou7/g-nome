@@ -12,6 +12,8 @@ import { installPlugins } from "./plugins/index.js";
 import { Input } from "./input.js";
 import { Texts } from "./text.js";
 import { Sprites, ORIGIN_X, ORIGIN_Y, blit } from "./sprites.js";
+import { CdMusic } from "./music.js";
+import { VolumePanel } from "./volume-panel.js";
 
 // 7THLEVEL.INI stand-in: section -> key -> value. Persisted by the shell.
 export class Ini {
@@ -66,6 +68,9 @@ export class Engine {
     this.fades = []; // queued palette fades {to, ms}
     this.fadedOut = false;
     this.lists = new Map(); // type 14 statement lists
+    this.music = new CdMusic(this);
+    this.volumes = new VolumePanel(this); // OPTIONS > SOUND sliders
+    if (this.display) this.display.overlay = (ctx, fade) => this.volumes.draw(ctx, fade);
   }
 
   // Run one statement outside any script (sprite queue record 21, type 14
@@ -130,10 +135,12 @@ export class Engine {
 
   // Mouse, in canvas pixels (0..639, 0..479).
   mouseUp(cx, cy, button = 0) {
+    if (this.volumes.mouseUp()) return;
     this.world?.controls.mouseUp(button);
   }
 
   mouseDown(cx, cy, button = 0) {
+    if (button === 0 && this.volumes.mouseDown(cx, cy)) return;
     this.world?.controls.mouseDown(button);
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
@@ -144,6 +151,7 @@ export class Engine {
     }
   }
   mouseMove(cx, cy) {
+    if (this.volumes.mouseMove(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     let hit = -1;
     for (let i = this.hoverRects.length - 1; i >= 0; i--) {
@@ -253,6 +261,7 @@ export class Engine {
     this.sprites.tick(ms);
     this.serviceTimers();
     this.serviceFades(ms);
+    this.volumes.update();
     if (this.display) {
       this.compose?.();
       this.display.present();

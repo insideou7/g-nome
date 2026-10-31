@@ -316,7 +316,7 @@ export class World {
     const inst = this.engine.render3d?.objectModel?.(id);
     const i = inst ? inst.clump(clump) : -1;
     if (i < 0) return { pos, basis };
-    const m = clumpMatrices(inst.model, modelMatrix(basis, pos), inst.pose)[i];
+    const m = clumpMatrices(inst.model, modelMatrix(basis, pos), inst.pose, inst.joints)[i];
     return {
       pos: [m[12], m[13], m[14]],
       basis: { right: normalize([m[0], m[1], m[2]]), up: normalize([m[4], m[5], m[6]]), at: normalize([m[8], m[9], m[10]]) },

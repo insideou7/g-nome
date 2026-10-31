@@ -25,7 +25,6 @@ import { Player, VK } from "./player.mjs";
 const KNOWN_GAPS = new Set([
   "extern:render.FreeAllTextures",
   "extern:render.MakeSpriteExtern",
-  "extern:render.RotateSubClump",
   "extern:render.Decrement_Recharge_Timers",
   // Reached since AddObject runs level-of-detail scripts at once.
   "extern:render.DefaultClumpHealths",

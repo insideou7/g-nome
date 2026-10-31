@@ -58,7 +58,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
   for (const node of scene.ordered()) {
     const useDepth = node.depth !== false;
     const model = node.model;
-    const worlds = clumpMatrices(model, node.matrix, node.pose);
+    const worlds = clumpMatrices(model, node.matrix, node.pose, node.instance?.joints);
     model.clumps.forEach((clump, ci) => {
       if (node.clumpHidden[ci]) return;
       const w = worlds[ci];
