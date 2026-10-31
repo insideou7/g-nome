@@ -5,6 +5,7 @@
 // belong with the battlefield's motion code and read `hotspots.table`.
 // Record layout: docs/formats/animation.md.
 import { SCRIPT_SCALE } from "./animation.js";
+/** @import { Engine } from "../engine.js" */
 
 const ROUND_TYPE = 0x10; // a cylinder: radius in the id field, no footprint
 
@@ -22,16 +23,24 @@ const blank = () => ({
 });
 
 export class Hotspots {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
+    /** @type {any} */
     this.table = []; // AllocHotspots(n) slots
     this.count = 0; // hotspots added since the last clear
   }
 
+  /**
+   * @param {number} n
+   */
   get(n) {
     return n >= 1 && n <= this.table.length ? this.table[n - 1] : null;
   }
 
+  /** @returns {Externs} */
   externs() {
     const scale = SCRIPT_SCALE;
     return {

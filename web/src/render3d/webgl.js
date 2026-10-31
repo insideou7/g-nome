@@ -108,6 +108,9 @@ export class WebGLBackend {
   /** @type {WeakMap<object, WebGLTexture>} */ bdTex;
   /** @type {WebGLVertexArrayObject} */ bdVao;
 
+  /**
+   * @param {any} renderer
+   */
   constructor(renderer, canvas = null) {
     this.renderer = renderer;
     this.canvas = canvas || document.createElement("canvas");
@@ -115,6 +118,7 @@ export class WebGLBackend {
     if (!gl) throw new Error("no webgl2 context");
     this.gl = gl;
     this.prog = program(gl, VS, FS);
+    /** @type {Record<string, WebGLUniformLocation | null>} */
     this.u = {};
     for (const n of ["uWorld", "uView", "uProj", "uTex", "uTextured", "uTwoSided", "uUnlit", "uColor", "uK", "uLights", "uLType", "uLColor", "uLDir", "uLPos", "uLParam", "uFrame", "uAlpha", "uFog", "uFogColor"])
       this.u[n] = gl.getUniformLocation(this.prog, n);
@@ -123,6 +127,9 @@ export class WebGLBackend {
     this.glTextures = new Set(); // every WebGLTexture made by texture()
   }
 
+  /**
+   * @param {any} mesh
+   */
   vao(mesh) {
     let v = this.meshes.get(mesh);
     if (v) return v;
@@ -141,6 +148,9 @@ export class WebGLBackend {
     return v;
   }
 
+  /**
+   * @param {any} tex
+   */
   texture(tex) {
     const gl = this.gl;
     const key = this.renderer.paletteKey() + ":" + tex.version;
@@ -172,6 +182,11 @@ export class WebGLBackend {
   // Draw into the viewport {x, y, width, height} of a canvas `cw` x `ch`
   // (default: just the viewport), clipped to vp.clip {x, y, width, height}
   // when given. Returns the canvas.
+  /**
+   * @param {any} scene
+   * @param {any} camera
+   * @param {any} vp
+   */
   render(scene, camera, vp) {
     const gl = this.gl, u = this.u;
     const cw = vp.canvasWidth || vp.x + vp.width || vp.width, ch = vp.canvasHeight || vp.y + vp.height || vp.height;
@@ -208,8 +223,9 @@ export class WebGLBackend {
     gl.activeTexture(gl.TEXTURE0);
 
     // Nodes in draw order; see-through polygons go after all opaque ones.
+    /** @type {any} */
     const late = [];
-    const draw = (node, clump, ci, g, world, alpha) => {
+    const draw = (/** @type {any} */ node, /** @type {any} */ clump, /** @type {number} */ ci, /** @type {any} */ g, /** @type {Float32Array} */ world, /** @type {number} */ alpha) => {
       const noDepth = node.depth === false;
       if (noDepth) gl.disable(gl.DEPTH_TEST);
       else gl.enable(gl.DEPTH_TEST);
@@ -236,7 +252,7 @@ export class WebGLBackend {
     };
     for (const node of scene.ordered()) {
       const worlds = clumpMatrices(node.model, node.matrix, node.pose, node.instance?.joints);
-      node.model.clumps.forEach((clump, ci) => {
+      node.model.clumps.forEach((/** @type {any} */ clump, /** @type {number} */ ci) => {
         if (node.clumpHidden[ci] || !clump.mesh.count) return;
         for (const g of clump.mesh.groups) {
           const alpha = (g.material.opacity ?? 1) * (node.clumpOpacity[ci] ?? 1);
@@ -249,7 +265,7 @@ export class WebGLBackend {
     if (late.length) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      for (const a of late) draw(...a);
+      for (const [node, clump, ci, g, world, alpha] of late) draw(node, clump, ci, g, world, alpha);
       gl.disable(gl.BLEND);
     }
     gl.depthMask(true);
@@ -261,6 +277,10 @@ export class WebGLBackend {
   // Screen-space backdrop: image at (x, y) in viewport pixels, repeated
   // horizontally when wrap is set. Drawn with a 2D canvas pass into a
   // texture once per image, then as a full-viewport quad.
+  /**
+   * @param {any} bd
+   * @param {any} vp
+   */
   backdrop(bd, vp) {
     const gl = this.gl;
     if (!this.bdProg) {
@@ -305,16 +325,23 @@ export class WebGLBackend {
   }
 }
 
+/**
+ * @param {WebGL2RenderingContext} gl
+ * @param {string} vs
+ * @param {string} fs
+ */
 function program(gl, vs, fs) {
   const p = gl.createProgram();
-  for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
-    const s = gl.createShader(type);
+  /** @type {[number, string][]} */
+  const stages = [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]];
+  for (const [type, src] of stages) {
+    const s = /** @type {WebGLShader} */ (gl.createShader(type));
     gl.shaderSource(s, src);
     gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? "");
     gl.attachShader(p, s);
   }
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? "");
   return p;
 }

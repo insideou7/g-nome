@@ -1,17 +1,26 @@
 // Handlers for fixed-size statements, as reversed from RTLIB32.DLL.
 // Each takes (vm, bytes, dataview, pos) and returns 0 to stop the script.
 // Operands are usually a u32 plus an "is a variable" flag byte.
+/** @import { VM } from "./vm.js" */
 
-const u32 = (dv, p) => dv.getUint32(p, true);
-const i32 = (dv, p) => dv.getInt32(p, true);
+
+const u32 = (/** @type {DataView} */ dv, /** @type {number} */ p) => dv.getUint32(p, true);
+const i32 = (/** @type {DataView} */ dv, /** @type {number} */ p) => dv.getInt32(p, true);
 
 // Four rectangle coordinates at p, with "is a variable" bits in `mask`,
 // normalised so left <= right and top <= bottom (0x10014fe3).
+/**
+ * @param {VM} vm
+ * @param {DataView} dv
+ * @param {number} p
+ * @param {number} mask
+ */
 function rect(vm, dv, p, mask) {
   const v = [0, 1, 2, 3].map((i) => vm.resolve(u32(dv, p + 4 * i), mask & (1 << i)) | 0);
   return { l: Math.min(v[0], v[2]), t: Math.min(v[1], v[3]), r: Math.max(v[0], v[2]), b: Math.max(v[1], v[3]) };
 }
 
+/** @type {Record<number, Statement>} */
 export const STATEMENTS = {
   // 0x0e: hover region (0x10014f69 -> 0x1000b9d8). +2 rect (variable
   // bits at +0x2c), +0x12 enter script, +0x16 its arg, +0x1a leave script,
@@ -26,7 +35,7 @@ export const STATEMENTS = {
     }
     const r = rect(vm, dv, p + 2, b[p + 0x2c]);
     const sprite = u32(dv, p + 0x22);
-    const i = e.hoverRects.findIndex((h) => (sprite ? h.sprite === sprite : h.l === r.l && h.t === r.t && h.r === r.r && h.b === r.b));
+    const i = e.hoverRects.findIndex((/** @type {any} */ h) => (sprite ? h.sprite === sprite : h.l === r.l && h.t === r.t && h.r === r.r && h.b === r.b));
     const enter = vm.resolve(u32(dv, p + 0x12), b[p + 0x28]);
     if (!enter) {
       if (i >= 0) e.hoverRects.splice(i, 1);
@@ -81,7 +90,7 @@ export const STATEMENTS = {
       return;
     }
     const r = rect(vm, dv, p + 0xe, b[p + 0x24]);
-    const i = e.clickRects.findIndex((c) => c.l === r.l && c.t === r.t && c.r === r.r && c.b === r.b);
+    const i = e.clickRects.findIndex((/** @type {any} */ c) => c.l === r.l && c.t === r.t && c.r === r.r && c.b === r.b);
     if (b[p + 0x20] || b[p + 0x1f]) {
       if (i >= 0) e.clickRects[i].off = !!b[p + 0x20];
       return;
@@ -335,6 +344,10 @@ export const STATEMENTS = {
 };
 
 // Enough of wvsprintf for the game's format strings.
+/**
+ * @param {string} fmt
+ * @param {any} args
+ */
 export function sprintf(fmt, args) {
   let i = 0;
   return fmt.replace(/%(-?)(0?)(\d*)([dius%xX])/g, (m, left, zero, width, c) => {

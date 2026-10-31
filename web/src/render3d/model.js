@@ -9,6 +9,7 @@ import { identity, mul, transformPoint } from "./math.js";
 
 // Argument kinds: f float, i int, P count-prefixed int list, s texture path
 // (only present when the int before it is not 0; NUL-terminated, padded to 4).
+/** @type {Record<number, string[]>} */
 const OPS = {
   0x1a: ["modelbegin", ""], 0x1b: ["modelend", ""],
   0x06: ["clumpbegin", ""], 0x07: ["clumpend", ""],
@@ -36,8 +37,12 @@ const OPS = {
   0x2d: ["tag", "i"],
 };
 
+/**
+ * @param {Uint8Array} bytes
+ */
 export function modelOps(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  /** @type {[string, any[]][]} */
   const ops = [];
   let p = 8;
   while (p < bytes.length) {
@@ -45,6 +50,7 @@ export function modelOps(bytes) {
     p += 4;
     const def = OPS[code];
     if (!def) throw new Error(`unknown model opcode 0x${code.toString(16)} at 0x${(p - 4).toString(16)}`);
+    /** @type {any[]} */
     const args = [];
     for (const k of def[1]) {
       if (k === "f") { args.push(dv.getFloat32(p, true)); p += 4; }
@@ -69,8 +75,11 @@ export function modelOps(bytes) {
 }
 
 // "\7thlevel\gnome\src\data\bitmaps\mesoonbl.BMP" -> "MESOONBL.BMP"
+/**
+ * @param {string} path
+ */
 export function bmpName(path) {
-  return path.split(/[\\/]/).pop().toUpperCase();
+  return (path.split(/[\\/]/).pop() ?? "").toUpperCase();
 }
 
 // Parse a model into {clumps: [{index, parent, tag, local, mesh}], roots,
@@ -79,16 +88,23 @@ export function bmpName(path) {
 // vertices per triangle), groups: [{start, count, material}]}.
 // material: {color [r,g,b] 0..1, ambient, diffuse, specular, opacity,
 // texture: upper-case BMP name or ""}.
+/**
+ * @param {any} bytes
+ */
 export function parseModel(bytes) {
+  /** @type {any} */
   const clumps = [];
   const stack = [];
+  /** @type {any} */
   let clump = null;
   let ctm = identity();
   const ctmStack = [];
+  /** @type {{ color: number[], ambient: number, diffuse: number, specular: number, opacity: number, texture: string, textureModes?: number }} */
   let mat = { color: [0.8, 0.8, 0.8], ambient: 0.3, diffuse: 0.7, specular: 0, opacity: 1, texture: "" };
+  /** @type {any} */
   let pending = null;
 
-  const begin = (parent) => {
+  const begin = (/** @type {number} */ parent) => {
     const c = { index: clumps.length, parent, tag: 0, local: ctm, verts: [], tris: [], children: [] };
     clumps.push(c);
     if (parent >= 0) clumps[parent].children.push(c.index);
@@ -100,7 +116,7 @@ export function parseModel(bytes) {
     clump.verts.push({ p, uv: pending[3] });
     pending = null;
   };
-  const face = (idx) => {
+  const face = (/** @type {any} */ idx) => {
     flush();
     if (!clump) clump = begin(-1);
     for (const i of idx) if (i < 1 || i > clump.verts.length) throw new Error(`face uses vertex ${i} of ${clump.verts.length}`);
@@ -144,9 +160,13 @@ export function parseModel(bytes) {
   const tagged = [];
   for (const c of clumps) if (c.tag) tagged[c.tag] = c.index;
   const count = new DataView(bytes.buffer, bytes.byteOffset).getUint32(4, true);
-  return { clumps, roots: clumps.filter((c) => c.parent < 0).map((c) => c.index), tagged, count };
+  return { clumps, roots: clumps.filter((/** @type {any} */ c) => c.parent < 0).map((/** @type {any} */ c) => c.index), tagged, count };
 }
 
+/**
+ * @param {any} verts
+ * @param {any} tris
+ */
 function buildMesh(verts, tris) {
   // Group triangles by material so each group is one draw.
   const byMat = new Map();
@@ -185,9 +205,13 @@ function buildMesh(verts, tris) {
 // World matrices for every clump, given the model's placement and optional
 // per-clump pose overrides (pose[i] replaces clump i's local matrix) and
 // joint matrices (RotateSubClump; joints[i] applies before the local one).
+/**
+ * @param {any} model
+ * @param {Float32Array} world
+ */
 export function clumpMatrices(model, world, pose = null, joints = null) {
   const out = new Array(model.clumps.length);
-  const visit = (i, parentM) => {
+  const visit = (/** @type {number} */ i, /** @type {number[] | Float32Array} */ parentM) => {
     const c = model.clumps[i];
     const local = (pose && pose[i]) || c.local;
     out[i] = mul(joints && joints[i] ? mul(joints[i], local) : local, parentM);
@@ -198,12 +222,15 @@ export function clumpMatrices(model, world, pose = null, joints = null) {
 }
 
 // Axis-aligned bounds of the posed model in model space.
-/** @param {any} [pose] */
+/**
+ * @param {any} [pose]
+ * @param {any} model
+ */
 export function modelBounds(model, pose = null) {
   const ms = clumpMatrices(model, identity(), pose);
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
   const p = [0, 0, 0];
-  model.clumps.forEach((c, i) => {
+  model.clumps.forEach((/** @type {any} */ c, /** @type {number} */ i) => {
     const pos = c.mesh.positions;
     for (let k = 0; k < pos.length; k += 3) {
       transformPoint(ms[i], pos[k], pos[k + 1], pos[k + 2], p);

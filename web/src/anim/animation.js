@@ -21,9 +21,15 @@
 //   host.setBob(id, v)            trigger conditions 8 and 9 write a float
 //                                 at object +0x10 (meaning unknown)
 import { Frme } from "./formats.js";
+/** @import { Engine } from "../engine.js" */
 
 // Pose a render3d ModelInstance: its pose is an array indexed by clump
 // index; frame part k moves the clump tagged k + 1.
+/**
+ * @param {any} inst
+ * @param {any} frme
+ * @param {number} f
+ */
 export function setPose(inst, frme, f) {
   if (!inst || !frme.frames) return;
   f = Math.max(0, Math.min(frme.frames - 1, f | 0));
@@ -39,22 +45,25 @@ export function setPose(inst, frme, f) {
 export const SCRIPT_SCALE = 100;
 
 // __ftol(x +/- 0.5): round half away from zero.
-const rnd = (x) => (x < 0 ? Math.ceil(x - 0.5) : Math.floor(x + 0.5));
-const ftol = (x) => Math.trunc(x);
+const rnd = (/** @type {number} */ x) => (x < 0 ? Math.ceil(x - 0.5) : Math.floor(x + 0.5));
+const ftol = (/** @type {number} */ x) => Math.trunc(x);
 
 export class AnimationSystem {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine, host = {}) {
     this.engine = engine;
     this.frmes = new Map(); // resource id -> Frme
     this.state = new Map(); // object id -> per-object animation state
     this.host = {
-      speed: (id) => engine.world?.get?.(id)?.speed ?? 0,
-      prop: (id, n) => engine.render3d?.objects.getProperty(id, n) ?? 0,
-      hasModel: (id) => !!engine.render3d?.objectModel(id),
-      applyFrame: (id, frme, f) => setPose(engine.render3d?.objectModel(id), frme, f),
-      poseModel: (model, frme, f) => setPose(engine.render3d?.instance(model), frme, f),
+      speed: (/** @type {number} */ id) => engine.world?.get?.(id)?.speed ?? 0,
+      prop: (/** @type {number} */ id, /** @type {any} */ n) => engine.render3d?.objects.getProperty(id, n) ?? 0,
+      hasModel: (/** @type {number} */ id) => !!engine.render3d?.objectModel(id),
+      applyFrame: (/** @type {number} */ id, /** @type {any} */ frme, /** @type {number} */ f) => setPose(engine.render3d?.objectModel(id), frme, f),
+      poseModel: (/** @type {any} */ model, /** @type {any} */ frme, /** @type {number} */ f) => setPose(engine.render3d?.instance(model), frme, f),
       // Conditions 8 and 9 write the object's height (+0x10 = pos.y).
-      setBob: (id, v) => {
+      setBob: (/** @type {number} */ id, /** @type {any} */ v) => {
         const o = engine.world?.get?.(id);
         if (o) o.pos[1] = v;
       },
@@ -62,6 +71,9 @@ export class AnimationSystem {
     };
   }
 
+  /**
+   * @param {number} id
+   */
   frme(id) {
     if (!id) return null;
     let f = this.frmes.get(id);
@@ -73,6 +85,9 @@ export class AnimationSystem {
   }
 
   // Object fields +0x9C..+0xBC and +0xA0..+0xB0.
+  /**
+   * @param {number} id
+   */
   obj(id) {
     let s = this.state.get(id);
     if (!s) {
@@ -91,18 +106,31 @@ export class AnimationSystem {
     return s;
   }
 
+  /**
+   * @param {number} id
+   * @param {any} s
+   */
   apply(id, s) {
     const f = this.frme(s.frmeId);
     if (f && this.host.hasModel(id)) this.host.applyFrame(id, f, ftol(rnd(s.frame)));
   }
 
+  /**
+   * @param {any} s
+   * @param {number} frmeId
+   */
   slotOfFrme(s, frmeId) {
-    const i = s.slots.findIndex((r) => r && r.frmes[0] === frmeId);
+    const i = s.slots.findIndex((/** @type {any} */ r) => r && r.frmes[0] === frmeId);
     return i + 1; // 0 if not found (0x1000b05a)
   }
 
   // FRME of `slot` for the object's LOD; when moving backwards, a slot with a
   // reverse animation plays that animation's frames instead (backwards).
+  /**
+   * @param {number} id
+   * @param {any} s
+   * @param {number} slot
+   */
   pickFrme(id, s, slot) {
     const rec = s.slots[slot - 1];
     if (this.host.speed(id) >= 0 || !rec.reverse) return rec.frmes[s.lod];
@@ -113,6 +141,10 @@ export class AnimationSystem {
   // ---------------------------------------------------------------- externs
 
   // createAnimationList(obj, n) 0x1000aadc
+  /**
+   * @param {number} id
+   * @param {number} n
+   */
   createList(id, n) {
     const s = this.obj(id);
     s.slots = new Array(Math.max(0, n)).fill(null);
@@ -121,6 +153,9 @@ export class AnimationSystem {
   }
 
   // removeAnimations(obj) 0x1000ab87
+  /**
+   * @param {number} id
+   */
   removeAll(id) {
     const s = this.obj(id);
     s.slots = [];
@@ -131,6 +166,18 @@ export class AnimationSystem {
 
   // addAnimation(obj, slot, type, frme0, frme1, frme2, stride, next,
   //              reverse, endScript) 0x1000ae57
+  /**
+   * @param {number} id
+   * @param {number} slot
+   * @param {any} type
+   * @param {any} f0
+   * @param {any} f1
+   * @param {any} f2
+   * @param {number} stride
+   * @param {any} next
+   * @param {any} reverse
+   * @param {any} endScript
+   */
   add(id, slot, type, f0, f1, f2, stride, next, reverse, endScript) {
     const s = this.obj(id);
     if (slot < 0) return 0;
@@ -147,6 +194,13 @@ export class AnimationSystem {
   }
 
   // addTrigger(obj, frme, cond, targetFrme, immediate) 0x1000b961
+  /**
+   * @param {number} id
+   * @param {number} frmeId
+   * @param {any} cond
+   * @param {any} target
+   * @param {any} immediate
+   */
   addTrigger(id, frmeId, cond, target, immediate) {
     const s = this.obj(id);
     const slot = this.slotOfFrme(s, frmeId);
@@ -158,18 +212,29 @@ export class AnimationSystem {
   }
 
   // findAnimationType(obj, type) 0x1000b0f7: 1-based slot or 0
+  /**
+   * @param {number} id
+   * @param {any} type
+   */
   findType(id, type) {
     const s = this.obj(id);
-    return s.slots.findIndex((r) => r && r.type === type) + 1;
+    return s.slots.findIndex((/** @type {any} */ r) => r && r.type === type) + 1;
   }
 
   // getCurrentAnimationType(obj) 0x1000b5c7
+  /**
+   * @param {number} id
+   */
   currentType(id) {
     const s = this.obj(id);
     return s.current ? (s.slots[s.current - 1]?.type ?? 0) : 0;
   }
 
   // installAnimation(obj, slot) 0x1000b338 (slot is 1-based)
+  /**
+   * @param {number} id
+   * @param {number} slot
+   */
   install(id, slot) {
     const s = this.obj(id);
     const rec = s.slots[slot - 1];
@@ -186,6 +251,10 @@ export class AnimationSystem {
   }
 
   // installAnimationType(obj, type) 0x1000b573
+  /**
+   * @param {number} id
+   * @param {any} type
+   */
   installType(id, type) {
     const slot = this.findType(id, type);
     if (slot) this.install(id, slot);
@@ -193,6 +262,10 @@ export class AnimationSystem {
   }
 
   // setLOD(obj, lod) 0x1000b193: same clip and frame, other FRME
+  /**
+   * @param {number} id
+   * @param {any} lod
+   */
   setLOD(id, lod) {
     const s = this.obj(id);
     s.lod = lod;
@@ -204,6 +277,11 @@ export class AnimationSystem {
   }
 
   // SetAnimation(obj, frme, stride) 0x10016538: play one FRME directly
+  /**
+   * @param {number} id
+   * @param {number} frmeId
+   * @param {number} stride
+   */
   setAnimation(id, frmeId, stride) {
     const s = this.obj(id);
     s.stride = stride / 1000;
@@ -213,12 +291,21 @@ export class AnimationSystem {
   }
 
   // SetObjectFramerate(obj, n) 0x10016b8f: n / 100 frames per second
+  /**
+   * @param {number} id
+   * @param {number} n
+   */
   setFramerate(id, n) {
     this.obj(id).rate = n / SCRIPT_SCALE;
     return 0;
   }
 
   // AnimateFrame(obj, frme, frame) 0x100105ec: show one frame
+  /**
+   * @param {number} id
+   * @param {number} frmeId
+   * @param {any} frame
+   */
   animateFrame(id, frmeId, frame) {
     const s = this.obj(id);
     s.frame = frame;
@@ -236,6 +323,10 @@ export class AnimationSystem {
   // clip for the stop and idle clips its triggers queue, which only happens
   // when the clip "ends", so this returns -ms there. Without a model the
   // original returns ms.
+  /**
+   * @param {number} id
+   * @param {number} ms
+   */
   frameTerm(id, ms) {
     const s = this.obj(id);
     const f = this.frme(s.frmeId);
@@ -253,6 +344,10 @@ export class AnimationSystem {
   }
 
   // UpdateFrameCycle(obj, ms) 0x10017b20: like frameTerm but wraps around.
+  /**
+   * @param {number} id
+   * @param {number} ms
+   */
   frameCycle(id, ms) {
     const s = this.obj(id);
     const f = this.frme(s.frmeId);
@@ -265,12 +360,20 @@ export class AnimationSystem {
     return ftol(s.frame);
   }
 
+  /**
+   * @param {any} s
+   * @param {any} f
+   */
   wrap(s, f) {
     while (rnd(s.frame) >= f.frames) s.frame -= f.frames;
     while (rnd(s.frame) < 0) s.frame += f.frames;
   }
 
   // doAnimationUpdate(obj, status) 0x1000b75a. status is frameTerm's result.
+  /**
+   * @param {number} id
+   * @param {number} status
+   */
   update(id, status) {
     const s = this.obj(id);
     if (!s.current) return 0;
@@ -296,6 +399,10 @@ export class AnimationSystem {
 
   // 0x1000b65d: the first trigger whose condition holds either switches now
   // (immediate) or queues its slot for when the clip ends.
+  /**
+   * @param {number} id
+   * @param {any} s
+   */
   checkTriggers(id, s) {
     const rec = s.slots[s.current - 1];
     for (const t of rec?.triggers ?? []) {
@@ -312,10 +419,15 @@ export class AnimationSystem {
 
   // Trigger conditions, the table at 0x10037970. v is the speed in script
   // units; properties 12, 15 and 33 are set by the unit scripts.
+  /**
+   * @param {number} id
+   * @param {any} s
+   * @param {number} cond
+   */
   condition(id, s, cond) {
     const speed = this.host.speed(id);
     const v = Math.abs(speed) * SCRIPT_SCALE;
-    const prop = (n) => this.host.prop(id, n);
+    const prop = (/** @type {number} */ n) => this.host.prop(id, n);
     switch (cond) {
       case 1: // stopped: no turn order (prop 12) and slower than prop 33 + 2
         return prop(12) === 0 && v <= prop(33) + 2 ? 1 : 0;
@@ -349,6 +461,10 @@ export class AnimationSystem {
   // What UpdateTimeStep (0x10011ec1) does for an object with an animation
   // list: ms is the time accumulated since the frame last changed. Returns
   // the value UpdateTimeStep continues with (0 = frame unchanged).
+  /**
+   * @param {number} id
+   * @param {number} ms
+   */
   timeStep(id, ms) {
     const s = this.state.get(id);
     if (!s || !s.slots.length) return ms;
@@ -359,6 +475,9 @@ export class AnimationSystem {
 
   // UpdateTimeStep recomputes the rate from the speed each step when the
   // clip has a stride (+0xB8 != 0).
+  /**
+   * @param {number} id
+   */
   syncRate(id) {
     const s = this.state.get(id);
     if (s && s.stride) s.rate = this.host.speed(id) / s.stride;
@@ -367,6 +486,10 @@ export class AnimationSystem {
 
 // The animation externs, for RenderPlugin's table. Every one takes the
 // object's resource id first, as the scripts pass it.
+/**
+ * @param {AnimationSystem} anim
+ * @returns {Externs}
+ */
 export function animationExterns(anim) {
   return {
     animationSetupProps: () => 0,

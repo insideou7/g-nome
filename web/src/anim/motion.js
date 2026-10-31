@@ -11,27 +11,31 @@
 // Units: positions and speeds in scripts are hundredths of a world unit,
 // angles hundredths of a degree, times milliseconds.
 import { SCRIPT_SCALE } from "./animation.js";
+/** @import { Engine } from "../engine.js" */
 
 const DEG = 180 / Math.PI;
-const ftol = (x) => Math.trunc(x) | 0;
+const ftol = (/** @type {number} */ x) => Math.trunc(x) | 0;
 const FLYING = new Set([181, 182]); // property 0 (class): moves along `at`
 
 // Object properties the speed code reads (obj + 0xEC + 16·slot + 4n).
 const P = { CLASS: 0, TARGET_SPEED: 12, MIN_SPEED: 33, SPEED: 34, MAX_SPEED: 35, DRAIN: 95 };
 
-const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const len = (a) => Math.hypot(a[0], a[1], a[2]);
+const sub = (/** @type {number[]} */ a, /** @type {number[]} */ b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot = (/** @type {number[]} */ a, /** @type {number[]} */ b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (/** @type {number[]} */ a, /** @type {number[]} */ b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len = (/** @type {number[]} */ a) => Math.hypot(a[0], a[1], a[2]);
 // RwNormalizeVector leaves a zero vector alone.
-const norm = (a) => {
+const norm = (/** @type {number[]} */ a) => {
   const l = len(a);
   return l > 0 ? [a[0] / l, a[1] / l, a[2] / l] : a.slice();
 };
-const clamp1 = (x) => Math.max(-1, Math.min(1, x));
-const acosDeg = (c) => Math.acos(clamp1(c)) * DEG;
+const clamp1 = (/** @type {number} */ x) => Math.max(-1, Math.min(1, x));
+const acosDeg = (/** @type {number} */ c) => Math.acos(clamp1(c)) * DEG;
 
 // The motion fields of an object, created on first use.
+/**
+ * @param {any} o
+ */
 export function motionOf(o) {
   if (!o.motion) {
     o.motion = {
@@ -51,6 +55,14 @@ export function motionOf(o) {
 // FUN_1001c460: an acceleration-limited step towards an angle. `rate` is
 // {v} (degrees/s, updated); `brake` allows slowing down so as to stop on
 // the angle. Returns the angle to turn this step.
+/**
+ * @param {number} angle
+ * @param {number | boolean} brake
+ * @param {number} accel
+ * @param {any} rate
+ * @param {number} dt
+ * @param {number} maxVel
+ */
 export function approachAngle(angle, brake, accel, rate, dt, maxVel) {
   let next = 0; // the rate after one more step of acceleration
   if (rate.v > 0) next = dt * accel + rate.v;
@@ -89,6 +101,10 @@ export function approachAngle(angle, brake, accel, rate, dt, maxVel) {
 // FUN_1001a290 (UpdateOrient; also the spin half of UpdatePosOrient and
 // UpdateTimeStep): work the pending yaw target off with the yaw rate, then
 // turn by all three rates.
+/**
+ * @param {any} o
+ * @param {number} dt
+ */
 export function spinStep(o, dt) {
   const m = motionOf(o);
   if (m.targetYaw !== 0) {
@@ -108,6 +124,10 @@ export function spinStep(o, dt) {
 
 // FUN_1001c7df: aim the yaw at direction d (only x and z count). Sets the
 // target (degrees, + turns towards `right`) for the spin step; returns 0.
+/**
+ * @param {any} o
+ * @param {number[]} d
+ */
 export function yawToward(o, d) {
   const m = motionOf(o);
   const at = o.basis.at;
@@ -125,6 +145,11 @@ export function yawToward(o, d) {
 // FUN_1001c926: pitch towards direction d by one step of dt seconds, when d
 // is ahead (at·d ≥ 0 in x/z); otherwise stop pitching. The angle is between
 // the two elevations. Returns the step in degrees.
+/**
+ * @param {any} o
+ * @param {number[]} d
+ * @param {number} dt
+ */
 export function pitchToward(o, d, dt) {
   const m = motionOf(o);
   const at = o.basis.at;
@@ -145,24 +170,38 @@ export function pitchToward(o, d, dt) {
 }
 
 // mode 1 = pitch (one step now), 2 = yaw (sets the spin step's target)
-const steer = (o, d, mode, dt) => (mode === 2 ? yawToward(o, d) : mode === 1 ? pitchToward(o, d, dt) : 0);
+const steer = (/** @type {any} */ o, /** @type {number[]} */ d, /** @type {number} */ mode, /** @type {number} */ dt) => (mode === 2 ? yawToward(o, d) : mode === 1 ? pitchToward(o, d, dt) : 0);
 
 // FUN_1001a6c5 / FUN_1001a702: velocity along `at`, or along `at` flattened
 // to the ground plane.
+/**
+ * @param {any} o
+ * @param {number} s
+ */
 function setVelForward(o, s) {
-  o.vel = o.basis.at.map((v) => v * s);
+  o.vel = o.basis.at.map((/** @type {number} */ v) => v * s);
 }
+/**
+ * @param {any} o
+ * @param {number} s
+ */
 function setVelXZ(o, s) {
   const d = norm([o.basis.at[0], 0, o.basis.at[2]]);
-  o.vel = d.map((v) => v * s);
+  o.vel = d.map((/** @type {number} */ v) => v * s);
 }
 
 // FUN_1001d51a: the direction to fly at speed s to meet a target moving at
 // vel, found by bisection on t in [0, tMax] of |target + vel·t - pos| - s·t.
 // (0, 0, 1) when there is no meeting point in that time.
+/**
+ * @param {any} pos
+ * @param {number} s
+ * @param {any} target
+ * @param {any} vel
+ */
 export function leadDirection(pos, s, target, vel, tMax = 10) {
   const rel = sub(pos, target);
-  const f = (t) => len(sub(vel.map((v) => v * t), rel)) - s * t;
+  const f = (/** @type {number} */ t) => len(sub(vel.map((/** @type {number} */ v) => v * t), rel)) - s * t;
   let lo = 0, hi = tMax;
   if (!(f(lo) > 0) || f(hi) > 0) return [0, 0, 1];
   while (hi - lo > 0.01) {
@@ -171,25 +210,29 @@ export function leadDirection(pos, s, target, vel, tMax = 10) {
     else lo = mid;
   }
   const t = (hi + lo) / 2;
-  return norm(sub(vel.map((v) => v * t), rel));
+  return norm(sub(vel.map((/** @type {number} */ v) => v * t), rel));
 }
 
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function motionExterns(engine) {
   // The battlefield's UpdatePosOrient / UpdateTimeStep use this for their spin.
   engine.spinStep = spinStep;
-  const obj = (id) => engine.world?.get?.(id) || null;
-  const prop = (id, n) => engine.render3d?.objects?.getProperty(id, n) ?? 0;
-  const setProp = (id, n, v) => engine.render3d?.objects?.setProperty(id, n, v);
-  const syncRate = (id) => engine.animation?.syncRate?.(id);
-  const dirty = (o) => (o.moved = true); // +0x54 |= 8
+  const obj = (/** @type {number} */ id) => engine.world?.get?.(id) || null;
+  const prop = (/** @type {number} */ id, /** @type {number} */ n) => engine.render3d?.objects?.getProperty(id, n) ?? 0;
+  const setProp = (/** @type {number} */ id, /** @type {number} */ n, /** @type {any} */ v) => engine.render3d?.objects?.setProperty(id, n, v);
+  const syncRate = (/** @type {number} */ id) => engine.animation?.syncRate?.(id);
+  const dirty = (/** @type {any} */ o) => (o.moved = true); // +0x54 |= 8
   const S = SCRIPT_SCALE;
 
   // DotProduct / DotProduct2D: the object's direction (`at`) against the
   // direction to the target, ×10000. Clump numbers pick a part of the model
   // when the renderer can say where it is (render3d.clumpWorld); otherwise
   // the object itself is used.
-  const clumpWorld = (id, k) => (k ? engine.render3d?.clumpWorld?.(id, k) : null);
-  const dotProduct = (flat) => (id, clump, target, tclump) => {
+  const clumpWorld = (/** @type {number} */ id, /** @type {any} */ k) => (k ? engine.render3d?.clumpWorld?.(id, k) : null);
+  const dotProduct = (/** @type {boolean} */ flat) => (/** @type {number} */ id, /** @type {any} */ clump, /** @type {any} */ target, /** @type {any} */ tclump) => {
     const o = obj(id), t = obj(target);
     if (!o || !t) return 0;
     const tp = clumpWorld(target, tclump)?.pos || t.pos;
@@ -203,11 +246,11 @@ export function motionExterns(engine) {
   };
 
   // FUN_1001cb46 / FUN_1001cc90: steer towards / away from the target.
-  const towards = (o, t, mode, dt, height = 0) => {
+  const towards = (/** @type {any} */ o, /** @type {any} */ t, /** @type {any} */ mode, /** @type {number} */ dt, height = 0) => {
     const d = [t.pos[0] - o.pos[0], t.pos[1] + height / 2 - o.pos[1], t.pos[2] - o.pos[2]];
     return Math.abs(d[0]) + Math.abs(d[2]) > 0.0001 ? steer(o, d, mode, dt) : 0;
   };
-  const away = (o, t, mode, dt) => {
+  const away = (/** @type {any} */ o, /** @type {any} */ t, /** @type {number} */ mode, /** @type {number} */ dt) => {
     const d = sub(o.pos, t.pos);
     if (!(Math.abs(d[0]) + Math.abs(d[2]) > 0.0001)) return 0;
     return mode === 2 ? yawToward(o, d) : pitchToward(o, d, dt);
@@ -215,7 +258,7 @@ export function motionExterns(engine) {
   // FUN_1001d001 (follow: keep `r` off the target's side) and FUN_1001d241
   // (circle around it at radius r): blend the direction to the target with
   // the perpendicular one; inside the radius, head out instead.
-  const blend = (d, perp, r, dist) => {
+  const blend = (/** @type {number[]} */ d, /** @type {number[]} */ perp, /** @type {number} */ r, /** @type {number} */ dist) => {
     let k = r / dist;
     if (r > dist) {
       k = dist / r;
@@ -223,7 +266,7 @@ export function motionExterns(engine) {
     }
     return [d[0] * (1 - k) + perp[0] * k, 0, d[2] * (1 - k) + perp[2] * k];
   };
-  const follow = (o, t, r) => {
+  const follow = (/** @type {any} */ o, /** @type {any} */ t, /** @type {number} */ r) => {
     let d = [t.pos[0] - o.pos[0], 0, t.pos[2] - o.pos[2]];
     const dist = Math.abs(d[0]) + Math.abs(d[2]);
     if (!(dist > 0.0001)) return 0;
@@ -232,7 +275,7 @@ export function motionExterns(engine) {
     const perp = side >= 0 ? [d[2], 0, -d[0]] : [-d[2], 0, d[0]];
     return yawToward(o, blend(d, perp, r, dist));
   };
-  const circle = (o, t, r) => {
+  const circle = (/** @type {any} */ o, /** @type {any} */ t, /** @type {number} */ r) => {
     let d = [t.pos[0] - o.pos[0], 0, t.pos[2] - o.pos[2]];
     const dist = Math.abs(d[0]) + Math.abs(d[2]);
     if (!(dist > 0.0001)) return 0;
@@ -244,7 +287,7 @@ export function motionExterns(engine) {
   // A basis looking along d with the world up (PointAt, PointAtXZ). The
   // original leaves `right` and `up` unnormalised when d is tilted, which
   // squashes the model; they are normalised here.
-  const lookAlong = (o, d) => {
+  const lookAlong = (/** @type {any} */ o, /** @type {number[]} */ d) => {
     const at = norm(d);
     const right = norm([at[2], 0, -at[0]]);
     const up = norm(cross(at, right));
@@ -252,38 +295,38 @@ export function motionExterns(engine) {
     dirty(o);
   };
 
-  const withObj = (fn, dflt = 0) => (id, ...a) => {
+  const withObj = (/** @type {any} */ fn, dflt = 0) => (/** @type {number} */ id, /** @type {any} */ ...a) => {
     const o = obj(id);
     return o ? fn(o, ...a) : dflt;
   };
-  const withTwo = (fn) => (id, target, ...a) => {
+  const withTwo = (/** @type {any} */ fn) => (/** @type {number} */ id, /** @type {any} */ target, /** @type {any} */ ...a) => {
     const o = obj(id), t = obj(target);
     return o && t ? fn(o, t, ...a) : 0;
   };
 
   return {
     // --- speed ----------------------------------------------------------
-    SetVelocityForward: withObj((o, v) => {
+    SetVelocityForward: withObj((/** @type {any} */ o, /** @type {number} */ v) => {
       motionOf(o).xz = false;
       o.speed = v / S;
       setVelForward(o, o.speed);
       syncRate(o.id);
       return 1;
     }),
-    SetVelocityXZ: withObj((o, v) => {
+    SetVelocityXZ: withObj((/** @type {any} */ o, /** @type {number} */ v) => {
       motionOf(o).xz = true;
       o.speed = v / S;
       setVelXZ(o, o.speed);
       return 1;
     }),
-    GetVelocityForward: withObj((o) => ftol(o.speed * S)),
-    SetMaxAccel: withObj((o, v) => ((motionOf(o).maxAccel = v / S), 1)),
+    GetVelocityForward: withObj((/** @type {any} */ o) => ftol(o.speed * S)),
+    SetMaxAccel: withObj((/** @type {any} */ o, /** @type {number} */ v) => ((motionOf(o).maxAccel = v / S), 1)),
     // SetMaxAngularAccel(obj, roll, pitch, yaw) / SetMaxAngularVelocity
-    SetMaxAngularAccel: withObj((o, roll, pitch, yaw) => {
+    SetMaxAngularAccel: withObj((/** @type {any} */ o, /** @type {number} */ roll, /** @type {number} */ pitch, /** @type {number} */ yaw) => {
       motionOf(o).maxAngAccel = { pitch: pitch / 100, yaw: yaw / 100, roll: roll / 100 };
       return 1;
     }),
-    SetMaxAngularVelocity: withObj((o, roll, pitch, yaw) => {
+    SetMaxAngularVelocity: withObj((/** @type {any} */ o, /** @type {number} */ roll, /** @type {number} */ pitch, /** @type {number} */ yaw) => {
       motionOf(o).maxAngVel = { pitch: pitch / 100, yaw: yaw / 100, roll: roll / 100 };
       return 1;
     }),
@@ -298,7 +341,7 @@ export function motionExterns(engine) {
     // 12 (target speed), never slower than property 33 while animated and
     // moving; property 34 gets the new speed. Returns minus a "drain" cost:
     // property 95 × |target| × 7 (5 once there) / (property 35 × 10).
-    ApproachTargetSpeed: withObj((o, ms) => {
+    ApproachTargetSpeed: withObj((/** @type {any} */ o, /** @type {number} */ ms) => {
       const id = o.id;
       const m = motionOf(o);
       const cur = o.speed;
@@ -309,7 +352,7 @@ export function motionExterns(engine) {
       if (Math.abs(target) < min && animated && cur !== 0) target = target < 0 || (target === 0 && cur < 0) ? -min : min;
       let v = target / S;
       const maxSpeed = prop(id, P.MAX_SPEED);
-      const drain = (k) => (maxSpeed ? Math.trunc((prop(id, P.DRAIN) * Math.abs(target) * k) / (maxSpeed * 10)) : 0);
+      const drain = (/** @type {number} */ k) => (maxSpeed ? Math.trunc((prop(id, P.DRAIN) * Math.abs(target) * k) / (maxSpeed * 10)) : 0);
       if (Math.abs(v - cur) >= 0.0001) {
         let shown = target;
         if (v <= cur) {
@@ -340,17 +383,17 @@ export function motionExterns(engine) {
     // --- steering -------------------------------------------------------
     // MoveToPursue(obj, target, mode, heightProp, ms): head for the target;
     // with SetGroundFlag on, aim half the target's height property above it.
-    MoveToPursue: withTwo((o, t, mode, heightProp, ms) => {
+    MoveToPursue: withTwo((/** @type {any} */ o, /** @type {any} */ t, /** @type {any} */ mode, /** @type {any} */ heightProp, /** @type {number} */ ms) => {
       const h = engine.world?.groundFlag ? prop(t.id, heightProp) / 1000 : 0;
       dirty(o);
       return ftol(towards(o, t, mode, ms / 1000, h) * 100);
     }),
-    MoveToEvade: withTwo((o, t, mode, ms) => (dirty(o), ftol(away(o, t, mode, ms / 1000) * 100))),
+    MoveToEvade: withTwo((/** @type {any} */ o, /** @type {any} */ t, /** @type {any} */ mode, /** @type {number} */ ms) => (dirty(o), ftol(away(o, t, mode, ms / 1000) * 100))),
     // MoveToFollow / MoveInCircle(obj, target, radius, mode): yaw only.
-    MoveToFollow: withTwo((o, t, r, mode) => (dirty(o), mode === 2 ? ftol(follow(o, t, r / S) * 100) : 0)),
-    MoveInCircle: withTwo((o, t, r, mode) => (dirty(o), mode === 2 ? ftol(circle(o, t, r / S) * 100) : 0)),
+    MoveToFollow: withTwo((/** @type {any} */ o, /** @type {any} */ t, /** @type {number} */ r, /** @type {number} */ mode) => (dirty(o), mode === 2 ? ftol(follow(o, t, r / S) * 100) : 0)),
+    MoveInCircle: withTwo((/** @type {any} */ o, /** @type {any} */ t, /** @type {number} */ r, /** @type {number} */ mode) => (dirty(o), mode === 2 ? ftol(circle(o, t, r / S) * 100) : 0)),
     // MoveToParallel(obj, target, mode, ms): turn to fly the target's way.
-    MoveToParallel: withTwo((o, t, mode, ms) => {
+    MoveToParallel: withTwo((/** @type {any} */ o, /** @type {any} */ t, /** @type {number} */ mode, /** @type {number} */ ms) => {
       const d = t.basis.at.slice();
       let r = 0;
       if (mode === 1) {
@@ -378,7 +421,7 @@ export function motionExterns(engine) {
     // SetTargetAxis(obj, dir, axis, ms): ramp the pitch (axis 1) or yaw
     // (axis 2) rate towards dir × the maximum, braking 4× as hard; dir 0
     // brakes to a stop. Does nothing while a yaw target is pending.
-    SetTargetAxis: withObj((o, dir, axis, ms) => {
+    SetTargetAxis: withObj((/** @type {any} */ o, /** @type {number} */ dir, /** @type {number} */ axis, /** @type {number} */ ms) => {
       const m = motionOf(o);
       if (m.targetYaw !== 0 && dir === 0) return 0;
       const key = axis === 1 ? "pitch" : axis === 2 ? "yaw" : null;
@@ -387,13 +430,13 @@ export function motionExterns(engine) {
       return 0;
     }),
     // SetTargetAxisAngle(obj, angle, axis): only the yaw (axis 2) has one.
-    SetTargetAxisAngle: withObj((o, a, axis) => {
+    SetTargetAxisAngle: withObj((/** @type {any} */ o, /** @type {number} */ a, /** @type {number} */ axis) => {
       if (axis === 2) motionOf(o).targetYaw = a / 100;
       return 0;
     }),
     // SetTargetTwist(obj, dir, ms): the same ramp for the twist rate, while
     // no twist angle is pending. Returns this step's twist ×100.
-    SetTargetTwist: withObj((o, dir, ms) => {
+    SetTargetTwist: withObj((/** @type {any} */ o, /** @type {number} */ dir, /** @type {number} */ ms) => {
       const m = motionOf(o);
       if (m.twistLeft !== 0 || (m.twistRate === 0 && dir === 0)) return 0;
       m.twistRate = rampRate(m.twistRate, dir, m.maxAngAccel.yaw, m.maxAngVel.yaw, ms);
@@ -401,7 +444,7 @@ export function motionExterns(engine) {
     }),
     // SetTargetTwistAngle(obj, angle, prop): twist still to go = angle −
     // property `prop` (the current twist). Returns it ×100.
-    SetTargetTwistAngle: withObj((o, a, p) => {
+    SetTargetTwistAngle: withObj((/** @type {any} */ o, /** @type {number} */ a, /** @type {any} */ p) => {
       const m = motionOf(o);
       m.twistLeft = a / 100 - prop(o.id, p) / 100;
       return ftol(m.twistLeft * 100);
@@ -409,7 +452,7 @@ export function motionExterns(engine) {
     // StepTwist(obj, ms, twistProp, limitProp): one step of the pending
     // twist, kept within ±limit (unless the limit is 180° or more). Returns
     // the step ×100 for the script to add to its twist property.
-    StepTwist: withObj((o, ms, pTwist, pLimit) => {
+    StepTwist: withObj((/** @type {any} */ o, /** @type {number} */ ms, /** @type {any} */ pTwist, /** @type {any} */ pLimit) => {
       const m = motionOf(o);
       if (m.twistLeft === 0) return 0;
       const cur = prop(o.id, pTwist) / 100;
@@ -439,19 +482,19 @@ export function motionExterns(engine) {
     }),
 
     // --- orientation and position ---------------------------------------
-    PointAt: withTwo((o, t, heightProp) => {
+    PointAt: withTwo((/** @type {any} */ o, /** @type {any} */ t, /** @type {any} */ heightProp) => {
       const d = sub(t.pos, o.pos);
       if (engine.world?.groundFlag) d[1] += prop(t.id, heightProp) / 2000;
       lookAlong(o, d);
       return 1;
     }),
-    PointAtXZ: withTwo((o, t) => {
+    PointAtXZ: withTwo((/** @type {any} */ o, /** @type {any} */ t) => {
       lookAlong(o, [t.pos[0] - o.pos[0], 0, t.pos[2] - o.pos[2]]);
       return 1;
     }),
     // SetObjectDirection(obj, x, y, z): at = (x, y, z) / 100 as given (not
     // normalised); right = up × at with the world up, up = at × right.
-    SetObjectDirection: withObj((o, x, y, z) => {
+    SetObjectDirection: withObj((/** @type {any} */ o, /** @type {number} */ x, /** @type {number} */ y, /** @type {number} */ z) => {
       const at = [x / S, y / S, z / S];
       const right = cross([0, 1, 0], at);
       const up = cross(at, right);
@@ -459,9 +502,9 @@ export function motionExterns(engine) {
       dirty(o);
       return 1;
     }),
-    ObjectDistance: withTwo((o, t) => ftol(len(sub(t.pos, o.pos)) * S)),
+    ObjectDistance: withTwo((/** @type {any} */ o, /** @type {any} */ t) => ftol(len(sub(t.pos, o.pos)) * S)),
     // ObjectMoveForwardUp(obj, forward, up): step along `at`, then up.
-    ObjectMoveForwardUp: withObj((o, fwd, up) => {
+    ObjectMoveForwardUp: withObj((/** @type {any} */ o, /** @type {number} */ fwd, /** @type {number} */ up) => {
       const at = norm(o.basis.at);
       const p = [o.pos[0] + at[0] * (fwd / 100), o.pos[1] + at[1] * (fwd / 100) + up / 100, o.pos[2] + at[2] * (fwd / 100)];
       if (o.setPosition) o.setPosition(p);
@@ -471,12 +514,12 @@ export function motionExterns(engine) {
       }
       return 1;
     }),
-    UpdateOrient: withObj((o, ms) => {
+    UpdateOrient: withObj((/** @type {any} */ o, /** @type {number} */ ms) => {
       dirty(o);
       spinStep(o, ms / 1000);
       return 1;
     }),
-    UpdatePos: withObj((o, ms) => {
+    UpdatePos: withObj((/** @type {any} */ o, /** @type {number} */ ms) => {
       if (o.speed !== 0) dirty(o);
       o.move(ms / 1000);
       return 1;
@@ -503,6 +546,13 @@ export function motionExterns(engine) {
 // SetTargetAxis / SetTargetTwist (0x10016dd9, 0x1001714a): ramp a rate
 // towards dir × maxVel by accel per second (×4 when braking, a 1/100 nudge
 // from rest); dir 0 brakes towards 0.
+/**
+ * @param {number} rate
+ * @param {number} dir
+ * @param {number} accel
+ * @param {number} maxVel
+ * @param {number} ms
+ */
 export function rampRate(rate, dir, accel, maxVel, ms) {
   const dt = ms / 1000;
   const brake = accel * 4;

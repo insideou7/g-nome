@@ -12,6 +12,9 @@ import { compose, identity, invert } from "./math.js";
 // material}]} where start/count index `indices` (or vertices when there are
 // no indices). material: {texture: Texture | BMP name | null,
 // color: [r, g, b] (0..1), opacity, ambient, diffuse}.
+/**
+ * @param {any} spec
+ */
 export function meshModel(spec) {
   const idx = spec.indices;
   const n = idx ? idx.length : spec.positions.length / 3;
@@ -23,7 +26,7 @@ export function meshModel(spec) {
     if (spec.normals) normals.set(spec.normals.subarray(v * 3, v * 3 + 3), i * 3);
   }
   if (!spec.normals) flatNormals(positions, normals);
-  const groups = (spec.groups || [{ start: 0, count: n, material: {} }]).map((g) => ({
+  const groups = (spec.groups || [{ start: 0, count: n, material: {} }]).map((/** @type {any} */ g) => ({
     start: g.start, count: g.count,
     material: { color: [1, 1, 1], ambient: 1, diffuse: 0, specular: 0, opacity: 1, texture: "", ...g.material },
   }));
@@ -31,6 +34,10 @@ export function meshModel(spec) {
   return { clumps: [clump], roots: [0], tagged: [], count: 0 };
 }
 
+/**
+ * @param {ArrayLike<number>} p
+ * @param {number[] | Float32Array} out
+ */
 function flatNormals(p, out) {
   for (let i = 0; i + 8 < p.length; i += 9) {
     const ux = p[i + 3] - p[i], uy = p[i + 4] - p[i + 1], uz = p[i + 5] - p[i + 2];
@@ -50,6 +57,11 @@ function flatNormals(p, out) {
 export class SceneNode {
   // `source`: a model (loadModel, createMesh) or a ModelInstance (a model
   // copy used by a script object), whose per-clump state the node shares.
+  /**
+   * @param {any} scene
+   * @param {any} source
+   * @param {any} t
+   */
   constructor(scene, source, t) {
     this.scene = scene;
     const inst = source.model ? source : null;
@@ -75,11 +87,14 @@ export class SceneNode {
   //   {position: [x, y, z], yaw, pitch, roll, scale}
   // The matrix layout is RenderWare's row-vector matrix, which is the same
   // memory as a column-major OpenGL matrix: translation in elements 12-14.
+  /**
+   * @param {any} t
+   */
   setTransform(t) {
     if (t instanceof Float32Array) this.matrix = t;
     else if (t.matrix) this.matrix = Float32Array.from(t.matrix);
     else if (t.position || t.yaw !== undefined || t.pitch !== undefined || t.roll !== undefined || t.scale !== undefined) this.matrix = compose(t);
-    for (const k of ["visible", "level", "depth", "distance"]) if (t[k] !== undefined) this[k] = t[k];
+    for (const k of ["visible", "level", "depth", "distance"]) if (t[k] !== undefined) /** @type {any} */ (this)[k] = t[k];
     return this;
   }
   remove() {
@@ -96,6 +111,10 @@ export class Scene {
     // no ambient light; see materialLight.
     this.lights = [];
   }
+  /**
+   * @param {any} model
+   * @param {any} [t]
+   */
   add(model, t) {
     const n = new SceneNode(this, model, t);
     this.nodes.add(n);
@@ -112,9 +131,12 @@ export class Scene {
 }
 
 // Colours may be given as 0..1 or 0..255.
+/**
+ * @param {any} c
+ */
 export function rgb01(c) {
   if (!c) return c;
-  return c.some((v) => v > 1) ? c.map((v) => v / 255) : c;
+  return c.some((/** @type {number} */ v) => v > 1) ? c.map((/** @type {number} */ v) => v / 255) : c;
 }
 
 // How a material takes light, as RWL20.DLL's lighting (FUN_1000c4b0 /
@@ -127,6 +149,10 @@ export function rgb01(c) {
 // A texture is unlit (full brightness) when its TextureModes lack the lit
 // bit. RwCreateMaterial starts with TextureModes 1 (lit), so a texture with no
 // TextureModes op is lit.
+/**
+ * @param {any} mat
+ * @param {boolean} textured
+ */
 export function materialLight(mat, textured) {
   const unlit = !!textured && !((mat.textureModes ?? 1) & 1);
   return { unlit, ka: mat.ambient ?? 0, kd: mat.diffuse ?? 0, ks: mat.specular ?? 0 };
@@ -142,6 +168,9 @@ export const SPECULAR_MIN = 0.7;
 // Returns [{type: 1 directional | 2 point | 3 conical, color [r,g,b] 0..1,
 //   dir [x,y,z] towards the light (directional) or the way the cone points,
 //   pos [x,y,z], radius, cosCone}].
+/**
+ * @param {any} scene
+ */
 export function activeLights(scene) {
   const out = [];
   for (const l of scene.lights) {
@@ -158,6 +187,15 @@ export function activeLights(scene) {
 // Light reaching a point p with unit normal n from the active lights
 // (diffuse and specular weights applied), added into `out` (3 floats).
 // `twoSided`: light either face (|N.L|), see CULL in soft.js.
+/**
+ * @param {number[]} out
+ * @param {any} lights
+ * @param {number[]} n
+ * @param {number[]} p
+ * @param {number} kd
+ * @param {number} ks
+ * @param {boolean} twoSided
+ */
 export function addLights(out, lights, n, p, kd, ks, twoSided) {
   for (const L of lights) {
     let d;
@@ -177,6 +215,10 @@ export function addLights(out, lights, n, p, kd, ks, twoSided) {
   return out;
 }
 
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 function cross(a, b) {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
@@ -187,11 +229,15 @@ export class Camera {
     this.yaw = 0;
     this.pitch = 0;
     this.roll = 0;
+    /** @type {Float32Array | null} */
     this.matrix = null; // camera-to-world; overrides everything below
     // RenderWare look vectors (optional; override yaw/pitch/roll). `right`
     // is at x up, which is -X of the camera: screen right.
+    /** @type {any} */
     this.at = null;
+    /** @type {any} */
     this.up = null;
+    /** @type {number[] | null} */
     this.right = null;
     // Half width and height of the view at distance 1 (RwSetCameraViewwindow).
     this.viewwindow = [0.5, 0.375];
@@ -199,6 +245,7 @@ export class Camera {
     this.far = 1000;
     // {start, end, color} or RenderWare style {depth, color}: linear fog
     // from `depth` to the far plane. Colours 0..1 or 0..255.
+    /** @type {any} */
     this.fog = null;
     this.background = null; // [r, g, b], or null for transparent
     // {image (ImageData or canvas), x, y, wrap}: blitted in viewport pixels
@@ -207,6 +254,10 @@ export class Camera {
   }
   // RwSetCameraViewwindow takes the half width; set the height from the
   // viewport's aspect ratio as RenderToBitmap does.
+  /**
+   * @param {number} halfWidth
+   * @param {number} aspect
+   */
   setViewwindow(halfWidth, aspect) {
     this.viewwindow = [halfWidth, halfWidth / aspect];
   }

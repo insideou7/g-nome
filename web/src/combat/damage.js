@@ -29,10 +29,13 @@ export function crand() {
 
 // Give an instance its own model record, so cutting it doesn't change other
 // copies of the same model.
+/**
+ * @param {any} inst
+ */
 function own(inst) {
   if (!inst.ownModel) {
     const m = inst.model;
-    inst.model = { ...m, clumps: m.clumps.map((c) => ({ ...c, children: c.children.slice() })), roots: m.roots.slice(), tagged: m.tagged.slice() };
+    inst.model = { ...m, clumps: m.clumps.map((/** @type {any} */ c) => ({ ...c, children: c.children.slice() })), roots: m.roots.slice(), tagged: m.tagged.slice() };
     inst.ownModel = true;
   }
   return inst.model;
@@ -40,9 +43,14 @@ function own(inst) {
 
 // Clump i and everything under it, parents first (RwForAllClumpsInHierarchy
 // order).
+/**
+ * @param {any} model
+ * @param {number} i
+ */
 function subtree(model, i) {
+  /** @type {any} */
   const out = [];
-  const visit = (k) => {
+  const visit = (/** @type {number} */ k) => {
     out.push(k);
     for (const c of model.clumps[k].children) visit(c);
   };
@@ -52,16 +60,20 @@ function subtree(model, i) {
 
 // RwRemoveChildFromClump plus FUN_100073fe: take clump i (and its children)
 // out of the instance's model and forget their tags.
+/**
+ * @param {any} inst
+ * @param {number} i
+ */
 function detach(inst, i) {
   const m = own(inst);
   const c = m.clumps[i];
   if (c.parent >= 0) {
     const p = m.clumps[c.parent];
-    m.clumps[c.parent] = { ...p, children: p.children.filter((k) => k !== i) };
+    m.clumps[c.parent] = { ...p, children: p.children.filter((/** @type {number} */ k) => k !== i) };
   }
-  m.roots = m.roots.filter((k) => k !== i);
+  m.roots = m.roots.filter((/** @type {number} */ k) => k !== i);
   const gone = subtree(m, i);
-  m.tagged = m.tagged.map((k) => (gone.includes(k) ? undefined : k));
+  m.tagged = m.tagged.map((/** @type {any} */ k) => (gone.includes(k) ? undefined : k));
   // The renderers draw every clump of a model, so hide the ones that left.
   for (const k of gone) inst.clumpHidden[k] = true;
 }
@@ -72,31 +84,45 @@ function detach(inst, i) {
 // original fills the new model's clump table that way). `alone`: the clump
 // without its children. The record holds only these clumps (the renderers
 // draw every clump of a model).
+/**
+ * @param {any} inst
+ * @param {number} i
+ * @param {boolean} alone
+ */
 function pieceModel(inst, i, alone) {
   const m = inst.model;
   const order = alone ? [i] : subtree(m, i);
-  const index = new Map(order.map((k, n) => [k, n]));
-  const clumps = order.map((k, n) => {
+  const index = new Map(order.map((/** @type {any} */ k, /** @type {any} */ n) => [k, n]));
+  const clumps = order.map((/** @type {number} */ k, /** @type {any} */ n) => {
     const c = m.clumps[k];
     return {
       ...c,
       index: n,
       parent: k === i ? -1 : index.get(c.parent),
       local: k === i ? identity() : (inst.pose && inst.pose[k]) || c.local,
-      children: alone ? [] : c.children.map((x) => index.get(x)),
+      children: alone ? [] : c.children.map((/** @type {number} */ x) => index.get(x)),
     };
   });
+  /** @type {number[]} */
   const tagged = [];
-  order.forEach((_, n) => (tagged[n + 1] = n));
+  order.forEach((/** @type {any} */ _, /** @type {number} */ n) => (tagged[n + 1] = n));
   return { ...m, clumps, roots: [0], tagged, count: order.length };
 }
 
 // The world matrix of every clump of an object's model.
+/**
+ * @param {any} o
+ * @param {any} inst
+ */
 function worldClumps(o, inst) {
   return clumpMatrices(inst.model, modelMatrix(o.basis, o.pos), inst.pose);
 }
 
 // RwGetClumpBBox: the box around a clump's own vertices, in world space.
+/**
+ * @param {any} c
+ * @param {number[]} m
+ */
 function worldBox(c, m) {
   const p = c.mesh?.positions;
   if (!p || !p.length) return null;
@@ -113,6 +139,11 @@ function worldBox(c, m) {
 }
 
 // Slab test: does the segment a -> b touch the box?
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {{ lo: number[], hi: number[] }} box
+ */
 export function segmentHitsBox(a, b, { lo, hi }) {
   let t0 = 0, t1 = 1;
   for (let j = 0; j < 3; j++) {
@@ -130,15 +161,19 @@ export function segmentHitsBox(a, b, { lo, hi }) {
   return true;
 }
 
-const rows = (m) => ({ right: [m[0], m[1], m[2]], up: [m[4], m[5], m[6]], at: [m[8], m[9], m[10]] });
+const rows = (/** @type {any} */ m) => ({ right: [m[0], m[1], m[2]], up: [m[4], m[5], m[6]], at: [m[8], m[9], m[10]] });
 
+/**
+ * @param {any} host
+ * @returns {Externs}
+ */
 export function damageExterns(host) {
   const engine = host.engine;
 
   // A new object (FUN_100295c6 slot + RtDynamicResource) carrying clump i of
   // `inst`, at that clump's place in the world. Updates every `interval` ms
   // with `script` (behaviour 6), as a copy of `parentId`.
-  const spawnPiece = (parentId, inst, i, m, interval, script, alone = false) => {
+  const spawnPiece = (/** @type {number} */ parentId, /** @type {any} */ inst, /** @type {number} */ i, /** @type {number[]} */ m, /** @type {any} */ interval, /** @type {number} */ script, alone = false) => {
     const r3d = host.r3d, world = host.world;
     const id = engine.copyResource(parentId);
     const modelId = engine.copyResource(inst.id);
@@ -225,14 +260,14 @@ export function damageExterns(host) {
       const m = inst.model;
       const i = k ? inst.clump(k) : m.roots[0];
       if (i === undefined || i < 0) return 0;
-      let tags = subtree(m, i).map((c) => m.clumps[c].tag | 0);
+      let tags = subtree(m, i).map((/** @type {number} */ c) => m.clumps[c].tag | 0);
       if (!k) {
         if (tags.length === 1) return 0;
-        tags = tags.filter((t) => t);
+        tags = tags.filter((/** @type {any} */ t) => t);
       }
       const list = host.extern("ListCreate")(tags.length);
       const set = host.extern("ListSetElem");
-      tags.forEach((t, n) => set(list, n, t));
+      tags.forEach((/** @type {any} */ t, /** @type {any} */ n) => set(list, n, t));
       return list;
     },
 
@@ -246,7 +281,7 @@ export function damageExterns(host) {
       if (!k) {
         const old = inst.model, s = src.model;
         const root = s.roots[0];
-        inst.model = { ...s, clumps: s.clumps.map((c) => ({ ...c, children: c.children.slice() })), roots: s.roots.slice(), tagged: s.tagged.slice() };
+        inst.model = { ...s, clumps: s.clumps.map((/** @type {any} */ c) => ({ ...c, children: c.children.slice() })), roots: s.roots.slice(), tagged: s.tagged.slice() };
         if (root !== undefined && old.roots[0] !== undefined) inst.model.clumps[root].local = old.clumps[old.roots[0]].local;
         inst.ownModel = true;
         return 0;

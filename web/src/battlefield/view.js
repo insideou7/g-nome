@@ -9,8 +9,12 @@
 // order instead of z-fighting.
 import { modelMatrix, dot, sub } from "./math.js";
 import { backdropPlacement } from "./camera.js";
+/** @import { World } from "./world.js" */
 
 export class BattleView {
+  /**
+   * @param {World} world
+   */
   constructor(world) {
     this.world = world;
     this.handles = new Map(); // object id -> scene handle
@@ -23,6 +27,9 @@ export class BattleView {
     return this.world.engine.render3d || null;
   }
 
+  /**
+   * @param {any} o
+   */
   drop(o) {
     const h = this.handles.get(o.id);
     if (h) h.remove();
@@ -61,6 +68,7 @@ export class BattleView {
       }
       h.textureFrame = o.textureFrame ?? inst?.textureFrame ?? 0;
       const p = w.pose(o.id);
+      if (!p) continue;
       const d = sub(p.pos, pose.pos);
       h.setTransform({
         matrix: modelMatrix(p.basis, p.pos),
@@ -99,6 +107,10 @@ export class BattleView {
     return r3d.render(this.scene, camera, { ...vp, clip: { x: clip.x, y: clip.y, width: clip.w, height: clip.h }, canvasWidth: cam.width, canvasHeight: cam.height });
   }
 
+  /**
+   * @param {any} pose
+   * @param {any} vp
+   */
   backdrop(pose, vp) {
     const b = this.world.camera.backdrop;
     if (!b) return null;

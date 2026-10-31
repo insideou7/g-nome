@@ -7,13 +7,18 @@
 // When the last frame plays (and `loop` is 0), or on SmackerUnload, the
 // plugin runs `endScript(endArg)` through RtRunMsg.
 import { SmackerFile } from "../smacker.js";
+/** @import { Engine } from "../engine.js" */
 
 export class SmackerPlugin {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.name = "smacker";
     this.movie = null;
     const self = this;
+    /** @type {Externs} */
     this.externs = {
       SmackerSetupView() {
         return 1;
@@ -39,6 +44,12 @@ export class SmackerPlugin {
     };
   }
 
+  /**
+   * @param {string} name
+   * @param {number} endScript
+   * @param {number} endArg
+   * @param {number} loop
+   */
   play(name, endScript, endArg, loop) {
     const e = this.engine;
     e.log(`smacker: play ${name} (then script ${endScript}(${endArg}))`);
@@ -46,13 +57,14 @@ export class SmackerPlugin {
       e.log(`smacker: ${name} not found`);
       return 0;
     }
-    const movie = { name, endScript, endArg, loop, smk: /** @type {SmackerFile | null} */ (null), clock: 0, shown: -1 };
+    const movie = { name, endScript, endArg, loop, smk: /** @type {SmackerFile | null} */ (null), clock: 0, shown: -1,
+      audioStart: /** @type {number | undefined} */ (undefined) };
     this.movie = movie;
-    e.files.read(name).then((bytes) => {
+    e.files.read(name).then((/** @type {Uint8Array} */ bytes) => {
       if (this.movie !== movie) return;
       movie.smk = new SmackerFile(bytes);
       movie.audioStart = e.audio?.now();
-    }).catch((err) => {
+    }).catch((/** @type {any} */ err) => {
       e.log(`smacker: ${name}: ${err.message}`);
       if (this.movie === movie) this.finish();
     });
@@ -60,6 +72,9 @@ export class SmackerPlugin {
   }
 
   // Called by the engine every tick.
+  /**
+   * @param {number} ms
+   */
   service(ms) {
     const m = this.movie;
     if (!m || !m.smk) return;
@@ -83,6 +98,9 @@ export class SmackerPlugin {
     }
   }
 
+  /**
+   * @param {any} f
+   */
   draw(f) {
     const d = this.engine.display;
     const smk = this.movie?.smk;

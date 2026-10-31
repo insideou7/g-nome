@@ -9,6 +9,10 @@ export function identity() {
 }
 
 // a * b (apply a first, then b).
+/**
+ * @param {number[] | Float32Array} a
+ * @param {number[] | Float32Array} b
+ */
 export function mul(a, b, out = new Float32Array(16)) {
   const r = new Float32Array(16);
   for (let i = 0; i < 4; i++)
@@ -18,6 +22,11 @@ export function mul(a, b, out = new Float32Array(16)) {
   return out;
 }
 
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ */
 export function translation(x, y, z) {
   const m = identity();
   m[12] = x;
@@ -26,6 +35,11 @@ export function translation(x, y, z) {
   return m;
 }
 
+/**
+ * @param {number} x
+ * @param {number} [y]
+ * @param {number} [z]
+ */
 export function scaling(x, y = x, z = x) {
   const m = identity();
   m[0] = x;
@@ -37,16 +51,25 @@ export function scaling(x, y = x, z = x) {
 const RAD = Math.PI / 180;
 
 // Rotation about one axis, for row vectors.
+/**
+ * @param {number} deg
+ */
 export function rotX(deg) {
   const c = Math.cos(deg * RAD), s = Math.sin(deg * RAD), m = identity();
   m[5] = c; m[6] = s; m[9] = -s; m[10] = c;
   return m;
 }
+/**
+ * @param {number} deg
+ */
 export function rotY(deg) {
   const c = Math.cos(deg * RAD), s = Math.sin(deg * RAD), m = identity();
   m[0] = c; m[2] = -s; m[8] = s; m[10] = c;
   return m;
 }
+/**
+ * @param {number} deg
+ */
 export function rotZ(deg) {
   const c = Math.cos(deg * RAD), s = Math.sin(deg * RAD), m = identity();
   m[0] = c; m[1] = s; m[4] = -s; m[5] = c;
@@ -55,7 +78,7 @@ export function rotZ(deg) {
 
 // Object placement: scale, roll (Z), pitch (X), yaw (Y), then translate.
 export function compose({ position = [0, 0, 0], yaw = 0, pitch = 0, roll = 0, scale = 1 } = {}) {
-  const s = Array.isArray(scale) ? scaling(...scale) : scaling(scale);
+  const s = Array.isArray(scale) ? scaling(scale[0], scale[1], scale[2]) : scaling(scale);
   let m = mul(s, rotZ(roll));
   m = mul(m, rotX(pitch));
   m = mul(m, rotY(yaw));
@@ -66,6 +89,9 @@ export function compose({ position = [0, 0, 0], yaw = 0, pitch = 0, roll = 0, sc
 }
 
 // Inverse of a rigid transform (rotation + translation, any uniform scale).
+/**
+ * @param {any} m
+ */
 export function invert(m) {
   const inv = new Float32Array(16);
   const a = m;
@@ -97,6 +123,13 @@ export function invert(m) {
   return inv;
 }
 
+/**
+ * @param {number[] | Float32Array} m
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {number[]} out
+ */
 export function transformPoint(m, x, y, z, out, o = 0) {
   out[o] = x * m[0] + y * m[4] + z * m[8] + m[12];
   out[o + 1] = x * m[1] + y * m[5] + z * m[9] + m[13];
@@ -104,6 +137,13 @@ export function transformPoint(m, x, y, z, out, o = 0) {
   return out;
 }
 
+/**
+ * @param {number[]} m
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {number[]} out
+ */
 export function transformDir(m, x, y, z, out, o = 0) {
   out[o] = x * m[0] + y * m[4] + z * m[8];
   out[o + 1] = x * m[1] + y * m[5] + z * m[9];

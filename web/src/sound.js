@@ -6,6 +6,9 @@ const STEPS = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 
 const ADJUST = [-1, -1, -1, -1, 2, 4, 6, 8];
 
 // Returns {channels, rate, samples: Int16Array (interleaved)}.
+/**
+ * @param {any} bytes
+ */
 export function decodeSound(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const size = dv.getUint32(0, true);
@@ -27,10 +30,14 @@ export function decodeSound(bytes) {
   return { channels, rate, samples: s };
 }
 
+/**
+ * @param {any} body
+ * @param {number} channels
+ */
 function adpcm(body, channels) {
   const out = new Int16Array(body.length * 2);
   const sample = [0, 0], index = [0, 0];
-  const step = (ch, nib) => {
+  const step = (/** @type {number} */ ch, /** @type {number} */ nib) => {
     const st = STEPS[index[ch]];
     let d = st >> 3;
     if (nib & 4) d += st;

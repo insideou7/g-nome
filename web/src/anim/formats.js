@@ -8,14 +8,17 @@
 
 export const IDENTITY = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
-const view = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
-const tag4 = (dv) => String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
+const view = (/** @type {Uint8Array} */ b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
+const tag4 = (/** @type {DataView} */ dv) => String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
 
 // FRME: "FRME", u32 parts, u32 frames, u32 0, then frames x parts joint
 // matrices of 12 floats (3 rotation rows, then the translation row). Frame f,
 // part k is the joint transform of the model clump tagged k + 1 (model op
 // 0x2D); it replaces that clump's own transform (RENDER.R32 0x10006085).
 export class Frme {
+  /**
+   * @param {Uint8Array} bytes
+   */
   constructor(bytes) {
     const dv = view(bytes);
     if (bytes.length < 16 || tag4(dv) !== "FRME") throw new Error("not an FRME resource");
@@ -28,6 +31,10 @@ export class Frme {
   }
 
   // 16-float joint matrix of the clump tagged `tag` (1-based) in frame f.
+  /**
+   * @param {number} f
+   * @param {number} tag
+   */
   matrix(f, tag, out = new Float32Array(16)) {
     const s = (f * this.parts + tag - 1) * 12;
     const d = this.data;
@@ -51,6 +58,9 @@ export class Frme {
   }
 
   // Map tag -> matrix for frame f (what a renderer applies to the model).
+  /**
+   * @param {any} f
+   */
   pose(f) {
     const out = new Map();
     for (let k = 1; k <= this.parts; k++) out.set(k, this.matrix(f, k));
@@ -67,6 +77,9 @@ export class Frme {
 //   8 {i32 a}
 //   7 {u32 property words, u32 n, i32 props[n]}
 // GetProperty(obj, n) reads props[n]; properties never set are 0.
+/**
+ * @param {Uint8Array} bytes
+ */
 export function parseObjectDef(bytes) {
   const dv = view(bytes);
   const tag = tag4(dv);

@@ -17,6 +17,9 @@ export class NoGameError extends Error {
 }
 
 // entries: [{ path: "a/b/FILE.EXT", size, read: async () => Uint8Array }]
+/**
+ * @param {any} entries
+ */
 export function gameFolder(entries) {
   let best = null;
   for (const e of entries) {
@@ -41,8 +44,8 @@ export function gameFolder(entries) {
   return {
     dir: best.dir,
     names: [...byName.keys()],
-    has: (n) => byName.has(n.toUpperCase()),
-    read: async (n) => {
+    has: (/** @type {string} */ n) => byName.has(n.toUpperCase()),
+    read: async (/** @type {string} */ n) => {
       const e = byName.get(n.toUpperCase());
       if (!e) throw new Error(`missing ${n}`);
       return e.read();
@@ -50,20 +53,32 @@ export function gameFolder(entries) {
   };
 }
 
-const fileEntry = (path, file) => ({
+const fileEntry = (/** @type {string} */ path, /** @type {File} */ file) => ({
   path,
   size: file.size,
   read: async () => new Uint8Array(await file.arrayBuffer()),
 });
 
 // <input type=file webkitdirectory> or a multi-file pick
+/**
+ * @param {File[]} files
+ */
 export function fromFileList(files) {
   return gameFolder([...files].map((f) => fileEntry(f.webkitRelativePath || f.name, f)));
 }
 
 // File System Access API directory handle (Chromium). Can be remembered.
+/**
+ * @param {FileSystemHandle} dir
+ */
 export async function fromDirectoryHandle(dir) {
+  /** @type {any} */
   const entries = [];
+  /**
+   * @param {any} h a directory handle
+   * @param {string} prefix
+   * @param {number} depth
+   */
   async function walk(h, prefix, depth) {
     for await (const child of h.values()) {
       const path = prefix + child.name;
@@ -79,21 +94,30 @@ export async function fromDirectoryHandle(dir) {
 }
 
 // A dropped folder in browsers without getAsFileSystemHandle
+/**
+ * @param {FileSystemEntry} root
+ */
 export async function fromDroppedEntry(root) {
+  /** @type {any} */
   const entries = [];
-  const file = (e) => new Promise((ok, fail) => e.file(ok, fail));
-  const list = (dir) =>
+  const file = (/** @type {any} */ e) => new Promise((ok, fail) => e.file(ok, fail));
+  const list = (/** @type {any} */ dir) =>
     new Promise((ok, fail) => {
       const reader = dir.createReader();
+      /** @type {any} */
       const all = [];
       const next = () =>
-        reader.readEntries((batch) => {
+        reader.readEntries((/** @type {any} */ batch) => {
           if (!batch.length) return ok(all);
           all.push(...batch);
           next();
         }, fail);
       next();
     });
+  /**
+   * @param {any} e
+   * @param {number} depth
+   */
   async function walk(e, depth) {
     if (e.isFile) entries.push(fileEntry(e.fullPath.replace(/^\//, ""), await file(e)));
     else if (depth < 5) for (const c of await list(e)) await walk(c, depth + 1);
@@ -104,12 +128,18 @@ export async function fromDroppedEntry(root) {
 
 // A .zip read in place: only the central directory is parsed up front, and
 // each file is inflated when the engine asks for it.
+/**
+ * @param {Blob} blob
+ */
 export async function fromZip(blob) {
   return gameFolder(await zipEntries(blob));
 }
 
+/**
+ * @param {any} blob
+ */
 export async function zipEntries(blob) {
-  const bytes = async (start, end) => new Uint8Array(await blob.slice(start, end).arrayBuffer());
+  const bytes = async (/** @type {number} */ start, /** @type {number} */ end) => new Uint8Array(await blob.slice(start, end).arrayBuffer());
   // End of central directory: last 22 bytes plus up to 64 KB of comment.
   const tailStart = Math.max(0, blob.size - 22 - 0xffff);
   const tail = await bytes(tailStart, blob.size);
@@ -196,6 +226,9 @@ function db() {
     r.onerror = () => fail(r.error);
   });
 }
+/**
+ * @param {FileSystemHandle} handle
+ */
 export async function rememberFolder(handle) {
   try {
     const d = await db();

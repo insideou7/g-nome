@@ -8,37 +8,42 @@
 //   3 target (doNextTask returns it)   4 b   5 c   6 d
 //   7 next task index, -1 = none       8 priority
 import { table } from "../builtins.js";
+/** @import { Engine } from "../engine.js" */
 
 const COLS = 9;
 const F = { TASK: 0, ACTIVE: 1, A: 2, TARGET: 3, B: 4, C: 5, D: 6, NEXT: 7, PRIORITY: 8 };
 
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function taskExterns(engine) {
   let listProp = 0; // DAT_10041210
   let curProp = 0; // DAT_10041214
   const props = () => engine.render3d?.objects;
-  const getProp = (obj, n) => props()?.getProperty(obj, n) ?? 0;
-  const setProp = (obj, n, v) => props()?.setProperty(obj, n, v);
+  const getProp = (/** @type {number} */ obj, /** @type {number} */ n) => props()?.getProperty(obj, n) ?? 0;
+  const setProp = (/** @type {number} */ obj, /** @type {number} */ n, /** @type {any} */ v) => props()?.setProperty(obj, n, v);
 
   // The object's task table as { rows, get(r, c), set(r, c, v) }, or null.
-  const tasks = (obj) => {
+  const tasks = (/** @type {number} */ obj) => {
     const id = getProp(obj, listProp);
     const t = id ? table(engine.vm, id) : null;
     if (!t) return null;
     const rows = t.header[10];
-    const at = (r, c) => r * t.strides[0] + c * (t.strides[1] ?? 1);
+    const at = (/** @type {number} */ r, /** @type {number} */ c) => r * t.strides[0] + c * (t.strides[1] ?? 1);
     return {
       rows,
-      get: (r, c) => (r >= 0 && r < rows ? t.data[at(r, c)] : 0),
-      set: (r, c, v) => {
+      get: (/** @type {number} */ r, /** @type {any} */ c) => (r >= 0 && r < rows ? t.data[at(r, c)] : 0),
+      set: (/** @type {number} */ r, /** @type {any} */ c, /** @type {any} */ v) => {
         if (r >= 0 && r < rows) t.data[at(r, c)] = v;
       },
     };
   };
-  const clearRow = (l, r) => {
+  const clearRow = (/** @type {any} */ l, /** @type {number} */ r) => {
     for (let c = 0; c < COLS; c++) l.set(r, c, 0);
     l.set(r, F.NEXT, -1);
   };
-  const fill = (l, r, task, priority, target, b, c, d, a, next) => {
+  const fill = (/** @type {any} */ l, /** @type {number} */ r, /** @type {number} */ task, /** @type {number} */ priority, /** @type {number} */ target, /** @type {number} */ b, /** @type {number} */ c, /** @type {number} */ d, /** @type {number} */ a, /** @type {number} */ next) => {
     l.set(r, F.TASK, task);
     l.set(r, F.PRIORITY, priority);
     l.set(r, F.TARGET, target);
@@ -49,17 +54,17 @@ export function taskExterns(engine) {
     l.set(r, F.ACTIVE, 1);
     l.set(r, F.NEXT, next || -1);
   };
-  const freeRow = (l) => {
+  const freeRow = (/** @type {any} */ l) => {
     for (let r = 0; r < l.rows; r++) if (!l.get(r, F.ACTIVE)) return r;
     return -1;
   };
   // 0x1001be93 / 0x1001bf13: highest / lowest priority among active tasks
-  const highest = (l) => {
+  const highest = (/** @type {any} */ l) => {
     let p = 0;
     for (let r = 0; r < l.rows; r++) if (l.get(r, F.ACTIVE) && l.get(r, F.PRIORITY) > p) p = l.get(r, F.PRIORITY);
     return p;
   };
-  const lowest = (l) => {
+  const lowest = (/** @type {any} */ l) => {
     let p = l.get(0, F.PRIORITY);
     for (let r = 0; r < l.rows; r++) if (l.get(r, F.ACTIVE) && l.get(r, F.PRIORITY) < p) p = l.get(r, F.PRIORITY);
     return p;

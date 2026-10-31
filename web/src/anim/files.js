@@ -5,6 +5,8 @@
 //
 // Externs run synchronously, so the data files are loaded before the game
 // starts (preload). Written files are kept in localStorage.
+/** @import { Engine } from "../engine.js" */
+
 
 export const STORE = "g-nome.file.";
 // Every file G-Nome's scripts open (names built with "GKEY%d.map" and
@@ -25,12 +27,18 @@ const F_CREATE = 0x20 | 0x100; // create or truncate
 const F_MUST_EXIST = 0x40;
 const F_EXISTS = 0x200; // only test whether the file exists
 
+/**
+ * @param {Uint8Array} bytes
+ */
 export function toBase64(bytes) {
   let s = "";
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s);
 }
 
+/**
+ * @param {string} text
+ */
 export function fromBase64(text) {
   const s = atob(text);
   const out = new Uint8Array(s.length);
@@ -39,6 +47,9 @@ export function fromBase64(text) {
 }
 
 export class ScriptFiles {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine, storage = globalThis.localStorage) {
     this.engine = engine;
     this.storage = storage;
@@ -48,6 +59,9 @@ export class ScriptFiles {
   }
 
   // Load the game's small data files and any saved copies.
+  /**
+   * @param {any} files
+   */
   async preload(files, names = KNOWN) {
     for (const name of names) {
       if (files.has && !files.has(name)) continue;
@@ -67,6 +81,10 @@ export class ScriptFiles {
     }
   }
 
+  /**
+   * @param {string} name
+   * @param {Uint8Array} bytes
+   */
   save(name, bytes) {
     this.data.set(name, bytes);
     try {
@@ -76,6 +94,10 @@ export class ScriptFiles {
     }
   }
 
+  /**
+   * @param {number} nameId
+   * @param {number} flags
+   */
   open(nameId, flags) {
     const raw = this.engine.getString(nameId);
     if (!raw) return 0;
@@ -99,6 +121,9 @@ export class ScriptFiles {
     return h;
   }
 
+  /**
+   * @param {number} h
+   */
   close(h) {
     const f = this.handles.get(h);
     if (f?.dirty) this.save(f.name, f.bytes);
@@ -106,12 +131,20 @@ export class ScriptFiles {
     return 0;
   }
 
+  /**
+   * @param {any} f
+   * @param {number} n
+   */
   readBytes(f, n) {
     const out = f.bytes.subarray(f.pos, Math.min(f.bytes.length, f.pos + n));
     f.pos += out.length;
     return out;
   }
 
+  /**
+   * @param {any} f
+   * @param {Uint8Array} b
+   */
   writeBytes(f, b) {
     const end = f.pos + b.length;
     if (end > f.bytes.length) {
@@ -126,6 +159,12 @@ export class ScriptFiles {
 
   // FileGetC / FileGetS / FileGetL: n items of `size` bytes into the int
   // array at addr. Returns how many were read.
+  /**
+   * @param {number} h
+   * @param {number} addr
+   * @param {number} n
+   * @param {number} size
+   */
   getItems(h, addr, n, size) {
     const f = this.handles.get(h);
     if (!f) return 0;
@@ -140,6 +179,12 @@ export class ScriptFiles {
     return i;
   }
 
+  /**
+   * @param {number} h
+   * @param {number} addr
+   * @param {number} n
+   * @param {number | undefined} size
+   */
   putItems(h, addr, n, size) {
     const f = this.handles.get(h);
     if (!f) return 0;
@@ -152,6 +197,11 @@ export class ScriptFiles {
   }
 
   // FileRead(h, string slot, n): up to 255 bytes into a string variable.
+  /**
+   * @param {number} h
+   * @param {number} strId
+   * @param {number} n
+   */
   read(h, strId, n) {
     const f = this.handles.get(h);
     if (!f) return 0;
@@ -162,6 +212,11 @@ export class ScriptFiles {
     return b.length;
   }
 
+  /**
+   * @param {number} h
+   * @param {number} strId
+   * @param {number} n
+   */
   write(h, strId, n) {
     const f = this.handles.get(h);
     if (!f) return 0;
@@ -174,6 +229,11 @@ export class ScriptFiles {
   }
 
   // FileSeek(h, offset, origin 0 set / 1 current / 2 end); returns the new position
+  /**
+   * @param {number} h
+   * @param {number} offset
+   * @param {number} origin
+   */
   seek(h, offset, origin) {
     const f = this.handles.get(h);
     if (!f) return -1;
@@ -182,6 +242,7 @@ export class ScriptFiles {
     return f.pos;
   }
 
+  /** @returns {Externs} */
   externs() {
     return {
       FileOpen: (name, flags) => this.open(name, flags),

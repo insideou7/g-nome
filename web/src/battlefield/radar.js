@@ -10,12 +10,15 @@
 // The original paints straight into the DirectDraw frame over the sprite's
 // bounds; here the sprite carries an 8-bit buffer of its bounds (`radar`)
 // that Sprites.draw shows under the sprite's own cels.
+/** @import { Engine } from "../engine.js" */
+
 
 const ftol = Math.trunc; // __ftol truncates
 const DEG = 57.29578;
 
 // The colours, as Windows COLORREFs (0x00BBGGRR), matched to the nearest
 // palette entry 10-245 (FUN_10014bb7) when the radar is cleared.
+/** @type {Record<string, number>} */
 const COLOURS = {
   ally: 0x00ff00, // state +0xc8: the player's side
   enemy: 0x0000ff, // +0xcc: any other side
@@ -28,6 +31,10 @@ const COLOURS = {
 
 // FUN_10014bb7: the palette entry 10-245 with the smallest sum of channel
 // differences; the first one wins a tie.
+/**
+ * @param {number[]} palette
+ * @param {number} rgb
+ */
 export function nearestColour(palette, rgb) {
   const r = rgb & 0xff, g = (rgb >> 8) & 0xff, b = (rgb >> 16) & 0xff;
   let best = 0xff, dist = 1000;
@@ -43,6 +50,14 @@ export function nearestColour(palette, rgb) {
 
 // FUN_10024f90 draws lines with Abrash's run-length slices; a midpoint
 // line from the upper end gives the same pixels for the radar's lines.
+/**
+ * @param {any} buf
+ * @param {number} x0
+ * @param {number} y0
+ * @param {number} x1
+ * @param {number} y1
+ * @param {number} c
+ */
 function line(buf, x0, y0, x1, y1, c) {
   if (y1 < y0) [x0, y0, x1, y1] = [x1, y1, x0, y0];
   const dx = Math.abs(x1 - x0), dy = y1 - y0, sx = x1 < x0 ? -1 : 1;
@@ -65,6 +80,7 @@ function line(buf, x0, y0, x1, y1, c) {
 // Pixel patterns around (x, y) by radar symbol (property 101): 0 a hollow
 // 3x3 square, 1 a dot, 2 a plus, 3 a cross; 4 (the target) a dot in a ring.
 // 5 is not drawn.
+/** @type {Record<number, number[][]>} */
 const SHAPES = {
   0: [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]],
   1: [[0, 0]],
@@ -74,14 +90,18 @@ const SHAPES = {
 // The waypoint: rows above and below, three pixels each.
 const WAYPOINT = [[-1, -1], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 1]];
 
-/** @param {any} engine */
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function radarExterns(engine) {
   const props = () => engine.render3d?.objects;
-  const prop = (id, p) => props()?.getProperty(id, p) ?? 0;
+  const prop = (/** @type {number} */ id, /** @type {number} */ p) => props()?.getProperty(id, p) ?? 0;
+  /** @type {Record<string, number>} */
   const colours = { ally: 0, enemy: 0, empty: 0, ring: 0, neutral: 0, clear: 0, grid: 0 };
 
   // The sprite's buffer, the size of its current bounds.
-  const buffer = (spriteId) => {
+  const buffer = (/** @type {number} */ spriteId) => {
     const s = engine.sprites?.get(spriteId);
     if (!s) return null;
     const r = engine.sprites.bounds(s);
@@ -89,7 +109,7 @@ export function radarExterns(engine) {
     if (w <= 0 || h <= 0) return null;
     if (!s.radar || s.radar.w !== w || s.radar.h !== h) s.radar = { w, h, pixels: new Uint8Array(w * h) };
     const buf = s.radar;
-    buf.set = (x, y, c) => {
+    buf.set = (/** @type {number} */ x, /** @type {number} */ y, /** @type {any} */ c) => {
       if (x >= 0 && y >= 0 && x < w && y < h) buf.pixels[y * w + x] = c;
     };
     return buf;
@@ -113,7 +133,7 @@ export function radarExterns(engine) {
       const world = engine.world;
       const me = world?.get(unit);
       const buf = buffer(sprite);
-      if (!me || !buf) return 0;
+      if (!world || !me || !buf) return 0;
       const { w, h } = buf;
       const scale = range / 100; // world units (state +0xb4 = 100.0)
       // Orientation: the unit's own, or with `turret` set the clump named by
@@ -124,7 +144,7 @@ export function radarExterns(engine) {
         twist = 0;
         if (clump) ({ right, at } = world.pose(unit, clump, 1)?.basis ?? me.basis);
       }
-      const norm = (v) => {
+      const norm = (/** @type {number[]} */ v) => {
         const l = Math.hypot(v[0], v[1], v[2]) || 1;
         return [v[0] / l, v[1] / l, v[2] / l];
       };
@@ -162,7 +182,7 @@ export function radarExterns(engine) {
       // of side 2 x range are skipped, then anything off the buffer's
       // inner area.
       const mySide = prop(unit, sideProp);
-      const place = (pos) => {
+      const place = (/** @type {number[]} */ pos) => {
         const d = [pos[0] - me.pos[0], pos[1] - me.pos[1], pos[2] - me.pos[2]];
         if (!(Math.abs(d[0]) < scale) || !(Math.abs(d[2]) < scale)) return null;
         const px = ftol(cx + -((right[0] * d[0] + right[1] * d[1] + right[2] * d[2]) / scale) * cx);

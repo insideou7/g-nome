@@ -20,6 +20,9 @@ const PAL6 = Array.from({ length: 64 }, (_, i) => i * 4 + (i >> 4));
 
 // Little-endian bit reader: the first bit read is bit 0 of the first byte.
 class BitReader {
+  /**
+   * @param {Uint8Array} bytes
+   */
   constructor(bytes, start = 0, end = bytes.length) {
     this.b = bytes;
     this.pos = start * 8;
@@ -31,6 +34,9 @@ class BitReader {
     this.pos++;
     return v;
   }
+  /**
+   * @param {number} n
+   */
   bits(n) {
     let v = 0;
     for (let i = 0; i < n; i++) v |= this.bit() << i;
@@ -41,8 +47,12 @@ class BitReader {
 // Small 8-bit Huffman tree: a presence bit, then a tree where 1 = node
 // (left child is bit 0) and 0 = leaf with an 8-bit value, then a 0 bit.
 // An absent tree always decodes to 0 without reading anything.
+/**
+ * @param {BitReader} br
+ */
 function readTree8(br) {
   if (!br.bit()) return null;
+  /** @returns {any} a leaf byte or a [zero, one] pair */
   const build = () => {
     if (!br.bit()) return br.bits(8);
     const zero = build();
@@ -54,6 +64,10 @@ function readTree8(br) {
   return t;
 }
 
+/**
+ * @param {BitReader} br
+ * @param {any} t
+ */
 function get8(br, t) {
   if (t === null) return 0;
   while (typeof t !== "number") t = t[br.bit()];
@@ -63,6 +77,9 @@ function get8(br, t) {
 // The "big" 16-bit trees used by the video planes. Stored as a flat table so
 // the three most-recently-used escape slots can be updated in place.
 class BigTree {
+  /**
+   * @param {BitReader} br
+   */
   constructor(br) {
     this.values = [];
     this.last = [-1, -1, -1];
@@ -75,6 +92,7 @@ class BigTree {
     const lo = readTree8(br);
     const hi = readTree8(br);
     const esc = [br.bits(16), br.bits(16), br.bits(16)];
+    /** @returns {any} */
     const decode = () => {
       if (!br.bit()) {
         let v = get8(br, lo) | (get8(br, hi) << 8);
@@ -109,6 +127,9 @@ class BigTree {
     const v = this.values, l = this.last;
     v[l[0]] = v[l[1]] = v[l[2]] = 0;
   }
+  /**
+   * @param {BitReader} br
+   */
   get(br) {
     if (this.empty) return 0;
     const v = this.values;
@@ -129,6 +150,9 @@ class BigTree {
 }
 
 export class SmackerFile {
+  /**
+   * @param {Uint8Array} bytes
+   */
   constructor(bytes) {
     const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
@@ -224,6 +248,10 @@ export class SmackerFile {
     this.next = 0;
   }
 
+  /**
+   * @param {number} p
+   * @param {number} end
+   */
   decodePalette(p, end) {
     const b = this.bytes;
     const old = this.palette.slice();
@@ -253,6 +281,10 @@ export class SmackerFile {
     }
   }
 
+  /**
+   * @param {number | undefined} start
+   * @param {number} end
+   */
   decodeVideo(start, end) {
     const br = new BitReader(this.bytes, start, end);
     const { mmap, mclr, full, type } = this;
@@ -345,6 +377,11 @@ export class SmackerFile {
 }
 
 // Smacker's packed audio: Huffman-coded deltas of PCM samples.
+/**
+ * @param {Uint8Array} b
+ * @param {number} start
+ * @param {number} end
+ */
 function decodeAudio(b, start, end) {
   const unpacked = b[start] | (b[start + 1] << 8) | (b[start + 2] << 16) | (b[start + 3] << 24);
   const br = new BitReader(b, start + 4, end);
@@ -387,6 +424,12 @@ function decodeAudio(b, start, end) {
   return out;
 }
 
+/**
+ * @param {Uint8Array} b
+ * @param {number} start
+ * @param {number} end
+ * @param {number} bits
+ */
 function rawAudio(b, start, end, bits) {
   if (bits === 16) {
     const n = (end - start) >> 1;

@@ -12,19 +12,28 @@
 // TrueType at a whole pixel size: the largest one whose cell, with ascent
 // and descent each rounded up to whole pixels, fits the height. METRICS
 // holds usWinAscent / usWinDescent per 2048 units; "System" uses Arial's.
+/** @import { Engine } from "./engine.js" */
+
 const ARIAL = { ascent: 1854, descent: 434 };
+/** @type {Record<string, { ascent: number, descent: number }>} */
 const METRICS = { arial: ARIAL, "courier new": { ascent: 1705, descent: 615 } };
-const pixelSize = (m, height) => {
+const pixelSize = (/** @type {any} */ m, /** @type {number} */ height) => {
   let p = Math.max(1, Math.floor((height * 2048) / (m.ascent + m.descent)));
   while (p > 1 && Math.ceil((p * m.ascent) / 2048) + Math.ceil((p * m.descent) / 2048) > height) p--;
   return p;
 };
 
 export class Texts {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.list = new Map();
   }
+  /**
+   * @param {number} id
+   */
   get(id) {
     let t = this.list.get(id);
     if (t) return t;
@@ -45,6 +54,10 @@ export class Texts {
     this.list.set(id, t);
     return t;
   }
+  /**
+   * @param {number} id
+   * @param {string} text
+   */
   setText(id, text) {
     const t = this.get(id);
     if (!t) return false;
@@ -53,6 +66,10 @@ export class Texts {
     this.engine.dirty = true;
     return true;
   }
+  /**
+   * @param {number} id
+   * @param {any} color
+   */
   setColor(id, color) {
     const t = this.get(id);
     if (!t) return false;
@@ -64,6 +81,9 @@ export class Texts {
     return true;
   }
   // A bitmap like decodeBitmap's: {width, height, x, y, pixels}.
+  /**
+   * @param {number} id
+   */
   bitmap(id) {
     const t = this.get(id);
     if (!t) return null;

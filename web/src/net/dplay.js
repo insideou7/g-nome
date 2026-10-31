@@ -43,10 +43,11 @@ export class DirectPlay {
     this.players = new Map(); // dpid -> {dpid, name, long, peer}
     this.local = 0; // our player's dpid
     this.isHost = false;
+    /** @type {any} */
     this.queue = []; // received: {from, to, bytes} or {from: 0, sys}
     this.lastPing = 0;
-    bus.onmessage = (from, m) => this.onMessage(from, m);
-    bus.onpeerleave = (peer) => this.memberLeft(peer);
+    bus.onmessage = (/** @type {any} */ from, /** @type {any} */ m) => this.onMessage(from, m);
+    bus.onpeerleave = (/** @type {any} */ peer) => this.memberLeft(peer);
   }
 
   // --------------------------------------------------------------- lobby
@@ -64,6 +65,10 @@ export class DirectPlay {
     return [...this.sessions.values()];
   }
 
+  /**
+   * @param {string} name
+   * @param {number} max
+   */
   createSession(name, max, pw = "") {
     this.leave();
     const guid = this.newGuid();
@@ -77,6 +82,9 @@ export class DirectPlay {
 
   // Optimistic: adopt what the host advertised and say hello to everyone in
   // it. If the host refuses, the session is lost (SESSIONLOST).
+  /**
+   * @param {any} guid
+   */
   joinSession(guid, pw = "") {
     const s = this.sessions.get(guid);
     if (!s) return false;
@@ -85,7 +93,7 @@ export class DirectPlay {
     this.session = { guid, name: s.name, max: s.max, pw, host: s.host };
     this.members = new Map([[this.bus.id, { lastSeen: this.now(), rtt: 0 }]]);
     for (const peer of s.members) this.members.set(peer, { lastSeen: this.now(), rtt: 0 });
-    this.players = new Map(s.players.map((p) => [p.dpid, { ...p }]));
+    this.players = new Map(s.players.map((/** @type {any} */ p) => [p.dpid, { ...p }]));
     this.isHost = false;
     this.toMembers({ t: "hello", pw });
     this.log(`net: joined session "${s.name}" (${s.players.length} players)`);
@@ -106,6 +114,10 @@ export class DirectPlay {
 
   // ------------------------------------------------------------- players
 
+  /**
+   * @param {string} name
+   * @param {any} long
+   */
   createPlayer(name, long) {
     if (!this.session) return 0;
     let dpid;
@@ -127,6 +139,11 @@ export class DirectPlay {
   }
 
   // Send bytes from player `from` to player `to` (0 = every other player).
+  /**
+   * @param {number} from
+   * @param {number} to
+   * @param {Uint8Array} bytes
+   */
   send(from, to, bytes) {
     if (!this.session) return false;
     const m = { t: "data", from, to, b: bytes };
@@ -148,6 +165,9 @@ export class DirectPlay {
     return this.queue.shift() || null;
   }
 
+  /**
+   * @param {number} dpid
+   */
   latency(dpid) {
     const p = this.players.get(dpid);
     const m = p && this.members.get(p.peer);
@@ -178,6 +198,10 @@ export class DirectPlay {
     return { guid: s.guid, name: s.name, max: s.max, pw: !!s.pw, host: this.bus.id, members: [...this.members.keys()], players: [...this.players.values()] };
   }
 
+  /**
+   * @param {any} from
+   * @param {any} m
+   */
   onMessage(from, m) {
     if (!m || from === this.bus.id) return;
     const s = this.session;
@@ -230,18 +254,27 @@ export class DirectPlay {
     }
   }
 
+  /**
+   * @param {any} m
+   */
   deliver(m) {
     if (m.to !== 0 && m.to !== this.local) return;
     if (!this.local) return; // DirectPlay queues messages per local player
     this.queue.push({ from: m.from, to: m.to, bytes: m.b instanceof Uint8Array ? m.b : new Uint8Array(m.b) });
   }
 
+  /**
+   * @param {any} p
+   */
   addPlayer(p) {
     if (this.players.has(p.dpid)) return;
     this.players.set(p.dpid, { ...p });
     this.queue.push({ from: 0, sys: { type: SYS.CREATEPLAYER, dpid: p.dpid, name: p.name, long: p.long } });
   }
 
+  /**
+   * @param {number} dpid
+   */
   removePlayer(dpid) {
     if (!this.players.delete(dpid)) return;
     this.queue.push({ from: 0, sys: { type: SYS.DESTROYPLAYER, dpid } });
@@ -249,6 +282,9 @@ export class DirectPlay {
 
   // A member left or went silent: drop its players; if it was the host, the
   // member with the lowest peer id takes over (DPSESSION_MIGRATEHOST).
+  /**
+   * @param {any} peer
+   */
   memberLeft(peer) {
     if (!this.session || !this.members.delete(peer)) return;
     for (const p of [...this.players.values()]) if (p.peer === peer) this.removePlayer(p.dpid);
@@ -263,10 +299,17 @@ export class DirectPlay {
     }
   }
 
+  /**
+   * @param {any} m
+   */
   toMembers(m) {
     for (const peer of this.members.keys()) if (peer !== this.bus.id) this.toPeer(peer, m);
   }
 
+  /**
+   * @param {any} peer
+   * @param {any} m
+   */
   toPeer(peer, m) {
     this.bus.send(peer, { ...m, guid: this.session?.guid });
   }

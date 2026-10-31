@@ -18,17 +18,29 @@ export function peerId(random = Math.random) {
 }
 
 // Uint8Arrays don't survive JSON: send them as base64 strings.
+/**
+ * @param {any} msg
+ */
 export function encode(msg) {
   return JSON.stringify(msg, (k, v) => (v instanceof Uint8Array ? { $b: toBase64(v) } : v));
 }
+/**
+ * @param {string} text
+ */
 export function decode(text) {
   return JSON.parse(text, (k, v) => (v && typeof v === "object" && typeof v.$b === "string" ? fromBase64(v.$b) : v));
 }
+/**
+ * @param {Uint8Array} bytes
+ */
 function toBase64(bytes) {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s);
 }
+/**
+ * @param {string} s
+ */
 function fromBase64(s) {
   const t = atob(s);
   const b = new Uint8Array(t.length);
@@ -43,6 +55,7 @@ function fromBase64(s) {
 export class MemoryHub {
   constructor({ immediate = false } = {}) {
     this.peers = new Map();
+    /** @type {any} */
     this.pending = [];
     this.immediate = immediate;
   }
@@ -52,6 +65,10 @@ export class MemoryHub {
       id,
       onmessage: null,
       onpeerleave: null,
+      /**
+       * @param {any} to
+       * @param {any} msg
+       */
       send(to, msg) {
         const copy = structuredClone(msg);
         for (const [pid, p] of hub.peers) {
@@ -81,6 +98,7 @@ export class MemoryHub {
 export class BroadcastBus {
   constructor(name = "g-nome-net") {
     this.id = peerId();
+    /** @type {any} */
     this.onmessage = null;
     this.onpeerleave = null;
     this.channel = new BroadcastChannel(name);
@@ -90,6 +108,10 @@ export class BroadcastBus {
       this.onmessage?.(from, msg);
     };
   }
+  /**
+   * @param {any} to
+   * @param {any} msg
+   */
   send(to, msg) {
     this.channel.postMessage({ from: this.id, to, msg });
   }
@@ -102,10 +124,15 @@ export class BroadcastBus {
 
 // Server-sent events down, POSTs up. `base` is the server's /net/ URL.
 export class ServerBus {
+  /**
+   * @param {string} base
+   */
   constructor(base) {
     this.base = base.endsWith("/") ? base : base + "/";
     this.id = peerId();
+    /** @type {any} */
     this.onmessage = null;
+    /** @type {any} */
     this.onpeerleave = null;
     // The server drops messages from peers it hasn't met: hold them until
     // our event stream is open.
@@ -123,15 +150,30 @@ export class ServerBus {
       else if (from !== this.id) this.receive(from, msg);
     };
   }
+  /**
+   * @param {any} from
+   * @param {any} msg
+   */
   receive(from, msg) {
     this.onmessage?.(from, msg);
   }
+  /**
+   * @param {any} peer
+   */
   peerLeft(peer) {
     this.onpeerleave?.(peer);
   }
+  /**
+   * @param {any} to
+   * @param {any} msg
+   */
   send(to, msg) {
     this.relay(to, msg);
   }
+  /**
+   * @param {any} to
+   * @param {any} msg
+   */
   relay(to, msg) {
     if (this.held) return void this.held.push([to, msg]);
     fetch(`${this.base}send`, { method: "POST", body: encode({ from: this.id, to, msg }) }).catch(() => {});
@@ -141,6 +183,9 @@ export class ServerBus {
   }
 
   // Is there a relay server at `base`? Resolves to true or false.
+  /**
+   * @param {string} base
+   */
   static async probe(base) {
     try {
       const r = await fetch(`${base.endsWith("/") ? base : base + "/"}hello`);
@@ -161,12 +206,19 @@ const LOBBY = new Set(["enum", "sess"]);
 // relay as {rtc: ...} messages. Until the channel is open (or if it never
 // opens, say behind a strict NAT), messages go through the relay.
 export class RtcBus extends ServerBus {
+  /**
+   * @param {string} base
+   */
   constructor(base, { iceServers = [{ urls: "stun:stun.l.google.com:19302" }] } = {}) {
     super(base);
     this.iceServers = iceServers;
     this.links = new Map(); // peer -> {pc, dc}
   }
 
+  /**
+   * @param {any} to
+   * @param {any} msg
+   */
   send(to, msg) {
     if (to !== null && !LOBBY.has(msg.t)) {
       const dc = this.link(to).dc;
@@ -175,6 +227,10 @@ export class RtcBus extends ServerBus {
     this.relay(to, msg);
   }
 
+  /**
+   * @param {any} from
+   * @param {any} msg
+   */
   receive(from, msg) {
     if (msg && msg.rtc) return this.signal(from, msg.rtc);
     // Someone is talking to us directly: set up a link to them.
@@ -182,11 +238,17 @@ export class RtcBus extends ServerBus {
     super.receive(from, msg);
   }
 
+  /**
+   * @param {any} peer
+   */
   peerLeft(peer) {
     this.drop(peer);
     super.peerLeft(peer);
   }
 
+  /**
+   * @param {string} peer
+   */
   link(peer) {
     let l = this.links.get(peer);
     if (l) return l;
@@ -197,9 +259,9 @@ export class RtcBus extends ServerBus {
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "failed" || pc.connectionState === "closed") this.drop(peer);
     };
-    const attach = (dc) => {
+    const attach = (/** @type {RTCDataChannel} */ dc) => {
       l.dc = dc;
-      dc.onmessage = (e) => super.receive(peer, decode(e.data));
+      dc.onmessage = (/** @type {any} */ e) => super.receive(peer, decode(e.data));
     };
     if (this.id < peer) {
       attach(pc.createDataChannel("g-nome", { ordered: true }));
@@ -213,6 +275,10 @@ export class RtcBus extends ServerBus {
     return l;
   }
 
+  /**
+   * @param {any} peer
+   * @param {any} s
+   */
   async signal(peer, s) {
     const { pc } = this.link(peer);
     try {
@@ -230,6 +296,9 @@ export class RtcBus extends ServerBus {
     }
   }
 
+  /**
+   * @param {any} peer
+   */
   drop(peer) {
     const l = this.links.get(peer);
     if (!l) return;

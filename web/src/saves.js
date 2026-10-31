@@ -12,8 +12,8 @@ import { STORE, toBase64, fromBase64 } from "./anim/files.js";
 export const SLOTS = 20;
 const FORMAT = "g-nome-saves";
 const SECTION = "GnomeGames";
-const fileName = (slot) => `SGNOME${slot}.SAV`;
-const nameKey = (slot) => `savegame_${slot}`;
+const fileName = (/** @type {number} */ slot) => `SGNOME${slot}.SAV`;
+const nameKey = (/** @type {number} */ slot) => `savegame_${slot}`;
 
 /**
  * The saves in storage, as an export object.
@@ -41,9 +41,9 @@ export function exportSaves(storage, ini) {
 export function importSaves(input, { storage, ini, files }) {
   const obj = typeof input === "string" ? JSON.parse(input) : input;
   if (obj?.format !== FORMAT || !Array.isArray(obj.saves)) throw new Error("not a G-NOME saves file");
-  const ok = obj.saves.filter((s) => Number.isInteger(s?.slot) && s.slot >= 0 && s.slot < SLOTS && typeof s.data === "string");
+  const ok = obj.saves.filter((/** @type {any} */ s) => Number.isInteger(s?.slot) && s.slot >= 0 && s.slot < SLOTS && typeof s.data === "string");
   // Decode them all first, so a damaged file writes nothing.
-  const decoded = ok.map((s) => ({ slot: s.slot, name: String(s.name ?? "").slice(0, 30), bytes: fromBase64(s.data) }));
+  const decoded = ok.map((/** @type {any} */ s) => ({ slot: s.slot, name: String(s.name ?? "").slice(0, 30), bytes: fromBase64(s.data) }));
   for (const s of decoded) {
     if (files) files.save(fileName(s.slot), s.bytes);
     else storage.setItem(STORE + fileName(s.slot), toBase64(s.bytes));
@@ -52,7 +52,10 @@ export function importSaves(input, { storage, ini, files }) {
   return ok.length;
 }
 
-/** The running engine's script files (RENDER.R32's File externs), if any. */
+/**
+ * The running engine's script files (RENDER.R32's File externs), if any.
+ * @param {import("./engine.js").Engine | null} engine
+ */
 export function scriptFilesOf(engine) {
   return engine?.plugins?.find((p) => p.name === "render")?.files ?? null;
 }

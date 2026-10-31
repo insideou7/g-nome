@@ -2,7 +2,11 @@
 import { SmackerPlugin } from "./smacker.js";
 import { RenderPlugin } from "./render.js";
 import { NetPlugin } from "./netgn.js";
+/** @import { Engine } from "../engine.js" */
 
+/**
+ * @param {Engine} engine
+ */
 export function installPlugins(engine) {
   const bin = engine.bin;
   engine.plugins = [new SmackerPlugin(engine), new RenderPlugin(engine), new NetPlugin(engine)];

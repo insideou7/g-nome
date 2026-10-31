@@ -17,6 +17,7 @@ import { UNIT } from "./world.js";
 import { clumpMatrices, modelOps } from "../render3d/model.js";
 import { identity, transformPoint } from "../render3d/math.js";
 import { modelMatrix, sub, dot, normalize, length } from "./math.js";
+/** @import { Engine } from "../engine.js" */
 
 const ROUND = 0x10; // hotspot type: a cylinder, radius in the id field
 const OUTSIDE = 8; // hotspot type: the object must stay inside the footprint
@@ -25,6 +26,11 @@ const EDGE_ON_GRID = 0x10; // footprint edge flag: the edge lies on a grid line
 
 // Script message type 1 (RtRunMsg): call a script with arguments and use
 // its return value. The engine runs it at once, below the caller's frame.
+/**
+ * @param {Engine} engine
+ * @param {any} script
+ * @param {any} args
+ */
 function callValue(engine, script, args) {
   if (!script) return 0;
   try {
@@ -35,10 +41,15 @@ function callValue(engine, script, args) {
   }
 }
 
-const sign = (x) => (x < 0 ? -1 : 1); // FUN_10018f95
-const len2 = (x, z) => x * x + z * z;
+const sign = (/** @type {number} */ x) => (x < 0 ? -1 : 1); // FUN_10018f95
+const len2 = (/** @type {number} */ x, /** @type {number} */ z) => x * x + z * z;
 
 // FUN_1001d780: is (x, z) inside the polygon (even-odd rule)?
+/**
+ * @param {any} pts
+ * @param {number} x
+ * @param {number} z
+ */
 export function insidePolygon(pts, x, z) {
   let inside = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -52,6 +63,16 @@ export function insidePolygon(pts, x, z) {
 
 // FUN_10018a72: where segment (x1,z1)-(x2,z2) crosses segment (x3,z3)-(x4,z4).
 // Returns [x, z], or null. The original adds a 0.01 tolerance at the ends.
+/**
+ * @param {number} x1
+ * @param {number} z1
+ * @param {number} x2
+ * @param {number} z2
+ * @param {number} x3
+ * @param {number} z3
+ * @param {number} x4
+ * @param {number} z4
+ */
 export function segmentsCross(x1, z1, x2, z2, x3, z3, x4, z4) {
   const ax = x2 - x1, bx = x3 - x4;
   const [lo1, hi1] = ax < 0 ? [x2, x1] : [x1, x2];
@@ -61,7 +82,7 @@ export function segmentsCross(x1, z1, x2, z2, x3, z3, x4, z4) {
   if (bz >= 0 ? hi2 < z4 || z3 < lo2 : hi2 < z3 || z4 < lo2) return null;
   const num = (x1 - x3) * bz - (z1 - z3) * bx;
   const den = az * bx - bz * ax;
-  const near = (a, b) => Math.abs(a - b) <= 0.01;
+  const near = (/** @type {number} */ a, /** @type {number} */ b) => Math.abs(a - b) <= 0.01;
   if (den >= 0) {
     if (num < 0.01) return null;
     if (!near(num, den) && den < num) return null;
@@ -83,6 +104,9 @@ export function segmentsCross(x1, z1, x2, z2, x3, z3, x4, z4) {
 
 // The vertex list of a model's root clump, as RwGetClumpVertex returns it
 // (the RWX transform in effect when each vertex was declared applied).
+/**
+ * @param {Uint8Array} bytes
+ */
 export function rootClumpVertices(bytes) {
   const verts = [];
   let depth = 0;
@@ -107,8 +131,13 @@ export function rootClumpVertices(bytes) {
 // like `poseObj` when given, moved to the hotspot. Vertices on the 12-unit
 // grid push their edges 0.2 outwards so neighbouring footprints overlap;
 // an edge along a grid line is flagged and the deflection tests skip it.
+/**
+ * @param {any} verts
+ * @param {number[]} pos
+ * @param {any} basis
+ */
 export function buildFootprint(verts, pos, basis) {
-  const pts = verts.map((v) => {
+  const pts = verts.map((/** @type {any} */ v) => {
     let [x, y, z] = v;
     if (basis) {
       const m = modelMatrix(basis, [0, 0, 0]);
@@ -117,7 +146,7 @@ export function buildFootprint(verts, pos, basis) {
     return [x + pos[0], y + pos[1], z + pos[2]];
   });
   const n = pts.length;
-  const onGrid = (v) => {
+  const onGrid = (/** @type {number} */ v) => {
     const g = Math.abs(v / GRID);
     return Math.abs(g - Math.trunc(g)) < 0.04;
   };
@@ -144,6 +173,9 @@ export function buildFootprint(verts, pos, basis) {
 }
 
 export class Collision {
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.boxes = new Map(); // model id -> per-clump local bounds
@@ -156,25 +188,42 @@ export class Collision {
   get hotspots() {
     return this.engine.hotspots;
   }
+  /**
+   * @param {number} id
+   */
   obj(id) {
     return this.world?.get(id) || null;
   }
+  /**
+   * @param {number} id
+   */
   radius(id) {
     return this.world?.radiusOf?.(id) ?? this.obj(id)?.radius ?? 0;
   }
+  /**
+   * @param {number} id
+   * @param {number} n
+   */
   prop(id, n) {
     return this.engine.render3d?.objects?.getProperty(id, n) ?? 0;
   }
+  /**
+   * @param {number} id
+   */
   list(id) {
     return this.engine.renderLists?.get(id) || [];
   }
 
   // Footprint of hotspot `h`, computed when it is added.
+  /**
+   * @param {any} h
+   */
   footprint(h) {
     if (h.type === ROUND || h.footprint !== null) return h.footprint;
     const e = this.engine;
     const src = e.dynamic?.get(h.id) ?? h.id;
     const t = e.bin?.type(src);
+    /** @type {number[][]} */
     let verts = [];
     if (t === 7 || t === 8) {
       try {
@@ -190,6 +239,11 @@ export class Collision {
 
   // FUN_1001ab5c: octagonal x/z distance between two objects, or 0 when it
   // is not under the sum of their radii plus `extra`.
+  /**
+   * @param {any} a
+   * @param {any} b
+   * @param {number} extra
+   */
   near(a, b, extra) {
     const dx = Math.abs(a.pos[0] - b.pos[0]), dz = Math.abs(b.pos[2] - a.pos[2]);
     const d = dx + dz - Math.min(dx, dz) / 2;
@@ -198,6 +252,12 @@ export class Collision {
 
   // UpdateCollideCheck(id, list, extra, ignore) 0x100182d0: the nearest
   // object in the list closer than both radii plus `extra`, else 0.
+  /**
+   * @param {number} id
+   * @param {number} list
+   * @param {number} extra
+   * @param {number} ignore
+   */
   updateCollideCheck(id, list, extra, ignore) {
     const o = this.obj(id);
     if (!o) return 0;
@@ -217,6 +277,10 @@ export class Collision {
 
   // ObjectPositionCollision(hotspot, id) 0x1002338f: 0 clear, 1 inside the
   // hotspot, 2 touching it (within the object's radius; flag 2 only).
+  /**
+   * @param {number} n
+   * @param {number} id
+   */
   positionCollision(n, id) {
     const h = this.hotspots?.get(n);
     const o = this.obj(id);
@@ -242,6 +306,11 @@ export class Collision {
 
   // CheckPositionCollision(hotspot, x, z) 0x1002325c: a script point
   // against a footprint (types 1 and 8 only).
+  /**
+   * @param {number} n
+   * @param {number} sx
+   * @param {number} sz
+   */
   checkPosition(n, sx, sz) {
     const h = this.hotspots?.get(n);
     if (!h || (h.type !== OUTSIDE && h.type !== 1)) return 0;
@@ -257,6 +326,13 @@ export class Collision {
   // hit is returned (and written out with its object); hotspots of class
   // 500 objects are triggers: they run the object's property 2 script with
   // (mover, object, hotspot) and are never returned.
+  /**
+   * @param {number} id
+   * @param {number} pHotspot
+   * @param {number} pObject
+   * @param {number} fast
+   * @param {number} scripts
+   */
   sectorCollisions(id, pHotspot, pObject, fast, scripts) {
     const vm = this.engine.vm;
     const cls = this.prop(id, 0);
@@ -300,6 +376,11 @@ export class Collision {
 
   // FastmovingHotspotCollide (0x1002447f) for projectiles: the path from
   // the last position to this one against the hotspot.
+  /**
+   * @param {number} id
+   * @param {number} _other
+   * @param {number} n
+   */
   fastCollide(id, _other, n) {
     const h = this.hotspots?.get(n);
     const o = this.obj(id);
@@ -324,6 +405,12 @@ export class Collision {
   // Returns 1 when the move may stand (clear, moving away, or slid), 0 when
   // the caller should undo it. `limit` is |cos| × 10000 of the steepest
   // angle that still slides.
+  /**
+   * @param {any} o
+   * @param {number[]} c
+   * @param {number} reach
+   * @param {number} limit
+   */
   deflectRound(o, c, reach, limit) {
     let dx = o.pos[0] - c[0], dz = o.pos[2] - c[2];
     if (reach * reach < len2(dx, dz)) return 1;
@@ -339,6 +426,12 @@ export class Collision {
   }
 
   // DeflectObject(id, other, limit, addOwnRadius) 0x10023dac
+  /**
+   * @param {number} id
+   * @param {number} other
+   * @param {number} limit
+   * @param {number} both
+   */
   deflectObject(id, other, limit, both) {
     const o = this.obj(id), t = this.obj(other);
     if (!o || !t) return 1;
@@ -349,6 +442,13 @@ export class Collision {
   // DeflectHotspot(id, hotspot, other, limit, addOwnRadius) 0x1002421e. A
   // round hotspot uses `other`'s position and radius; a footprint slides
   // the object along the edge it crossed (FUN_1001e608).
+  /**
+   * @param {number} id
+   * @param {number} n
+   * @param {number} other
+   * @param {number} limit
+   * @param {number} both
+   */
   deflectHotspot(id, n, other, limit, both) {
     const h = this.hotspots?.get(n);
     const o = this.obj(id);
@@ -366,6 +466,11 @@ export class Collision {
   // along it, or refuse when the move meets it more squarely than `limit`
   // (a negative sine). Already inside without crossing: push out
   // (FUN_1001e95e).
+  /**
+   * @param {any} fp
+   * @param {any} o
+   * @param {number} limit
+   */
   slide(fp, o, limit) {
     const { pts, flags } = fp;
     const [lx, , lz] = o.last;
@@ -392,10 +497,13 @@ export class Collision {
   // FUN_1001e95e: move the object to the nearest point where a line through
   // it (along its last move, extended 8 units each way, or across its right
   // vector) leaves the footprint.
+  /**
+   * @param {any} o
+   */
   pushOut({ pts, flags }, o) {
     const [px, , pz] = o.pos;
     let best = 50000, to = [o.last[0], o.last[2]];
-    const tryLine = (x1, z1, x2, z2) => {
+    const tryLine = (/** @type {number} */ x1, /** @type {number} */ z1, /** @type {number} */ x2, /** @type {number} */ z2) => {
       for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
         if (flags[i]) continue;
         const p = segmentsCross(x1, z1, x2, z2, pts[j][0], pts[j][2], pts[i][0], pts[i][2]);
@@ -418,6 +526,9 @@ export class Collision {
   // World-space bounds of every clump of an object's model, by script clump
   // number: index 0 is the root when the model has no tagged clumps, else
   // tagged clumps 1.. (as ClumpToClump and CollisionClump count them).
+  /**
+   * @param {number} id
+   */
   clumpBoxes(id) {
     const r3d = this.engine.render3d;
     const inst = r3d?.objectModel?.(id);
@@ -426,7 +537,7 @@ export class Collision {
     const model = inst.model;
     let local = this.boxes.get(model);
     if (!local) {
-      local = model.clumps.map((c) => {
+      local = model.clumps.map((/** @type {any} */ c) => {
         const p = c.mesh.positions;
         const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
         for (let k = 0; k < p.length; k += 3) {
@@ -441,7 +552,7 @@ export class Collision {
     }
     const ms = clumpMatrices(model, modelMatrix(o.basis, o.pos), inst.pose);
     const tagged = model.tagged.length > 1;
-    const list = tagged ? model.tagged.map((ci, k) => (k ? [k, ci] : null)).filter(Boolean) : [[0, model.roots[0] ?? 0]];
+    const list = tagged ? model.tagged.map((/** @type {any} */ ci, /** @type {any} */ k) => (k ? [k, ci] : null)).filter(Boolean) : [[0, model.roots[0] ?? 0]];
     const out = [];
     const q = [0, 0, 0];
     for (const [k, ci] of list) {
@@ -464,6 +575,11 @@ export class Collision {
   // clump of a overlaps (its origin within `tolerance` / 100 of the clump
   // and their boxes overlapping on every axis); -1 if none, 0 without
   // models (or b's root clump).
+  /**
+   * @param {number} a
+   * @param {number} b
+   * @param {number} tol
+   */
   clumpToClump(a, b, tol) {
     const A = this.clumpBoxes(a), B = this.clumpBoxes(b);
     if (!A || !B) return 0;
@@ -482,6 +598,10 @@ export class Collision {
   // CollisionClump(mover, target) 0x10010dbc: the first clump of the target
   // whose box the mover's last step (last position to current) passes
   // through; -1 if none, 0 if the target has no model.
+  /**
+   * @param {any} mover
+   * @param {any} target
+   */
   clumpHit(mover, target) {
     const o = this.obj(mover);
     const B = this.clumpBoxes(target);
@@ -492,6 +612,12 @@ export class Collision {
 
   // For other modules: the first object (other than `id`) whose radius
   // reaches the point (x, y, z in RenderWare units) with `radius` added.
+  /**
+   * @param {number} id
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   */
   hitAt(id, x, y, z, radius = 0) {
     for (const o of this.world?.objects.values() || []) {
       if (o.id === id || o.level < 0) continue;
@@ -503,6 +629,11 @@ export class Collision {
 
   // The first object a point moving from `from` to `to` passes within its
   // radius of; 0 if none.
+  /**
+   * @param {number} id
+   * @param {number[]} from
+   * @param {any} to
+   */
   segment(id, from, to) {
     let best = Infinity, hit = 0;
     const d = sub(to, from);
@@ -522,6 +653,10 @@ export class Collision {
   }
 
   // World position and direction of a clump of an object (k = 0: the root).
+  /**
+   * @param {number} id
+   * @param {any} k
+   */
   clumpWorld(id, k) {
     const inst = this.engine.render3d?.objectModel?.(id);
     const o = this.obj(id);
@@ -533,6 +668,10 @@ export class Collision {
   }
 }
 
+/**
+ * @param {any} b
+ * @param {number[]} p
+ */
 function boxDistance(b, p) {
   let s = 0;
   for (let j = 0; j < 3; j++) {
@@ -543,6 +682,11 @@ function boxDistance(b, p) {
 }
 
 // Slab test: does the segment a-b pass through the box?
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {any} box
+ */
 function segmentHitsBox(a, b, box) {
   let t0 = 0, t1 = 1;
   for (let j = 0; j < 3; j++) {
@@ -560,10 +704,14 @@ function segmentHitsBox(a, b, box) {
   return true;
 }
 
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function collisionExterns(engine) {
   const c = (engine.collision = new Collision(engine));
-  if (engine.render3d && !engine.render3d.clumpWorld) engine.render3d.clumpWorld = (id, k) => c.clumpWorld(id, k);
-  const hs = (n) => engine.hotspots?.get(n);
+  if (engine.render3d && !engine.render3d.clumpWorld) engine.render3d.clumpWorld = (/** @type {number} */ id, /** @type {any} */ k) => c.clumpWorld(id, k);
+  const hs = (/** @type {number} */ n) => engine.hotspots?.get(n);
   return {
     UpdateCollideCheck: (id, list, extra, ignore) => c.updateCollideCheck(id, list, extra, ignore),
     Process_Sector_Collisions: (id, pHotspot, pObject, fast, scripts) => c.sectorCollisions(id, pHotspot, pObject, fast, scripts),
@@ -601,7 +749,7 @@ export function collisionExterns(engine) {
     // one again for the current camera distance.
     UpdateLOD(id) {
       const w = engine.world, o = w?.get(id);
-      if (o) {
+      if (w && o) {
         o.lod = 0;
         w.levelOfDetail(o, Math.round(w.time));
       }

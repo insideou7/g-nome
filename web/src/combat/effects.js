@@ -3,15 +3,19 @@
 // RENDER.R32 (addresses in the comments). Spec: docs/combat.md.
 import { normalize, sub, dot } from "../battlefield/math.js";
 
+/**
+ * @param {any} host
+ * @returns {Externs}
+ */
 export function effectExterns(host) {
   const engine = host.engine;
   // Frame counter shared with the FRME animation (object +0xBC), and the
   // texture's frame count (+0x94) and "animated texture" flag (+0x54 & 0x20).
-  const anim = (id) => engine.animation?.obj(id) || (host.obj(id) ? (host.obj(id).anim ??= { frame: 0 }) : null);
-  const tex = (id) => host.obj(id) && (host.obj(id).texAnim ??= { frames: 0, on: false });
+  const anim = (/** @type {number} */ id) => engine.animation?.obj(id) || (host.obj(id) ? (host.obj(id).anim ??= { frame: 0 }) : null);
+  const tex = (/** @type {number} */ id) => host.obj(id) && (host.obj(id).texAnim ??= { frames: 0, on: false });
   // RwSetTextureFrame on the object's texture: the battlefield view draws
   // the object's model with this frame.
-  const show = (id, f) => {
+  const show = (/** @type {number} */ id, /** @type {number} */ f) => {
     const o = host.obj(id);
     if (o) {
       o.textureFrame = f;

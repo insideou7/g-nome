@@ -27,6 +27,9 @@ export const RT = {
   SCRIPT: 19,
 };
 
+/**
+ * @param {Uint8Array} bytes
+ */
 function cstrings(bytes) {
   const out = [];
   let s = 0;
@@ -39,6 +42,11 @@ function cstrings(bytes) {
   return out;
 }
 
+/**
+ * @param {any} b
+ * @param {number} start
+ * @param {number} end
+ */
 export function latin1(b, start, end) {
   let s = "";
   for (let i = start; i < end; i++) s += String.fromCharCode(b[i]);
@@ -48,6 +56,10 @@ export function latin1(b, start, end) {
 export class BinFile {
   // `bytes`: the whole G-NOME.BIN. `readPack(n)`: async, returns the bytes of
   // G-NOME.<n as %03d>.
+  /**
+   * @param {Uint8Array} bytes
+   * @param {any} readPack
+   */
   constructor(bytes, readPack) {
     if (bytes[0] !== 0x37 || bytes[1] !== 0x4c) throw new Error("not a 7th Level .BIN (no 7L magic)");
     this.bytes = bytes;
@@ -87,19 +99,31 @@ export class BinFile {
     this.palette = this.key(KEY.PALETTE); // 236 x RGBX for slots 10..245
   }
 
+  /**
+   * @param {number} k
+   */
   key(k) {
     const [off, size] = this.keys[k];
     return this.bytes.subarray(off, off + size);
   }
 
+  /**
+   * @param {number} id
+   */
   type(id) {
     return id < this.count ? this.flags[id] & 0xff : -1;
   }
 
+  /**
+   * @param {number} id
+   */
   pack(id) {
     return this.flags[id] >> 8;
   }
 
+  /**
+   * @param {number} id
+   */
   isResident(id) {
     const t = this.type(id);
     return t >= 13 && t <= 22;
@@ -107,6 +131,9 @@ export class BinFile {
 
   // Resident resources (types 13..22: scripts, palettes, tables) live in the
   // script buffer, which is part of the .BIN.
+  /**
+   * @param {number} id
+   */
   resident(id) {
     const base = this.keys[KEY.SCRIPT_BUF][0];
     const o = base + this.offsets[id];
@@ -114,6 +141,9 @@ export class BinFile {
   }
 
   // NUL-terminated string at a byte offset into the string table.
+  /**
+   * @param {number} offset
+   */
   string(offset) {
     const b = this.stringBytes;
     let e = offset;
@@ -121,6 +151,9 @@ export class BinFile {
     return latin1(b, offset, e);
   }
 
+  /**
+   * @param {number} id
+   */
   async load(id) {
     if (id >= this.count) throw new Error(`resource ${id} out of range`);
     if (this.isResident(id)) return this.resident(id);
@@ -134,6 +167,9 @@ export class BinFile {
     return bytes.subarray(this.offsets[id], this.offsets[id] + this.sizes[id]);
   }
 
+  /**
+   * @param {number} i
+   */
   externLabel(i) {
     const p = this.externPlugin[i];
     return `${this.plugins[p] ?? "?"}.${this.externNames[i] ?? "extern_" + i}`;
@@ -145,6 +181,9 @@ export const WIN_STATIC_LOW = [[0, 0, 0], [128, 0, 0], [0, 128, 0], [128, 128, 0
 export const WIN_STATIC_HIGH = [[255, 251, 240], [160, 160, 164], [128, 128, 128], [255, 0, 0], [0, 255, 0], [255, 255, 0], [0, 0, 255], [255, 0, 255], [0, 255, 255], [255, 255, 255]];
 
 // 236 x RGBX -> full 256 x RGB (Uint8Array(768)).
+/**
+ * @param {any} pal236
+ */
 export function palette256(pal236) {
   const out = new Uint8Array(768);
   WIN_STATIC_LOW.forEach((c, i) => out.set(c, i * 3));

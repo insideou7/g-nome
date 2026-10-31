@@ -13,6 +13,7 @@ import { BattleCamera, project, screenToGround } from "./camera.js";
 import { identityBasis, copyBasis, lerp, lerpBasis, rotate, add, scale, headingOf, normalize, modelMatrix } from "./math.js";
 import { clumpMatrices } from "../render3d/model.js";
 import { BattleView } from "./view.js";
+/** @import { Engine } from "../engine.js" */
 
 export const UNIT = 100; // script units per RenderWare unit (Init3D: 100.0f)
 export const TICK_MS = 1000 / 30;
@@ -23,6 +24,9 @@ const MAX_TICKS_PER_FRAME = 8; // don't spiral after a stall
 export const STATE = { OFF: 0, RUNNING: 1, PAUSED: 4, REDRAW: 5, SUSPENDED: 6, STOPPED: -1 };
 
 export class WorldObject {
+  /**
+   * @param {number} id
+   */
   constructor(id) {
     this.id = id;
     this.pos = [0, 0, 0]; // +0x0c
@@ -43,6 +47,9 @@ export class WorldObject {
     this.tickBasis = copyBasis(this.basis);
   }
 
+  /**
+   * @param {number[]} p
+   */
   setPosition(p) {
     this.pos = p.slice();
     this.last = p.slice();
@@ -52,6 +59,9 @@ export class WorldObject {
   // FUN_100050d0: rotate about the object's own axes as they were before
   // the call: pitch about right, then yaw about up, then roll about at.
   // Degrees, right-hand rule.
+  /**
+   * @param {number} yaw
+   */
   turn(yaw, pitch = 0, roll = 0) {
     const b = this.basis;
     this.rotateBy([
@@ -62,6 +72,9 @@ export class WorldObject {
   }
 
   // FUN_1000533a ("Absolute" externs): the same about the world axes X, Y, Z.
+  /**
+   * @param {number} yaw
+   */
   turnWorld(yaw, pitch = 0, roll = 0) {
     this.rotateBy([
       [[1, 0, 0], pitch],
@@ -70,10 +83,13 @@ export class WorldObject {
     ]);
   }
 
+  /**
+   * @param {[number[], number][]} steps axis and degrees
+   */
   rotateBy(steps) {
     steps = steps.filter((s) => s[1]);
     if (!steps.length) return;
-    const r = (v) => steps.reduce((v, [axis, deg]) => rotate(v, axis, deg), v);
+    const r = (/** @type {number[]} */ v) => steps.reduce((v, [axis, deg]) => rotate(v, axis, deg), v);
     const b = this.basis;
     this.basis = { right: r(b.right), up: r(b.up), at: r(b.at) };
     this.moved = true;
@@ -81,6 +97,9 @@ export class WorldObject {
 
   // FUN_1001a754: move by velocity (gravity bends vel[1]); remembers the old
   // position in `last`.
+  /**
+   * @param {number} dt
+   */
   move(dt) {
     this.last = this.pos.slice();
     this.vel[1] += this.gravity * dt;
@@ -89,6 +108,9 @@ export class WorldObject {
   }
 
   // FUN_1001a290: spin at the angular velocities.
+  /**
+   * @param {number} dt
+   */
   spinFor(dt) {
     this.turn(this.spin.yaw * dt, this.spin.pitch * dt, this.spin.roll * dt);
   }
@@ -101,6 +123,9 @@ export class WorldObject {
 export class World {
   /** @type {import("./controls.js").Controls} */ controls; // set by battlefieldExterns
 
+  /**
+   * @param {Engine} engine
+   */
   constructor(engine) {
     this.engine = engine;
     this.state = STATE.OFF;
@@ -120,6 +145,13 @@ export class World {
   }
 
   // Init3D(x, y, w, h, ?, onlyMoved)
+  /**
+   * @param {number} x
+   * @param {number} y
+   * @param {number} w
+   * @param {number} h
+   * @param {number} onlyMoved
+   */
   init(x, y, w, h, onlyMoved) {
     this.camera.width = w || 640;
     this.camera.height = h || 480;
@@ -128,12 +160,19 @@ export class World {
     this.state = STATE.RUNNING;
   }
 
+  /**
+   * @param {number} id
+   */
   get(id) {
     return this.objects.get(id) || null;
   }
 
   // A level-of-detail record of kind 4 points the object at a model
   // resource directly (+0x98), without a copy.
+  /**
+   * @param {number} id
+   * @param {any} model
+   */
   setModel(id, model) {
     const rec = this.engine.render3d?.objects?.get(id);
     if (!rec) return;
@@ -144,12 +183,21 @@ export class World {
 
   // The object's radius (+0x58) in world units. SetModelDimensions keeps it
   // in the render3d record, SetRadius in both.
+  /**
+   * @param {number} id
+   */
   radiusOf(id) {
     const rec = this.engine.render3d?.objects?.get(id);
     return rec?.radius || this.objects.get(id)?.radius || 0;
   }
 
   // AddObject(id, ?, x, y, z): put an object into the scene at a position.
+  /**
+   * @param {number} id
+   * @param {number} x
+   * @param {number} y
+   * @param {number} z
+   */
   add(id, x, y, z) {
     let o = this.objects.get(id);
     if (!o) {
@@ -169,6 +217,9 @@ export class World {
   // the rest of its setup script runs. Every matching range is applied,
   // from the last record to the first; the distance is to the camera,
   // over the far plane.
+  /**
+   * @param {any} o
+   */
   firstLevelOfDetail(o) {
     const list = o.behaviours;
     if (!list?.length) return;
@@ -188,10 +239,13 @@ export class World {
   // kind 6 is the update (interval, script); kind 1 is a timer script;
   // kinds 4 and 5 are level-of-detail ranges (a model, or a script that
   // links one) chosen by distance in FUN_10029059.
+  /**
+   * @param {any} o
+   */
   loadBehaviours(o) {
     const rec = this.engine.render3d?.objects?.get(o.id);
     const entries = rec?.entries || [];
-    o.behaviours = entries.map((e) => ({ ...e, last: Math.round(this.time) }));
+    o.behaviours = entries.map((/** @type {any} */ e) => ({ ...e, last: Math.round(this.time) }));
     const first = o.behaviours[0];
     o.hasUpdate = first?.kind === 6;
     if (o.hasUpdate) {
@@ -201,6 +255,9 @@ export class World {
     o.lod = 0; // index of the level of detail in use (+0xe0)
   }
 
+  /**
+   * @param {number | undefined} id
+   */
   remove(id) {
     const o = this.objects.get(id);
     if (!o) return;
@@ -217,12 +274,18 @@ export class World {
 
   // Called by other modules (motion, AI) that change transforms: they run
   // inside update scripts, so changes land in the current tick.
+  /**
+   * @param {any} fn
+   */
   onTick(fn) {
     this.tickListeners.add(fn);
     return () => this.tickListeners.delete(fn);
   }
 
   // Advance the simulation by real elapsed time; called every display frame.
+  /**
+   * @param {number} ms
+   */
   advance(ms) {
     if (this.state === STATE.OFF || this.state === STATE.STOPPED) return;
     if (this.state === STATE.PAUSED || this.state === STATE.SUSPENDED) {
@@ -270,11 +333,19 @@ export class World {
     if (this.state === STATE.REDRAW) this.state = STATE.RUNNING;
   }
 
+  /**
+   * @param {any} o
+   * @param {number} now
+   */
   due(o, now) {
     return now - o.lastUpdate >= o.updateInterval;
   }
 
   // FUN_10028fb2: run the update script with the time since the last one.
+  /**
+   * @param {any} o
+   * @param {number} now
+   */
   update(o, now) {
     const dt = Math.min(MAX_STEP_MS, now - o.lastUpdate);
     o.lastUpdate = now;
@@ -283,6 +354,10 @@ export class World {
 
   // FUN_10029059: timers (kind 1) and level of detail (kinds 4, 5). The
   // distance is an octagonal approximation in x/z divided by the far plane.
+  /**
+   * @param {any} o
+   * @param {number} now
+   */
   levelOfDetail(o, now) {
     const list = o.behaviours;
     if (!list || list.length < 2) return;
@@ -310,6 +385,9 @@ export class World {
   // Interpolated pose of an object for drawing. With `clump` > 0 it is the
   // pose of that tagged clump of the object's model (RwGetClumpLTM), e.g. the
   // cockpit the camera sits in.
+  /**
+   * @param {number} id
+   */
   pose(id, clump = 0, t = this.alpha) {
     const o = this.objects.get(id);
     if (!o) return null;
@@ -327,11 +405,14 @@ export class World {
   }
 
   cameraPose(t = this.alpha) {
-    return this.camera.pose((id, clump) => this.pose(id, clump, t));
+    return this.camera.pose((/** @type {number} */ id, /** @type {number | undefined} */ clump) => this.pose(id, clump, t));
   }
 
   // XZToScreen: where an object appears, relative to the centre of
   // projection (the screen centre; see BattleCamera.screen).
+  /**
+   * @param {number} id
+   */
   toScreen(id) {
     const p = this.pose(id, 0, 1);
     if (!p) return null;
@@ -340,6 +421,10 @@ export class World {
   }
 
   // ScreenToXZ: the ground point under a pixel (centre-relative).
+  /**
+   * @param {number} sx
+   * @param {number} sy
+   */
   fromScreen(sx, sy) {
     const cam = this.camera;
     return screenToGround(this.cameraPose(1), cam.viewwindow, cam.screen(), sx, sy);

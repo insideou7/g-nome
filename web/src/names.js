@@ -302,6 +302,6 @@ export const STATEMENTS_INFO = {
   0xe6: ["set_zoom", "+2 mode (0-4), +6 x, +10 y", "Zoom mode of the sprite engine (SpriteSetZoom)."],
 };
 
-const names = (info) => Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v[0]]));
+const names = (/** @type {any} */ info) => Object.fromEntries(Object.entries(info).map(([k, v]) => [k, v[0]]));
 export const BUILTIN_NAMES = names(BUILTINS_INFO);
 export const STATEMENT_NAMES = names(STATEMENTS_INFO);

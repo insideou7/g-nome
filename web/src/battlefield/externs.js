@@ -6,19 +6,24 @@ import { World, STATE, UNIT } from "./world.js";
 import { headingOf, normalize, scale, add } from "./math.js";
 import { Controls } from "./controls.js";
 import { Mission } from "./mission.js";
+/** @import { Engine } from "../engine.js" */
 
+/**
+ * @param {Engine} engine
+ * @returns {Externs}
+ */
 export function battlefieldExterns(engine) {
   const world = new World(engine);
   engine.world = world;
   engine.mission = new Mission(engine);
   const controls = (world.controls = new Controls(engine));
   const vm = () => engine.vm;
-  const obj = (id) => world.get(id);
+  const obj = (/** @type {number} */ id) => world.get(id);
   // FUN_1001a290. The motion code (web/src/anim/motion.js) sets
   // engine.spinStep to its version, which first works a pending yaw target
   // with the acceleration-limited controller; without it, spin at the rates.
-  const spin = (o, dt) => (engine.spinStep ? engine.spinStep(o, dt) : o.spinFor(dt));
-  const out = (addr, v) => {
+  const spin = (/** @type {any} */ o, /** @type {number} */ dt) => (engine.spinStep ? engine.spinStep(o, dt) : o.spinFor(dt));
+  const out = (/** @type {number} */ addr, /** @type {number} */ v) => {
     if (addr) vm().store(addr, Math.trunc(v));
   };
 

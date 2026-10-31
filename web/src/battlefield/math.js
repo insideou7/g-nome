@@ -3,34 +3,70 @@
 
 export const DEG = Math.PI / 180;
 
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 export function add(a, b) {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 export function sub(a, b) {
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 }
+/**
+ * @param {number[]} a
+ * @param {number} s
+ */
 export function scale(a, s) {
   return [a[0] * s, a[1] * s, a[2] * s];
 }
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 export function dot(a, b) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ */
 export function cross(a, b) {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
+/**
+ * @param {number[]} a
+ */
 export function length(a) {
   return Math.hypot(a[0], a[1], a[2]);
 }
+/**
+ * @param {number[]} a
+ */
 export function normalize(a) {
   const l = length(a);
   return l > 1e-9 ? scale(a, 1 / l) : [0, 0, 0];
 }
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {number} t
+ */
 export function lerp(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
 
 // Rotate v about the unit axis by `deg` degrees, right-hand rule (as
 // RwRotateMatrix does in RenderWare's right-handed space).
+/**
+ * @param {number[]} v
+ * @param {number[]} axis
+ * @param {number} deg
+ */
 export function rotate(v, axis, deg) {
   const a = deg * DEG, c = Math.cos(a), s = Math.sin(a);
   const k = dot(axis, v) * (1 - c);
@@ -47,11 +83,17 @@ export function identityBasis() {
   return { right: [1, 0, 0], up: [0, 1, 0], at: [0, 0, 1] };
 }
 
+/**
+ * @param {any} b
+ */
 export function copyBasis(b) {
   return { right: b.right.slice(), up: b.up.slice(), at: b.at.slice() };
 }
 
 // Rebuild an orthonormal basis from a forward and an approximate up vector.
+/**
+ * @param {number[]} at
+ */
 export function basisFromAt(at, upHint = [0, 1, 0]) {
   at = normalize(at);
   let right = cross(upHint, at);
@@ -63,12 +105,20 @@ export function basisFromAt(at, upHint = [0, 1, 0]) {
 }
 
 // Blend two orientations (for drawing between ticks) and re-orthonormalize.
+/**
+ * @param {any} a
+ * @param {any} b
+ * @param {number} t
+ */
 export function lerpBasis(a, b, t) {
   return basisFromAt(lerp(a.at, b.at, t), lerp(a.up, b.up, t));
 }
 
 // Heading in hundredths of a degree, as the scripts use it: 0 faces +Z and
 // 9000 faces +X (a positive yaw turns +Z towards +X).
+/**
+ * @param {number[]} at
+ */
 export function headingOf(at) {
   let h = Math.atan2(at[0], at[2]) / DEG;
   if (h < 0) h += 360;
@@ -77,6 +127,9 @@ export function headingOf(at) {
 
 // Basis for an absolute heading/pitch (degrees). Pitch > 0 looks down, which
 // is what RwTiltCamera does with a positive angle in G-Nome's scripts.
+/**
+ * @param {any} yawDeg
+ */
 export function basisFromAngles(yawDeg, pitchDeg = 0) {
   let b = identityBasis();
   if (yawDeg) b = { right: rotate(b.right, [0, 1, 0], yawDeg), up: b.up, at: rotate(b.at, [0, 1, 0], yawDeg) };
@@ -87,6 +140,10 @@ export function basisFromAngles(yawDeg, pitchDeg = 0) {
 // 4x4 column-major matrix (WebGL layout) that places a basis at a position.
 // RenderWare matrices are row-vector (row 0 = right, 1 = up, 2 = at, 3 =
 // position); written column-major this is the same matrix.
+/**
+ * @param {any} basis
+ * @param {number[]} pos
+ */
 export function modelMatrix(basis, pos, s = 1) {
   const { right: r, up: u, at: a } = basis;
   return new Float32Array([r[0] * s, r[1] * s, r[2] * s, 0, u[0] * s, u[1] * s, u[2] * s, 0, a[0] * s, a[1] * s, a[2] * s, 0, pos[0], pos[1], pos[2], 1]);
