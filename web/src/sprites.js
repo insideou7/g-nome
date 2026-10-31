@@ -2,7 +2,9 @@
 //
 // A type 20 resource defines a sprite: +0x08 u32 entry count, +0x1c u32
 // level (higher draws on top), +0x21 u8 pick mode, +0x26 u32 resource ids:
-// bitmaps (type 1) are its cels; type 18 entries are queues.
+// bitmaps (type 1) are its cels; type 18 entries are queues. A type 15 cel
+// is a reference to a bitmap: a u32 bitmap id and 12 zero bytes (all 290 in
+// G-NOME.BIN), used by the shared arrow buttons.
 //
 // Scripts drive sprites with messages: immediately through builtin 0xce
 // (SpriteSendMessage, dispatcher 0x1003e1dd), or by giving a sprite a queue
@@ -16,7 +18,7 @@ import { decodeBitmap } from "./bitmap.js";
 import { WIDTH, HEIGHT } from "./display.js";
 
 const EMPTY = { width: 1, height: 1, x: 0, y: 0, pixels: new Uint8Array(1) };
-const drawable = (t) => t === 1 || t === 21;
+const drawable = (t) => t === 1 || t === 15 || t === 21;
 
 export const ORIGIN_X = WIDTH / 2;
 export const ORIGIN_Y = HEIGHT / 2;
@@ -32,6 +34,10 @@ export class Sprites {
   }
 
   bitmap(id) {
+    if (this.engine.bin.type(id) === 15) {
+      const r = this.engine.res(id);
+      id = new DataView(r.buffer, r.byteOffset, r.byteLength).getUint32(0, true);
+    }
     if (this.engine.bin.type(id) === 21) return this.engine.texts.bitmap(id) || EMPTY;
     let b = this.bitmaps.get(id);
     if (!b) {
