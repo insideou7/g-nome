@@ -162,14 +162,17 @@ export function battlefieldExterns(engine) {
       if (o) o.gravity = g / UNIT;
       return 1;
     },
+    // The radius (+0x58) is shared with SetModelDimensions, which keeps it
+    // in the render3d object record.
     SetRadius(id, r) {
       const o = obj(id);
       if (o) o.radius = r / UNIT;
+      const rec = engine.render3d?.objects?.get(id);
+      if (rec) rec.radius = r / UNIT;
       return 1;
     },
     GetRadius(id) {
-      const o = obj(id);
-      return o ? Math.trunc((o.radius || 0) * UNIT) : 0;
+      return Math.trunc(world.radiusOf(id) * UNIT);
     },
     // SetLevel(id, level): draw order; ground tiles use -100
     SetLevel(id, level) {
@@ -221,7 +224,7 @@ export function battlefieldExterns(engine) {
     UpdateGroundCheck(id) {
       const o = obj(id);
       if (!o) return 0;
-      return (o.radius || 0) + (o.groundY || 0) - o.pos[1] <= 0 ? 1 : 0;
+      return world.radiusOf(id) + (o.groundY || 0) - o.pos[1] <= 0 ? 1 : 0;
     },
     // UpdateGroundHeight(id): follow the ground under the object. G-Nome's
     // ground is flat (no AddGround calls), so its height is 0.

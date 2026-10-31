@@ -232,6 +232,20 @@ export class VM {
     }
   }
 
+  // Run a script from inside a plugin call (RtRunMsg with a type 1 message)
+  // and return what it returned. Its frame goes below any locals the
+  // calling script can have (at most 255), so they survive the call.
+  callValue(script, args) {
+    const saved = this.retval;
+    this.retval = 0;
+    try {
+      this.callScript(script, 256, args);
+      return this.retval;
+    } finally {
+      this.retval = saved;
+    }
+  }
+
   // ------------------------------------------------------------ expressions
 
   // [EvalExpr] 0x10003330. Returns the first value pushed.

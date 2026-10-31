@@ -113,8 +113,10 @@ Design choices:
    - [x] world, cameras, ground tiles, fixed-tick update loop with
      interpolation, controls (`src/battlefield/`,
      [battlefield.md](battlefield.md)); `?mission=N` starts a mission
-   - [ ] movement, tasks and animation (`src/anim/`), collisions,
-     hotspots, weapons
+   - [x] movement, tasks and animation (`src/anim/`)
+   - [x] collisions and hotspots (`src/battlefield/collision.js`), level of
+     detail at AddObject, ObjectSetScene/UpdateLOD
+   - [ ] weapons, turret aiming, radar
 4. **Saves and settings**: `SGNOME*.SAV`, INI values (now kept in
    `localStorage`).
 5. Networking (`NETGN.R32`, DirectPlay) is out of scope; the scripts already

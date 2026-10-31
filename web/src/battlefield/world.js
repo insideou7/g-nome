@@ -129,6 +129,23 @@ export class World {
     return this.objects.get(id) || null;
   }
 
+  // A level-of-detail record of kind 4 points the object at a model
+  // resource directly (+0x98), without a copy.
+  setModel(id, model) {
+    const rec = this.engine.render3d?.objects?.get(id);
+    if (!rec) return;
+    rec.model = model;
+    rec.flags |= 8;
+    if (model) this.engine.render3d.instance(model);
+  }
+
+  // The object's radius (+0x58) in world units. SetModelDimensions keeps it
+  // in the render3d record, SetRadius in both.
+  radiusOf(id) {
+    const rec = this.engine.render3d?.objects?.get(id);
+    return rec?.radius || this.objects.get(id)?.radius || 0;
+  }
+
   // AddObject(id, ?, x, y, z): put an object into the scene at a position.
   add(id, x, y, z) {
     let o = this.objects.get(id);
@@ -140,7 +157,28 @@ export class World {
     o.tickPos = o.pos.slice();
     o.lastUpdate = Math.round(this.time);
     this.loadBehaviours(o);
+    this.firstLevelOfDetail(o);
     return o;
+  }
+
+  // AddObject (0x100100f0) picks the level of detail at once, so a unit's
+  // model (and the properties its LOD script sets, such as 79) exist before
+  // the rest of its setup script runs. Every matching range is applied,
+  // from the last record to the first; the distance is to the camera,
+  // over the far plane.
+  firstLevelOfDetail(o) {
+    const list = o.behaviours;
+    if (!list?.length) return;
+    const cam = this.cameraPose(1).pos;
+    const d = Math.hypot(o.pos[0] - cam[0], o.pos[1] - cam[1], o.pos[2] - cam[2]) / this.camera.far;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const b = list[i];
+      if ((b.kind === 4 || b.kind === 5) && b.min <= d && d <= b.max) {
+        if (b.kind === 4) this.setModel(o.id, b.value);
+        else this.engine.callScript(b.value, [o.id]);
+        o.lod = i;
+      }
+    }
   }
 
   // The object's behaviour records (OB3D/OPRT entries, +0xec): record 0 of
@@ -258,7 +296,7 @@ export class World {
           if (b.b) this.engine.callScript(b.b, [o.id]);
         }
       } else if ((b.kind === 4 || b.kind === 5) && !chosen && b.min <= d && d <= b.max) {
-        if (b.kind === 4) this.engine.render3d?.setObjectModel?.(o.id, b.value);
+        if (b.kind === 4) this.setModel(o.id, b.value);
         else this.engine.callScript(b.value, [o.id, this.engine.render3d?.objects?.get(o.id)?.model || 0]);
         o.lod = i;
         chosen = true;

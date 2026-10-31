@@ -37,8 +37,13 @@ export class BattleView {
     const pose = w.cameraPose();
     for (const o of w.objects.values()) {
       let h = this.handles.get(o.id);
+      // A level-of-detail change can link another model copy (or none).
+      const model = r3d.objectModel(o.id);
+      if (h && h.instance !== model) {
+        this.drop(o);
+        h = null;
+      }
       if (!h) {
-        const model = r3d.objectModel(o.id);
         if (!model) continue;
         h = this.scene.add(model, {});
         this.handles.set(o.id, h);
@@ -47,7 +52,8 @@ export class BattleView {
       const d = sub(p.pos, pose.pos);
       h.setTransform({
         matrix: modelMatrix(p.basis, p.pos),
-        visible: o.visible,
+        // ObjectSetScene(id, 1) takes the model out of the scene (flag 0x80).
+        visible: o.visible && !(r3d.objects.get(o.id)?.flags & 0x80),
         level: o.level,
         depth: o.level >= 0,
         distance: dot(d, d),

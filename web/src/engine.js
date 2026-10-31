@@ -216,12 +216,20 @@ export class Engine {
     this.run(this.bin.entryScript);
   }
 
+  // Run a script now. Called from inside a plugin call (a script is already
+  // running), its frame goes below the caller's locals and the caller's
+  // return value is kept, as RtRunMsg does.
   callScript(id, args) {
+    const vm = this.vm;
+    const nested = vm.depth > 0;
+    const saved = vm.retval;
     try {
-      return this.vm.callScript(id, 0, args);
+      return vm.callScript(id, nested ? 256 : 0, args);
     } catch (e) {
       this.log(`script ${id} failed: ${e.message}`);
       return 0;
+    } finally {
+      if (nested) vm.retval = saved;
     }
   }
 

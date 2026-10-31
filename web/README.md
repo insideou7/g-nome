@@ -29,7 +29,9 @@ HTTP from the repo's git-ignored `game/` folder.
 
 To jump straight into a campaign mission, add `&mission=N` (N is the
 mission number, 1-22): `web/?game=/game/g-nome/G-NOME/&mission=1`. In a
-mission the arrow keys turn and Space fires once the movement code lands.
+mission numpad `+` and `-` (or Ctrl+Up and Ctrl+Down) set the speed, Left
+and Right turn, Up and Down tilt the gun, and you bump into units, trees and
+cliffs.
 
 ## Developer tools
 
@@ -50,6 +52,11 @@ node web/tools/disasm.mjs game/g-nome/G-NOME/G-NOME.BIN all > re-output/scripts.
 NODE_PATH=$(npm root -g) node web/tools/shot.mjs 15 /tmp/boot 12:Escape
 # ...of mission 1
 NODE_PATH=$(npm root -g) node web/tools/shot.mjs 12 /tmp/m1 '?mission=1' 2:Escape 3:Escape 4:Escape
+# ...holding keys: walk forward for 2 seconds, extra screenshot at 8 s
+NODE_PATH=$(npm root -g) node web/tools/shot.mjs 12 /tmp/m1 '?mission=1' 2:Escape 3:Escape 4:Escape 5:down:NumpadAdd 7:up:NumpadAdd 8:shot
+
+# Collision maths, plus walking into a cliff in mission 1
+node web/tests/collision-check.mjs game/g-nome/G-NOME
 
 # Check the FRME/OB3D decoders and the animation system on a real unit
 node web/tests/anim-check.mjs game/g-nome/G-NOME
