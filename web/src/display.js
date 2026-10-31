@@ -5,6 +5,7 @@ export const WIDTH = 640;
 export const HEIGHT = 480;
 
 export class Display {
+  /** @param {HTMLCanvasElement | null} [canvas] */
   constructor(canvas = null) {
     this.pixels = new Uint8Array(WIDTH * HEIGHT);
     this.palette = new Uint8Array(768);
@@ -12,7 +13,9 @@ export class Display {
     this.frozen = null; // {pixels, palette} shown instead while fading out
     this.canvas = canvas;
     this.ctx = canvas ? canvas.getContext("2d") : null;
-    this.image = this.ctx ? this.ctx.createImageData(WIDTH, HEIGHT) : { data: new Uint8ClampedArray(WIDTH * HEIGHT * 4) };
+    // Headless (no canvas): only .data is used.
+    /** @type {ImageData} */
+    this.image = this.ctx ? this.ctx.createImageData(WIDTH, HEIGHT) : /** @type {any} */ ({ data: new Uint8ClampedArray(WIDTH * HEIGHT * 4) });
     this.dirty = true;
     // 3D view drawn under the sprites: {canvas, x, y}. Where it is set,
     // colour 0 (transparent in every bitmap) shows the 3D view instead.
@@ -57,9 +60,9 @@ export class Display {
     else {
       if (!this.layer) {
         this.layer = new OffscreenCanvas(WIDTH, HEIGHT);
-        this.layerCtx = this.layer.getContext("2d");
+        this.layerCtx = /** @type {OffscreenCanvasRenderingContext2D} */ (this.layer.getContext("2d"));
       }
-      this.layerCtx.putImageData(this.image, 0, 0);
+      /** @type {OffscreenCanvasRenderingContext2D} */ (this.layerCtx).putImageData(this.image, 0, 0);
       this.ctx.fillStyle = "#000";
       this.ctx.fillRect(0, 0, WIDTH, HEIGHT);
       this.ctx.drawImage(under.canvas, under.x || 0, under.y || 0);

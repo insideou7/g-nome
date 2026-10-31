@@ -66,6 +66,7 @@ export class VolumePanel {
     return SLIDERS.find((s) => x >= X0 - GRAB && x < X0 + WIDTH + GRAB && y >= this.barTop(s) - GRAB && y < this.barTop(s) + BAR_H + GRAB);
   }
   dragTo(x) {
+    if (!this.drag) return;
     this.setLevel(this.drag.bus, ((x - X0) * 100) / WIDTH);
   }
 

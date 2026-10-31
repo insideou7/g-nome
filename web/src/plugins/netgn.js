@@ -442,6 +442,7 @@ export class NetPlugin {
 
   // The next queued message, optionally only from one player.
   next(from) {
+    if (!this.dp) return null;
     const q = this.dp.queue;
     const i = from ? q.findIndex((m) => m.from === from) : q.length ? 0 : -1;
     return i < 0 ? null : q.splice(i, 1)[0];
@@ -857,6 +858,7 @@ export class NetPlugin {
   }
 
   // up defaults to at x right, as NETGN computes the third row.
+  /** @param {number[] | null} [up] */
   setTransform(obj, pos, at, right, up = null) {
     const o = this.engine.world?.get(obj);
     if (!o) return;

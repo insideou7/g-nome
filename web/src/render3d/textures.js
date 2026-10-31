@@ -50,7 +50,7 @@ export class TextureStore {
     }
     if (this.byName.has(name)) return this.byName.get(name);
     if (!this.index) this.buildIndex();
-    const e = this.index.get(name);
+    const e = /** @type {Map<string, any>} */ (this.index).get(name);
     let t = null;
     if (e) {
       const data = this.engine.res(e.id);

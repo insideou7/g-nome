@@ -34,7 +34,7 @@ export function exprText(bin, b, dv, p, names = BUILTIN_NAMES) {
       st.push(`script_${st.pop()}(${args.join(", ")})`);
     } else if (UN[op]) st.push(`${UN[op]}(${st.pop()})`);
     else if (BIN[op]) { const r = st.pop(), l = st.pop(); st.push(`(${l} ${BIN[op]} ${r})`); }
-    else if (op >= 0x22 && op <= 0x25) { const a = st.pop().replace(/^&/, ""); st.push(op === 0x22 ? `++${a}` : op === 0x23 ? `${a}++` : op === 0x24 ? `--${a}` : `${a}--`); }
+    else if (op >= 0x22 && op <= 0x25) { const a = String(st.pop()).replace(/^&/, ""); st.push(op === 0x22 ? `++${a}` : op === 0x23 ? `${a}++` : op === 0x24 ? `--${a}` : `${a}--`); }
     else if (op === 0x26 || op === 0x27) { p += 4; st.push(`${st.pop()} ${op === 0x26 ? "||" : "&&"}`); }
     else if (op === 0x28) st.push(`*${st[st.length - 1]}`);
     else { st.push(`?op${op.toString(16)}`); break; }

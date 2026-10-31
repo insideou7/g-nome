@@ -186,10 +186,23 @@ cd web && npm ci && npm run typecheck
 ```
 
 `.github/workflows/typecheck.yml` runs the same check on pull requests that
-touch `web/`. The settings started lenient (`strict` off; `noImplicitThis`,
-`strictBindCallApply`, `strictFunctionTypes` and `noFallthroughCasesInSwitch`
-on). Tighten them one flag at a time, fixing what each one finds;
-`strictNullChecks` is next (about 90 errors, mostly fields that start as
-`null`). A property that is set outside its class's constructor needs a
-declaration there, such as `/** @type {World | undefined} */ this.world;`,
-and browser APIs TypeScript does not know yet go in `web/src/globals.d.ts`.
+touch `web/`. The settings started lenient (`strict` off) and are tightened
+one flag at a time, fixing what each one finds. On now: `noImplicitThis`,
+`strictBindCallApply`, `strictFunctionTypes`, `noFallthroughCasesInSwitch`
+and `strictNullChecks`. `noImplicitAny` is next (about 2200 errors).
+
+How to satisfy the null checks:
+
+- A property that may be missing and is set outside its class's
+  constructor gets a declaration there, such as
+  `/** @type {World | undefined} */ this.world;`.
+- A property that is always set before use, but outside the constructor
+  (for example `Engine.bin` and `Engine.vm`, set by `load()`), is declared
+  as a class field with its type: `/** @type {VM} */ vm;`.
+- A parameter with a `null` default needs its type, or TypeScript reads it
+  as always `null`: `/** @param {number[] | null} [up] */`.
+- Where a value can't be null at that point (a 2D canvas context, a field
+  set a line above), cast it: `/** @type {X} */ (value)`. Otherwise check
+  for null and return early.
+
+Browser APIs TypeScript does not know yet go in `web/src/globals.d.ts`.

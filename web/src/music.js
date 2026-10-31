@@ -43,7 +43,7 @@ export class CdMusic {
   get available() {
     if (!this.engine.files.names?.length) return true;
     this.candidates(0);
-    return this.found.size > 0;
+    return !!this.found?.size;
   }
 
   async play(track) {

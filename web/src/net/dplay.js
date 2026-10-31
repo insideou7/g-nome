@@ -174,6 +174,7 @@ export class DirectPlay {
 
   advert() {
     const s = this.session;
+    if (!s) return null;
     return { guid: s.guid, name: s.name, max: s.max, pw: !!s.pw, host: this.bus.id, members: [...this.members.keys()], players: [...this.players.values()] };
   }
 

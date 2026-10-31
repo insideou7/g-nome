@@ -73,13 +73,13 @@ export class Texts {
     if (Canvas && t.text) {
       const m = METRICS[t.font.toLowerCase()] || ARIAL;
       const font = `${pixelSize(m, t.size)}px "${t.font}", Arial, sans-serif`;
-      const probe = new Canvas(1, 1).getContext("2d");
+      const probe = /** @type {OffscreenCanvasRenderingContext2D} */ (new Canvas(1, 1).getContext("2d"));
       probe.font = font;
       w = Math.max(1, Math.ceil(probe.measureText(t.text).width));
       // The bitmap keeps the old 1.2 x height and baseline, which line the
       // titles up with their frames; only the glyphs got smaller.
       h = Math.max(1, Math.ceil(t.size * 1.2));
-      const c = new Canvas(w, h).getContext("2d");
+      const c = /** @type {OffscreenCanvasRenderingContext2D} */ (new Canvas(w, h).getContext("2d"));
       c.font = font;
       c.textBaseline = "alphabetic";
       c.fillStyle = "#fff";

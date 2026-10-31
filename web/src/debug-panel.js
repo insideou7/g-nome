@@ -38,7 +38,7 @@ function el(tag, attrs = {}, ...kids) {
 
 function load(key, fallback) {
   try {
-    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+    return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback;
   } catch {
     return fallback;
   }

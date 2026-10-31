@@ -109,6 +109,7 @@ export class ServerBus {
     this.onpeerleave = null;
     // The server drops messages from peers it hasn't met: hold them until
     // our event stream is open.
+    /** @type {any[] | null} */
     this.held = [];
     this.events = new EventSource(`${this.base}events?id=${this.id}`);
     this.events.onopen = () => {
@@ -204,7 +205,7 @@ export class RtcBus extends ServerBus {
       attach(pc.createDataChannel("g-nome", { ordered: true }));
       pc.createOffer()
         .then((o) => pc.setLocalDescription(o))
-        .then(() => this.relay(peer, { rtc: { sdp: pc.localDescription.toJSON() } }))
+        .then(() => this.relay(peer, { rtc: { sdp: pc.localDescription?.toJSON() } }))
         .catch(() => this.drop(peer));
     } else {
       pc.ondatachannel = (e) => attach(e.channel);
@@ -219,7 +220,7 @@ export class RtcBus extends ServerBus {
         await pc.setRemoteDescription(s.sdp);
         if (s.sdp.type === "offer") {
           await pc.setLocalDescription(await pc.createAnswer());
-          this.relay(peer, { rtc: { sdp: pc.localDescription.toJSON() } });
+          this.relay(peer, { rtc: { sdp: pc.localDescription?.toJSON() } });
         }
       } else if (s.candidate) {
         await pc.addIceCandidate(s.candidate);
