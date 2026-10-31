@@ -200,3 +200,23 @@ The backdrop scrolls with the camera (`FUN_10005bd1`): with `a` the angle of
 the horizontal look direction from +Z (0 to 2 pi), the image is offset by
 `-2 * width * a / 2 pi`, so the 1328-pixel panorama covers half a turn and
 repeats. Its bottom edge is the horizon, at `at.y * 2.25 * h/2 + h/2`.
+
+## Controls
+
+`RENDER.R32` subclasses the game window (`0x1000dc7a`) and turns presses
+into action scripts; `CheckActionState` (`0x1000c631`) polls held actions.
+
+| Table | Contents |
+| --- | --- |
+| 2544 | actions (98 x 17): col 0 the script run on a press (with the action number as its argument), col 1 flag bits matched against the caller's mask, cols 2-5 whether the action is allowed in control mode 0-3 (scripts pass `mode + 2`, global 1854) |
+| 2546 | held bindings: rows `{action, device, key}`, ended by action -1 |
+| 2545, 2547 | press bindings, same layout (`MapActionKeys(2544, 2545, 2547, column, mask)`) |
+| 2550-2553 | the key-map presets; `script_2554` splits the chosen one into 2545 and 2546 |
+
+Devices: 0 the key alone, 1 Ctrl+key, 2 Shift+key, 5 the key without
+modifiers, 4 a mouse button (1 left, 2 right, 3 middle; only while
+`MouseOnOff(1)`), 3 and 6 joystick axes and buttons. `CheckActionState`
+returns 1 when a binding is held, 0 when the action is bound but not held,
+and -1 when it is not bound or not allowed in this mode. In the default map
+actions 0 and 1 (turn) are the left and right arrows and action 7 is the down
+arrow; Space presses action 9.
