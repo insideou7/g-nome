@@ -33,6 +33,8 @@ src/engine.js                 message loop, strings, palette, background, INI
 src/vm.js                     script VM (flat memory, frames, expressions)
 src/stmt-impl.js              fixed-size statement handlers
 src/builtins.js               RTLIB32 builtins (ids < 0xFA)
+src/names.js                  names of every builtin and statement (shared
+                              with tools/r32script.py, docs/rtlib32-names.md)
 src/sprites.js                sprite system (type 20 resources + messages)
 src/plugins/smacker.js        SMACKER.R32 (cutscenes)
 src/plugins/render.js         RENDER.R32: sound, plus the 3D externs below
@@ -92,6 +94,9 @@ Design choices:
    - [x] palette fades over `speed` frames (colours 10-245, as RTLIB32
      does in 256-colour mode)
    - [x] mouse cursors from `RTLIB32.DLL`'s resources (statement 0x1b)
+   - [x] every RTLIB32 statement and builtin the menus, LAB and mission 1
+     run (sprite position/level 0x4d, 0x71, 0xb8; CD track 0x8e/0xd2 are
+     remembered only, since CD audio is not in the game files)
    - [x] load screen (lists saves; saving needs a mission in progress)
    - [ ] remaining sprite messages (motion paths, speed)
 

@@ -1,10 +1,20 @@
 // RTLIB32's own functions, callable from expressions with ids below 0xFA.
 // The original is a 247-case switch at 0x10003fad. Each entry is
-// fn(vm, args) -> int. Only the 18 ids G-Nome's scripts use matter.
+// fn(vm, args) -> int. G-Nome's scripts use 17 of the ids; names and
+// arguments for all of them are in names.js.
 
 // Type 11 resources are integer tables: a 60-byte header (u32 data pointer,
 // u32 data bytes, ?, u32 resource id, u32 number of dimensions, u32 stride
 // per dimension, ...) and then int32 data. Element = data[sum(stride*idx)].
+function strcmp(a, b, nocase) {
+  if (a === undefined || b === undefined) return 0;
+  if (nocase) {
+    a = a.toLowerCase();
+    b = b.toLowerCase();
+  }
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function table(vm, id) {
   const e = vm.engine;
   let t = e.tables.get(id);
@@ -87,21 +97,41 @@ export const BUILTINS = {
   0xe8() {
     return 0;
   },
+  // 0x03: absolute value (0x10004164)
+  0x03(vm, [x]) {
+    return Math.abs(x | 0) | 0;
+  },
+  // 0xd5 / 0xd6: lstrcmp / lstrcmpi of two strings (0x10004340, 0x100042b5).
+  // A missing string returns nothing, which leaves 0.
+  0xd5(vm, [a, b]) {
+    return strcmp(vm.engine.getString(a), vm.engine.getString(b), false);
+  },
+  0xd6(vm, [a, b]) {
+    return strcmp(vm.engine.getString(a), vm.engine.getString(b), true);
+  },
+  // 0xd7: string length (0x100043cb)
+  0xd7(vm, [id]) {
+    return vm.engine.getString(id)?.length ?? 0;
+  },
+  // 0x76 / 0x77: max / min (0x10005aae, 0x10005a3a)
+  0x76(vm, [a, b]) {
+    return Math.max(a | 0, b | 0);
+  },
+  0x77(vm, [a, b]) {
+    return Math.min(a | 0, b | 0);
+  },
+  // 0xe7: the sprite engine's sync flag (SpriteSetSync, 0x100094e0). It
+  // ties sprite updates to the frame clock in the original; the browser
+  // always draws whole frames, so only remember it.
+  0xe7(vm, [on]) {
+    vm.engine.spriteSync = on & 0xff;
+    return on;
+  },
   // 0xce: send a message to a sprite (type 20): sprite, message, args...
   0xce(vm, [id, ...msg]) {
     return vm.engine.sprites.send(id, msg);
   },
 };
 
-export const BUILTIN_NAMES = {
-  0x19: "CopyResource",
-  0x22: "DeleteCopy",
-  0x44: "TableDim",
-  0x52: "TableGet",
-  0x99: "Random",
-  0xc1: "TableSet",
-  0xce: "SpriteMsg",
-  0xe1: "SpriteIsVisible",
-  0xe2: "SetFlag94dd",
-  0xe8: "CachePack",
-};
+// Names for every builtin id live in names.js.
+export { BUILTIN_NAMES } from "./names.js";

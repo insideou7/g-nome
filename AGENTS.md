@@ -23,6 +23,10 @@ Setup, the Ghidra backend and troubleshooting are in
 - [docs/rtlib32-engine.md](docs/rtlib32-engine.md): how RTLIB32.DLL loads the
   `.R32` plugins and runs the script bytecode in `G-NOME.BIN`.
 - `tools/r32script.py`: script disassembler for `.BIN` files.
+- [docs/rtlib32-names.md](docs/rtlib32-names.md): names, arguments and record
+  layouts of all 181 RTLIB32 builtins and 90 statements. The source is
+  `web/src/names.js`, shared by the web engine and the disassembler; edit it
+  there and regenerate the doc with `python3 -I tools/r32script.py --names-md`.
 - [docs/formats/animation.md](docs/formats/animation.md): FRME animation
   clips, OB3D/OPRT objects and RENDER.R32's animation, motion, steering,
   task, list, file and hotspot externs. `tools/gnome3d.py` exports models to glTF with their

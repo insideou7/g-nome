@@ -4,16 +4,52 @@
 Format notes are in docs/rtlib32-engine.md. Everything here was read out of
 RTLIB32.DLL (G-Nome build, Feb 1997) with REA + Ghidra.
 
+Names for RTLIB32's own functions and statements come from web/src/names.js,
+the table the web engine uses too.
+
 Usage:
   python3 -I tools/r32script.py game/g-nome/G-NOME/G-NOME.BIN --summary
   python3 -I tools/r32script.py game/g-nome/G-NOME/G-NOME.BIN --script 1
   python3 -I tools/r32script.py game/g-nome/G-NOME/G-NOME.BIN --all > scripts.txt
   python3 -I tools/r32script.py game/g-nome/G-NOME/G-NOME.BIN --externs
+  python3 -I tools/r32script.py --names-md > docs/rtlib32-names.md
 """
 import argparse
+import os
+import re
 import struct
 import sys
 from collections import Counter
+
+# ---------------------------------------------------------------- names
+
+NAMES_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "..", "web", "src", "names.js")
+_ENTRY = re.compile(r'^\s*0x([0-9a-fA-F]+):\s*\[\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)"\s*\],\s*$')
+
+
+def load_names(path=NAMES_JS):
+    """Parse names.js into {"BUILTINS_INFO": {id: (name, args, desc)},
+    "STATEMENTS_INFO": {...}}. Entries are one per line by convention."""
+    tables, cur = {}, None
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            m = re.match(r"^export const (\w+_INFO) = \{", line)
+            if m:
+                cur = tables.setdefault(m.group(1), {})
+                continue
+            if line.startswith("};"):
+                cur = None
+                continue
+            m = _ENTRY.match(line)
+            if m and cur is not None:
+                cur[int(m.group(1), 16)] = (m.group(2), m.group(3), m.group(4))
+    return tables
+
+
+_TABLES = load_names() if os.path.exists(NAMES_JS) else {}
+BUILTINS = _TABLES.get("BUILTINS_INFO", {})
+STATEMENTS = _TABLES.get("STATEMENTS_INFO", {})
 
 # ---------------------------------------------------------------- container
 
@@ -92,6 +128,9 @@ class ExprError(Exception):
     pass
 
 
+CALLS = Counter()  # call id -> uses seen by decode_expr (for --summary)
+
+
 def decode_expr(bf, buf, pos):
     """Decode one expression. Returns (text, end_pos)."""
     st = []
@@ -128,7 +167,11 @@ def decode_expr(bf, buf, pos):
             fid = pop()
             try:
                 n = int(fid)
-                name = bf.extern_label(n) if n >= EXTERN_BASE else "builtin_%#x" % n
+                CALLS[n] += 1
+                if n >= EXTERN_BASE:
+                    name = bf.extern_label(n)
+                else:
+                    name = BUILTINS[n][0] if n in BUILTINS else "builtin_%#x" % n
             except ValueError:
                 name = "call[%s]" % fid
             st.append("%s(%s)" % (name, ", ".join(args)))
@@ -179,14 +222,8 @@ FIXED = {
     0xE0: 0x2E, 0xE1: 0xC, 0xE6: 0x12,
 }
 
-# Names for the statements whose meaning is clear from the handler.
-NAMES = {
-    0x01: "spawn", 0x39: "quit", 0x3A: "set_quit_scene", 0x3E: "trace",
-    0x59: "if_cmp_call", 0x5A: "if_cmp_goto", 0x5B: "if", 0x5C: "if_loaded_call",
-    0x68: "goto", 0x72: "set_flag_3cf7", 0x7A: "audio_mute", 0xA1: "return",
-    0xA2: "end", 0xAF: "expr", 0xC6: "key_event", 0xDA: "switch_var",
-    0xDB: "switch", 0xE3: "if",
-}
+# Statement names, from web/src/names.js.
+NAMES = {op: v[0] for op, v in STATEMENTS.items()}
 
 
 def s32(b, o):
@@ -254,14 +291,58 @@ def disassemble(bf, buf):
 
 # ---------------------------------------------------------------- CLI
 
+def names_markdown():
+    def esc(t):
+        return t.replace("|", "\\|")
+
+    out = [
+        "# RTLIB32 function and statement names",
+        "",
+        "Generated from [web/src/names.js](../web/src/names.js) by",
+        "`python3 -I tools/r32script.py --names-md`. Edit names.js, not this",
+        "file. How they were found: [rtlib32-engine.md](rtlib32-engine.md).",
+        "",
+        "## Builtin functions",
+        "",
+        "Called from expressions as `CALL id` with `id < 0xFA`. The switch at",
+        "`0x10003fad` has 247 slots (ids 2 to 0xF8); %d of them do something and"
+        % len(BUILTINS),
+        "the rest are empty. Arguments are in script order.",
+        "",
+        "| Id | Name | Arguments | What it does |",
+        "| --- | --- | --- | --- |",
+    ]
+    for i, (n, args, d) in sorted(BUILTINS.items()):
+        out.append("| `0x%02X` | %s | %s | %s |" % (i, n, esc(args), esc(d)))
+    out += [
+        "",
+        "## Statements",
+        "",
+        "A `u16` opcode, then the record. Offsets count from the opcode.",
+        "",
+        "| Op | Name | Record | What it does |",
+        "| --- | --- | --- | --- |",
+    ]
+    for i, (n, args, d) in sorted(STATEMENTS.items()):
+        out.append("| `0x%02X` | %s | %s | %s |" % (i, n, esc(args), esc(d)))
+    return "\n".join(out)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("bin")
+    ap.add_argument("bin", nargs="?")
     ap.add_argument("--script", type=int, action="append", help="resource id")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--summary", action="store_true")
     ap.add_argument("--externs", action="store_true")
+    ap.add_argument("--names-md", action="store_true",
+                    help="print the builtin/statement name tables as Markdown")
     a = ap.parse_args()
+    if a.names_md:
+        print(names_markdown())
+        return
+    if not a.bin:
+        ap.error("the .BIN file is required")
     bf = BinFile(a.bin)
 
     if a.externs:
@@ -293,7 +374,12 @@ def main():
             print("  script %d: %s" % (rid, why))
         print("statement opcodes used:")
         for op, n in sorted(ops.items()):
-            print("  %#04x %-14s %6d" % (op, NAMES.get(op, ""), n))
+            print("  %#04x %-18s %6d" % (op, NAMES.get(op, ""), n))
+        print("builtin functions used:")
+        for fid, n in sorted(CALLS.items()):
+            if fid < EXTERN_BASE:
+                name = BUILTINS[fid][0] if fid in BUILTINS else "?"
+                print("  %#04x %-18s %6d" % (fid, name, n))
         return
 
     for rid in (scripts if a.all else (a.script or [])):
