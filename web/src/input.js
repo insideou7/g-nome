@@ -4,6 +4,7 @@ export class Input {
   constructor(engine) {
     this.engine = engine;
     this.keys = new Map(); // key code -> {down, shift, ctrl, shiftCtrl, up, disabled}
+    this.captureScript = 0;
   }
   bindKey(key, script, f) {
     const set = (k) => {
@@ -20,8 +21,34 @@ export class Input {
     if (key === 0) for (let k = 0; k < 256; k++) set(k);
     else if (key < 256) set(key);
   }
-  // Windows virtual-key code.
-  keyDown(vk, shift = false, ctrl = false) {
+  // render.CaptureKey(script): the next press goes to `script` instead of
+  // the key bindings (RENDER.R32's window procedure, 0x1000dc7a, while
+  // ctx+0x114 is set). The script gets (device, key): device 1 with Ctrl
+  // held, 2 with Shift, else 0; 4 for a mouse button while the mouse is on.
+  // A non-zero return ends the capture. OPTIONS > INTERFACE uses it to
+  // rebind a game function.
+  capture(script) {
+    this.captureScript = script;
+  }
+  captured(device, key) {
+    const script = this.captureScript;
+    if (!script) return false;
+    const vm = this.engine.vm, saved = vm.retval;
+    vm.retval = 0;
+    this.engine.callScript(script, [device, key]);
+    const done = vm.retval;
+    vm.retval = saved;
+    if (done && this.captureScript === script) this.captureScript = 0;
+    return true;
+  }
+
+  // Windows virtual-key code. `repeat`: auto-repeat, which the capture
+  // ignores (lParam bit 30).
+  keyDown(vk, shift = false, ctrl = false, repeat = false) {
+    if (this.captureScript) {
+      if (!repeat) this.captured(ctrl ? 1 : shift ? 2 : 0, vk);
+      return true;
+    }
     this.engine.world?.controls.keyDown(vk);
     const r = this.keys.get(vk);
     if (!r || r.disabled) return false;

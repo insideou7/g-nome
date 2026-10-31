@@ -77,6 +77,7 @@ export class Sprites {
       x: 0, y: 0, cel: 0, visible: false, flipX: false, flipY: false,
       queue: null, // {b, dv, pos}
       wait: 0, anim: null, click: null,
+      layers: null, // cel numbers shown together (message 2)
     };
     this.list.set(id, s);
     return s;
@@ -89,6 +90,7 @@ export class Sprites {
     const [type, ...a] = msg;
     switch (type) {
       case 1: // animate cels a..b, delay (0x1003e476)
+        s.layers = null;
         this.startAnim(s, a[0] | 0, a[1] | 0, a[2] | 0);
         break;
       case 8: // hide
@@ -104,8 +106,21 @@ export class Sprites {
         break;
       case 18: // show, at cel n; out of range keeps the current cel (SpriteShow)
         if (a.length && a[0] >= 0 && a[0] < s.cels.length) s.cel = a[0];
+        s.layers = null;
         s.visible = true;
         break;
+      case 2: {
+        // Show several cels at once, drawn in order (0x1003e647 builds a
+        // type 2 queue record: cel numbers at +0xe, count at +6, the last
+        // argument at +2; 0x10042800 draws it). The INTERFACE key prompt
+        // uses it for its box (cel 0) and the joystick choice text (cel 1).
+        const cels = a.slice(0, -1).map((c) => c | 0).filter((c) => c >= 0 && c < s.cels.length);
+        if (!cels.length) break;
+        s.layers = cels;
+        s.cel = cels[0];
+        s.visible = true;
+        break;
+      }
       default:
         this.engine.vm.noteUnknown("sprite message", type);
     }
@@ -120,6 +135,7 @@ export class Sprites {
     if (!s) return;
     if (hide) s.visible = false;
     s.anim = null;
+    s.layers = null;
     s.wait = 0;
     if (!queueId) {
       s.queue = null;
@@ -269,12 +285,19 @@ export class Sprites {
     return [...this.list.values()].filter((s) => s.visible && drawable(this.engine.bin.type(s.cels[Math.min(s.cel, s.cels.length - 1)]))).sort((a, b) => a.level - b.level);
   }
 
+  // The cels a sprite shows: its current one, or a message 2 layer list.
+  shownCels(s) {
+    return s.layers ? s.layers.map((c) => s.cels[c]) : [s.cels[Math.min(s.cel, s.cels.length - 1)]];
+  }
+
   draw(pixels) {
     for (const s of this.visibleSorted()) {
-      const id = s.cels[Math.min(s.cel, s.cels.length - 1)];
-      const b = this.bitmap(id);
-      const r = this.bounds(s);
-      blit(pixels, b, r.left + ORIGIN_X, r.top + ORIGIN_Y, s.flipX, s.flipY);
+      for (const id of this.shownCels(s)) {
+        if (!drawable(this.engine.bin.type(id))) continue;
+        const b = this.bitmap(id);
+        const left = s.x + b.x - ((b.width - 1) >> 1), top = s.y + b.y - ((b.height - 1) >> 1);
+        blit(pixels, b, left + ORIGIN_X, top + ORIGIN_Y, s.flipX, s.flipY);
+      }
     }
   }
 

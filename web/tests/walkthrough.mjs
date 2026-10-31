@@ -6,8 +6,8 @@
 // Usage: node web/tests/walkthrough.mjs game/g-nome/G-NOME [--shots dir]
 //   [--only name,...] [--verbose]
 //   --shots   save a PNG of each screen the walk visits
-//   --only    run only these sections (boot, menus, options, network, game,
-//             lab, exit, mission1)
+//   --only    run only these sections (boot, menus, options, controls,
+//             network, game, lab, exit, mission1)
 //   --verbose print the engine log
 // Exits non-zero if a check fails. Each section boots a fresh engine, so a
 // failure in one does not hide the others. A full run takes about 15 s.
@@ -19,6 +19,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Player, VK } from "./player.mjs";
+import { table } from "../src/builtins.js";
 
 // Not implemented yet, and reached by this walk. Remove an entry when it is
 // done; the run says when one is no longer hit.
@@ -67,6 +68,16 @@ const SUBMENUS = {
   LAB: [8372, 8373, 8374, 8375], // VEHICLES, STRUCTURES, PERSONNEL, WEAPONS
   OPTIONS: [8380, 8381, 8382, 8383], // INTERFACE, DIFFICULTY, SOUND, DETAIL
 };
+// OPTIONS > INTERFACE: the centre of the cell for binding row r (0 = Fire
+// Weapon 1), mapping column c (0..2); the prompt's buttons under the list.
+const CELL = (r, c) => [304 + 77 * c, 122 + 21 * r];
+const ROW = { FIRE1: 0, FIRE2: 1, TURN_RIGHT: 5 };
+const PROMPT = { CLEAR: [372, 385], USE: [424, 385], CANCEL: [476, 385] };
+const USE_SAVE = [424, 78];
+const PROMPT_SPRITE = 6400;
+const KEY_MAP = 6323; // the bindings on screen: rows of {action, ?, device, key} x 3
+const HELD_BINDINGS = 2546; // what missions read: {action, device, key} rows
+const VK_D = 0x44, VK_Q = 0x51, VK_W = 0x57;
 const LAB_PREVIEW = [150, 60, 330, 330]; // the turning model on LAB screens
 const BRIEF_MAP = [130, 40, 330, 240];
 const BRIEF_PREVIEW = [340, 40, 510, 240];
@@ -107,6 +118,29 @@ const leftScripts = (p) => p.rects().filter((r) => r.l < 100 && r.t < 400).map((
 const rightScripts = (p) => p.rects().filter((r) => r.l > 540 && r.t < 400).map((r) => r.script).sort();
 const same = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 const hasText = (p, t) => p.texts().some((s) => s.includes(t));
+
+// INTERFACE cell (row, column) as [device, key].
+const binding = (p, r, c) => {
+  const t = table(p.engine.vm, KEY_MAP);
+  return [t.data[r * 8 + 2 + 2 * c], t.data[r * 8 + 3 + 2 * c]];
+};
+// The {action, device, key} rows of a binding table, as "a/d/k" strings.
+const bindRows = (p, id) => {
+  const t = table(p.engine.vm, id), out = [];
+  for (let o = 0; o + 2 < t.data.length && t.data[o] !== -1; o += 3) out.push(`${t.data[o]}/${t.data[o + 1]}/${t.data[o + 2]}`);
+  return out;
+};
+
+// GAME, NEW, CAMPAIGN, past the briefing, LAUNCH; waits for the battlefield.
+async function launchMission1(p) {
+  await press(p, MAIN.GAME);
+  await press(p, LEFT[0]);
+  await press(p, RIGHT[0], 60);
+  p.key(VK.ENTER);
+  await p.waitFor(() => p.hasRect(8360), "LAUNCH", 60);
+  p.click(...RIGHT[0]);
+  return p.waitFor(() => p.engine.world?.shown, "the battlefield", 300);
+}
 
 async function press(p, [x, y], ticks = 45) {
   p.click(x, y);
@@ -190,6 +224,57 @@ const SECTIONS = {
     await press(p, [232, 158], 30);
     check(p.hasRect(6944), "SOUND still up after using a control");
     finish(p);
+  },
+
+  // Rebind keys on OPTIONS > INTERFACE, save them, find them again after a
+  // restart and drive with them in mission 1.
+  async controls(p) {
+    await toMainMenu(p);
+    await press(p, MAIN.OPTIONS);
+    await press(p, LEFT[0], 60);
+    await press(p, CELL(ROW.FIRE1, 0), 10);
+    check(!!p.sprite(PROMPT_SPRITE) && !!p.engine.input.captureScript, "clicking a binding asks for a key");
+    p.shot("prompt");
+    p.key(VK_Q);
+    await p.wait(10);
+    check(same(binding(p, ROW.FIRE1, 0), [0, VK_Q]), "a key press rebinds Fire Weapon 1 to Q", `${binding(p, ROW.FIRE1, 0)}`);
+    check(p.texts().includes("Q") && !p.sprite(PROMPT_SPRITE) && !p.engine.input.captureScript, "the cell shows Q and the prompt closes");
+    await press(p, CELL(ROW.FIRE1, 1), 10);
+    await press(p, PROMPT.CLEAR, 10);
+    check(same(binding(p, ROW.FIRE1, 1), [0, 0]), "Clear empties a binding", `${binding(p, ROW.FIRE1, 1)}`);
+    const before = binding(p, ROW.FIRE2, 0);
+    await press(p, CELL(ROW.FIRE2, 0), 10);
+    await press(p, PROMPT.CANCEL, 10);
+    p.key(VK_W);
+    await p.wait(10);
+    check(same(binding(p, ROW.FIRE2, 0), before) && !p.engine.input.captureScript, "Cancel keeps the old binding");
+    await press(p, CELL(ROW.TURN_RIGHT, 0), 10);
+    p.key(VK_D);
+    await p.wait(10);
+    await press(p, USE_SAVE, 30);
+    const held = bindRows(p, HELD_BINDINGS);
+    check(held.includes(`29/0/${VK_Q}`) && held.includes(`1/0/${VK_D}`) && !held.includes("1/5/39"), "Use/Save hands the new keys to the game", held.slice(0, 12).join(" "));
+    check(p.storage.getItem("g-nome.file.GKEY0.MAP") !== null, "Use/Save keeps the key map in browser storage");
+    finish(p);
+
+    const p2 = await Player.start(dir, { verbose, ini: p.ini, storage: p.storage });
+    p2.shot = p.shot;
+    await toMainMenu(p2);
+    check(bindRows(p2, HELD_BINDINGS).includes(`1/0/${VK_D}`), "the saved keys come back after a restart");
+    const t = await launchMission1(p2);
+    check(t < 150, "mission 1 starts with the new keys", `${t} ticks`);
+    await p2.wait(60);
+    const w = p2.engine.world;
+    const turned = async (vk) => {
+      const a = w.cameraPose(1).at;
+      await p2.holdKey(vk, 30);
+      await p2.wait(2);
+      const b = w.cameraPose(1).at;
+      return Math.hypot(b[0] - a[0], b[2] - a[2]) > 0.1;
+    };
+    check(!(await turned(VK.RIGHT)), "Right no longer turns the unit");
+    check(await turned(VK_D), "D turns the unit right");
+    finish(p2);
   },
 
   async network(p) {

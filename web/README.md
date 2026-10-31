@@ -68,6 +68,12 @@ To jump straight into a campaign mission, add `&mission=N` (N is the
 mission number, 1-22): `web/?game=/game/g-nome/G-NOME/&mission=1`. In a
 mission the arrow keys turn and Space fires once the movement code lands.
 
+## Controls
+
+OPTIONS > INTERFACE is the game's own key mapping screen. Click a cell,
+press the key you want (Ctrl and Shift combinations work), then press
+Use/Save. The keys are kept in the browser and used in missions.
+
 ## Developer tools
 
 ```bash

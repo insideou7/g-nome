@@ -36,9 +36,12 @@ export const MSG = {
   QUIT: 0x10,
 };
 
+export const G_MOUSE_X = 5005;
+export const G_MOUSE_Y = 5006;
+
 export class Engine {
   // files: { read(name) -> Promise<Uint8Array>, has(name) -> bool }
-  // opts: { log, trace, display, audio }
+  // opts: { log, trace, display, audio, ini, storage }
   constructor(files, opts = {}) {
     this.files = files;
     this.log = opts.log || console.log;
@@ -53,6 +56,9 @@ export class Engine {
     this.loaded = new Set();
     this.strings = new Map(); // string slots (ids 1..0x7fff)
     this.ini = opts.ini || new Ini();
+    // Where files the scripts write (saves, GKEY key maps) are kept; the
+    // browser's localStorage unless a test passes its own.
+    this.storage = opts.storage;
     this.input = new Input(this);
     this.background = { mode: 2, color: 0, bitmap: 0 };
     this.tables = new Map(); // type 11 tables, decoded on first use
@@ -133,14 +139,28 @@ export class Engine {
     d.dirty = true;
   }
 
+  // RTLIB keeps the last mouse position, relative to the screen centre, in
+  // globals 5005 and 5006 (rt+0x8c63/0x8c67, set by the window procedure at
+  // 0x100134b6 on every mouse message). List and key-map scripts read them
+  // to tell which row was clicked.
+  setMousePos(cx, cy) {
+    this.vm?.setGlobal(G_MOUSE_X, cx - ORIGIN_X);
+    this.vm?.setGlobal(G_MOUSE_Y, cy - ORIGIN_Y);
+  }
+
   // Mouse, in canvas pixels (0..639, 0..479).
   mouseUp(cx, cy, button = 0) {
+    this.setMousePos(cx, cy);
     if (this.volumes.mouseUp()) return;
     this.world?.controls.mouseUp(button);
   }
 
   mouseDown(cx, cy, button = 0) {
+    this.setMousePos(cx, cy);
     if (button === 0 && this.volumes.mouseDown(cx, cy)) return;
+    // A key capture takes mouse buttons too while the mouse is on
+    // (MouseOnOff); in the menus the prompt's own buttons take the click.
+    if (this.world?.controls.mouse && this.input.captured(4, [1, 3, 2][button] || 1)) return;
     this.world?.controls.mouseDown(button);
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     const s = this.sprites.pick(x, y);
@@ -151,6 +171,7 @@ export class Engine {
     }
   }
   mouseMove(cx, cy) {
+    this.setMousePos(cx, cy);
     if (this.volumes.mouseMove(cx, cy)) return;
     const x = cx - ORIGIN_X, y = cy - ORIGIN_Y;
     let hit = -1;

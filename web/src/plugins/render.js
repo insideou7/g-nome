@@ -21,7 +21,7 @@ export class RenderPlugin {
     const self = this;
     const ok = () => 1;
     this.anim = engine.animation = new AnimationSystem(engine);
-    this.files = new ScriptFiles(engine);
+    this.files = new ScriptFiles(engine, engine.storage ?? globalThis.localStorage);
     this.hotspots = engine.hotspots = new Hotspots(engine);
     this.externs = {
       ...this.hotspots.externs(),
@@ -57,6 +57,11 @@ export class RenderPlugin {
       DSPauseAudio: ok,
       // Input and modes that need no work in a browser.
       SetPauseScript: ok,
+      // CaptureKey(script): send the next press to script (input.js)
+      CaptureKey(script) {
+        engine.input.capture(script);
+        return 1;
+      },
       // World, camera and view: web/src/battlefield/
       ...battlefieldExterns(engine),
     };

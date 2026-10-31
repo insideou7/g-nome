@@ -215,7 +215,7 @@ async function start(files) {
   canvas.addEventListener("keydown", (e) => {
     audio.resume();
     const vk = vkFromEvent(e);
-    if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey) || engine.world?.shown)) e.preventDefault();
+    if (vk && (engine.input.keyDown(vk, e.shiftKey, e.ctrlKey, e.repeat) || engine.world?.shown)) e.preventDefault();
   });
   canvas.addEventListener("keyup", (e) => engine.input.keyUp(vkFromEvent(e)));
   const pos = (e) => {
