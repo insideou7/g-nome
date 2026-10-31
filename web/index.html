@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>G-Nome Engine</title>
+<style>
+  :root { --bg: #111; --fg: #ddd; --muted: #888; --accent: #6cf; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { color: var(--muted); margin: 4px 0 12px; }
+  #screen { width: 100%; max-width: 960px; aspect-ratio: 4 / 3; image-rendering: pixelated; background: #000; display: block; outline: none; }
+  #log { height: 180px; overflow: auto; background: #000; color: #9c9; font: 12px ui-monospace, monospace; padding: 6px; white-space: pre-wrap; margin-top: 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  button, label.btn { background: #333; color: var(--fg); border: 1px solid #555; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <h1>G-Nome engine (work in progress)</h1>
+  <p>A reimplementation of 7th Level's Runtime Player that runs G-Nome's own scripts. Pick the folder that holds <code>G-NOME.BIN</code> from your copy of the game. Nothing is uploaded; files are read in your browser.</p>
+  <div class="row">
+    <label class="btn">Choose game folder<input id="pick" type="file" webkitdirectory multiple hidden></label>
+    <button id="skip" disabled>Esc (skip movie)</button>
+    <label><input id="trace" type="checkbox"> trace statements</label>
+  </div>
+  <canvas id="screen" width="640" height="480" tabindex="0"></canvas>
+  <div id="log"></div>
+</main>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -68,7 +68,7 @@ Key resources in G-Nome:
 | Key | Offset | Size | Contents |
 | --- | --- | --- | --- |
 | 0 | `0x1A8` | 94,400 | resource table: 9,440 x `{u16 flags, u32 offset, u32 size}` |
-| 3 | 94,824 | 688 | 86 x `{u32, i32}` pairs (not decoded yet) |
+| 3 | 94,824 | 688 | 86 x `{u32 variable, i32 value}`: initial values of globals |
 | 4 | 95,512 | 8,605 | NUL-separated strings (`domintro.smk`, `g-nome.smk`, ...) |
 | 5 | 104,117 | 1,020,546 | **script buffer**: all resources of type 13 to 22 |
 | 6 | 1,124,663 | 944 | 236 x RGBX palette (header `0x120` also says 236) |
@@ -244,7 +244,7 @@ python3 -I tools/r32script.py game/g-nome/G-NOME/G-NOME.BIN --all > re-output/sc
   `re-output/rtlib32/functions/0x10003fad.c`, but Ghidra drops the `break`s,
   so read them with the disassembly.
 * Names and fields for the ~90 fixed-size statements.
-* Key 3 (86 int pairs), and the first `u32` of expression op `0D`. It ranges
+* The first `u32` of expression op `0D`. It ranges
   from 0 to 29 across the scripts, but the VM never reads it (maybe a
   compiler leftover such as a stack depth).
 * Global variable names. The `.BIN` has no symbols, so they have to come from
