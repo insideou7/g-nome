@@ -1,0 +1,44 @@
+# Publish the browser engine (web/) as a static site on GitHub Pages.
+# The site holds only the engine's code: players load their own game files.
+name: Publish web engine
+
+on:
+  push:
+    branches: [main]
+    paths: [web/index.html, web/src/**, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the file loaders
+        run: node web/tests/gamefiles-check.mjs
+      - name: Assemble the site
+        run: |
+          mkdir -p site
+          cp web/index.html site/
+          cp -r web/src site/src
+          # Fail if anything that looks like game data slipped in.
+          if find site -iname '*.bin' -o -iname '*.smk' -o -iname 'g-nome.0*' -o -iname '*.dll' -o -iname '*.r32' | grep .; then
+            echo "game files must not be published"; exit 1
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

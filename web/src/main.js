@@ -4,6 +4,7 @@ import { Display } from "./display.js";
 import { Audio } from "./audio.js";
 import { vkFromEvent } from "./input.js";
 import { DebugPanel } from "./debug-panel.js";
+import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberFolder, rememberedFolder, forgetFolder } from "./gamefiles.js";
 
 const $ = (id) => document.getElementById(id);
 const logEl = $("log");
@@ -21,34 +22,148 @@ function loadIni() {
   }
 }
 
-$("pick").addEventListener("change", (ev) => {
-  const byName = new Map();
-  for (const f of ev.target.files) byName.set(f.name.toUpperCase(), f);
-  if (!byName.has("G-NOME.BIN")) return log("No G-NOME.BIN in that folder.");
-  start({
-    has: (n) => byName.has(n.toUpperCase()),
-    read: async (n) => {
-      const f = byName.get(n.toUpperCase());
-      if (!f) throw new Error(`missing ${n}`);
-      return new Uint8Array(await f.arrayBuffer());
-    },
+// Status line above the game screen
+function status(msg, error = false) {
+  const el = $("status");
+  el.textContent = msg;
+  el.classList.toggle("error", error);
+}
+
+let started = false;
+// Open a source of game files (see gamefiles.js) and start the engine.
+async function open(load) {
+  if (started) return;
+  let files;
+  try {
+    status("Looking for G-NOME.BIN...");
+    files = await load();
+  } catch (err) {
+    status(err.message, true);
+    return;
+  }
+  started = true;
+  $("picker").classList.add("hidden");
+  log(`game folder: ${files.dir || "(top level)"}`);
+  // Count the big reads so a slow load shows progress.
+  const total = files.names.filter((n) => /^G-NOME\.\d{3}$/.test(n)).length;
+  let done = 0;
+  const read = files.read;
+  files.read = async (n) => {
+    const r = await read(n);
+    if (/^G-NOME\.\d{3}$/.test(n.toUpperCase())) status(`Loading game data ${++done}${total ? ` / ${total}` : ""}`);
+    return r;
+  };
+  try {
+    await start(files);
+    status("");
+  } catch (err) {
+    status(`Could not start: ${err.message}`, true);
+    log(err.stack || String(err));
+  }
+}
+
+// Choose game folder: the File System Access API where there is one (it can
+// be remembered for the next visit), otherwise a directory <input>.
+$("pick-folder").addEventListener("click", async () => {
+  if (!window.showDirectoryPicker) return $("pick-dir").click();
+  let handle;
+  try {
+    handle = await window.showDirectoryPicker({ id: "g-nome", mode: "read" });
+  } catch {
+    return; // cancelled
+  }
+  open(async () => {
+    const files = await fromDirectoryHandle(handle);
+    await rememberFolder(handle);
+    return files;
   });
+});
+// (Each input is cleared so picking the same thing again after an error
+// still fires a change.)
+$("pick-dir").addEventListener("change", (ev) => {
+  const list = [...ev.target.files];
+  ev.target.value = "";
+  open(async () => fromFileList(list));
+});
+$("pick-zip").addEventListener("change", (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  if (f) open(() => fromZip(f));
+});
+
+// Continue with the folder picked last time (Chromium keeps the handle, but
+// asks again for permission to read it).
+rememberedFolder().then((handle) => {
+  if (!handle || started) return;
+  const b = $("resume");
+  b.textContent = `Continue with "${handle.name}"`;
+  b.classList.remove("hidden");
+  b.addEventListener("click", async () => {
+    try {
+      if ((await handle.requestPermission({ mode: "read" })) !== "granted") return status("Permission to read the folder was refused.", true);
+    } catch (err) {
+      await forgetFolder();
+      b.classList.add("hidden");
+      return status("That folder is no longer available; choose it again.", true);
+    }
+    open(() => fromDirectoryHandle(handle));
+  });
+});
+
+// Drop a folder or a .zip anywhere on the page.
+const picker = $("picker");
+document.addEventListener("dragover", (e) => {
+  if (started) return;
+  e.preventDefault();
+  picker.classList.add("over");
+});
+document.addEventListener("dragleave", (e) => {
+  if (!e.relatedTarget) picker.classList.remove("over");
+});
+document.addEventListener("drop", async (e) => {
+  if (started) return;
+  e.preventDefault();
+  picker.classList.remove("over");
+  const item = [...e.dataTransfer.items].find((i) => i.kind === "file");
+  if (!item) return;
+  // Both calls must happen before the first await, while the drop is live.
+  const handleP = item.getAsFileSystemHandle?.();
+  const entry = item.webkitGetAsEntry?.();
+  const file = item.getAsFile();
+  const handle = await handleP?.catch(() => null);
+  if (handle?.kind === "directory") {
+    return open(async () => {
+      const files = await fromDirectoryHandle(handle);
+      await rememberFolder(handle);
+      return files;
+    });
+  }
+  if (entry?.isDirectory) return open(() => fromDroppedEntry(entry));
+  if (file && /\.zip$/i.test(file.name)) return open(() => fromZip(file));
+  status("Drop the game folder or a .zip of it.", true);
 });
 
 // Development: ?game=<url of a folder with the game files> loads over HTTP.
 const gameUrl = new URLSearchParams(location.search).get("game");
 if (gameUrl) {
   const base = gameUrl.replace(/\/?$/, "/");
-  start({
-    has: () => true,
-    read: async (n) => {
-      for (const name of [n.toUpperCase(), n, n.toLowerCase()]) {
-        const r = await fetch(base + name);
-        if (r.ok) return new Uint8Array(await r.arrayBuffer());
-      }
-      throw new Error(`missing ${n}`);
-    },
-  });
+  // ?game=<url of a .zip> reads the zip over HTTP
+  if (/\.zip$/i.test(gameUrl)) {
+    open(async () => fromZip(await (await fetch(gameUrl)).blob()));
+  } else {
+    open(async () => ({
+      dir: base,
+      names: [],
+      has: () => true,
+      read: async (n) => {
+        for (const name of [n.toUpperCase(), n, n.toLowerCase()]) {
+          const r = await fetch(base + name);
+          if (r.ok) return new Uint8Array(await r.arrayBuffer());
+        }
+        throw new Error(`missing ${n}`);
+      },
+    }));
+  }
 }
 
 async function start(files) {

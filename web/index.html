@@ -14,15 +14,39 @@
   #stage { position: relative; width: 100%; max-width: 960px; }
   #log { height: 180px; overflow: auto; background: #000; color: #9c9; font: 12px ui-monospace, monospace; padding: 6px; white-space: pre-wrap; margin-top: 8px; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  button, label.btn { background: #333; color: var(--fg); border: 1px solid #555; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+  button, label.btn { background: #333; color: var(--fg); border: 1px solid #555; padding: 6px 10px; border-radius: 4px; cursor: pointer; font: inherit; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary { background: #246; border-color: #48a; }
+  #picker { border: 2px dashed #444; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  #picker.over { border-color: var(--accent); background: #1a2430; }
+  #picker h2 { font-size: 15px; margin: 0 0 8px; }
+  #picker ul { color: var(--muted); margin: 8px 0 0; padding-left: 20px; }
+  #status { color: var(--accent); min-height: 1.4em; margin: 4px 0 8px; }
+  #status.error { color: #f88; }
+  .hidden { display: none !important; }
+  code { color: var(--fg); }
 </style>
 </head>
 <body>
 <main>
   <h1>G-Nome engine (work in progress)</h1>
-  <p>A reimplementation of 7th Level's Runtime Player that runs G-Nome's own scripts. Pick the folder that holds <code>G-NOME.BIN</code> from your copy of the game. Nothing is uploaded; files are read in your browser.</p>
+  <p>A reimplementation of 7th Level's Runtime Player that runs G-Nome (1997) from its own scripts, in your browser. You need your own copy of the game: nothing here contains game data, and your files are read on your computer and never uploaded.</p>
+  <section id="picker">
+    <h2>Load your copy of G-Nome</h2>
+    <div class="row">
+      <button id="resume" class="primary hidden"></button>
+      <button id="pick-folder" class="primary">Choose game folder</button>
+      <label class="btn">Open a .zip<input id="pick-zip" type="file" accept=".zip,application/zip" hidden></label>
+      <input id="pick-dir" type="file" webkitdirectory multiple hidden>
+    </div>
+    <ul>
+      <li>Pick the game CD, its <code>G-NOME</code> folder (the one with <code>G-NOME.BIN</code>), or a .zip of either. You can also drop it here.</li>
+      <li>It loads about 75 MB into memory, so give it a few seconds.</li>
+      <li>Work in progress: the intro, menus, options and briefings work; missions show the battlefield but units don't fight yet.</li>
+    </ul>
+  </section>
+  <div id="status"></div>
   <div class="row">
-    <label class="btn">Choose game folder<input id="pick" type="file" webkitdirectory multiple hidden></label>
     <button id="skip" disabled>Esc (skip movie)</button>
     <label><input id="trace" type="checkbox"> trace statements</label>
   </div>
