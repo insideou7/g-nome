@@ -20,6 +20,12 @@ import { WIDTH, HEIGHT } from "./display.js";
 const EMPTY = { width: 1, height: 1, x: 0, y: 0, pixels: new Uint8Array(1) };
 const drawable = (t) => t === 1 || t === 15 || t === 21;
 
+// The runtime's queue callback (0x1001effb) stores the id of the sprite whose
+// queue is running in global 5017 before it runs a record 20 or 21. Script
+// 8391, run from the menus' slide-out queues, reads it to remove the
+// sprite's click and hover regions.
+export const G_QUEUE_SPRITE = 5017;
+
 export const ORIGIN_X = WIDTH / 2;
 export const ORIGIN_Y = HEIGHT / 2;
 
@@ -228,10 +234,20 @@ export class Sprites {
           break;
         }
         case 20: // end; the runtime then runs its pending script
+          this.engine.vm.setGlobal(G_QUEUE_SPRITE, s.id);
           this.engine.post(0x4c8);
           s.queue = null;
           return;
         case 21: // a script statement, run by the runtime's message proc
+          // Run it from the message loop, never inside a running script:
+          // a call record (statement 1) reserves no locals, so its frame
+          // would overwrite the running script's (script 8308's loop
+          // counter, when 8391 runs from a slide-out queue).
+          if (this.engine.vm.depth > 0) {
+            q.pos = p;
+            return;
+          }
+          this.engine.vm.setGlobal(G_QUEUE_SPRITE, s.id);
           this.engine.runStatement(q.b.subarray(p + 6, p + size));
           break;
         default:
