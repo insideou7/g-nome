@@ -99,6 +99,16 @@ damage (shields in property 19 first, then the part's health in the table
 in property 85), and 1689 destroys the shot with its impact effect. When a
 unit dies (2278, 2300) `ExplodeModel(unit, -77, 50, 1731)` throws its parts.
 
+When the player's unit is hit by shot class 301 or 302 while script 2185
+holds (`G972 == 1`), 1709 shakes the screen with `ScreenShake(-3, -3)` and
+`ScreenShake(8, 8)` (builtin `0xC8`). RTLIB32's `SpriteScreenShake`
+(`0x10038355`) scrolls the stage with `ScrollDC` by `(dx, dy)`, then
+`(-2dx, -2dy)`, then `(dx, dy)` back home, and repaints the edge strips the
+scrolls laid bare, all in one call. The web engine shows the `+d` and `-d`
+positions for one frame each (`Display.shake`, test
+`web/tests/shake-check.mjs`, which runs mission 19 where rockets hit the
+player).
+
 ### ExplodeModel
 
 `FUN_10005b20` / `FUN_100056bd`: for every clump with a parent (each one on

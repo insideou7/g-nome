@@ -50,7 +50,7 @@ are both listed.
 | 8 | 154 | `MPRT` chunk, model part (same format as `MODL`) | `.obj` + `.mtl`, `.gltf` |
 | 9 | 426 | `OB3D` object definition ([animation.md](animation.md)) | raw; properties in `manifest.csv` |
 | 10 | 57 | `OPRT` object part, same format as `OB3D` | raw; properties in `manifest.csv` |
-| 11 | 709 | Unknown structured records | raw |
+| 11 | 709 | Integer table read by the scripts (see [Tables](#tables-type-11)) | raw |
 | 12 | 592 | Sound | `.wav` |
 | 13-21 | 4,447 | Slices of sounds (a 38 byte header slice, then data slices). All but 44 sit inside a type 12 range; `manifest.csv` names the parent. | raw |
 
@@ -196,9 +196,30 @@ nibble. The format was first documented by
 extractor's decoder is written from the standard IMA tables. All 592 sounds
 decode to about 45 minutes of audio with no DC drift.
 
+## Tables (type 11)
+
+The scripts' data tables: menu layouts, unit and mission settings, key
+bindings and the like. RTLIB32's builtins `TableGet`, `TableSet`,
+`TableDim` and `TableNumDims` read them
+([rtlib32-names.md](../rtlib32-names.md)); the browser engine's reader is
+`table()` in `web/src/builtins.js`.
+
+```
+u32 pointer          left over from the authoring tool; ignored
+u32 data bytes       resource size - 60
+u32 0
+u32 resource id      the table's own id
+u32 dimensions       n: 1 (142 tables), 2 (527) or 3 (40)
+u32 stride[5]        per dimension, in elements (first n used; last is 1)
+u32 size[5]          per dimension, from offset 0x28 (first n used)
+i32 data[]           size[0] x size[1] x ... elements, after the 60-byte header
+```
+
+Element `[i, j, ...]` is `data[stride[0]*i + stride[1]*j + ...]`. All 709
+tables check out this way.
+
 ## Still unknown
 
-- Type 11 records.
-- The int settings in models, and what the OB3D record kinds 1, 6 and 8 mean.
+- The int settings in models, and what the OB3D record kinds 1, 6 and 8 mean
+  (see [animation.md](animation.md)).
 - Whether some scenes swap in another palette.
-- The script section, which `RTLIB32.DLL` runs.

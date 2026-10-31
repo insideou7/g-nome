@@ -399,6 +399,12 @@ between the file and a string variable. `FileSeek(h, offset, origin)` uses
 `SEEK_SET`/`CUR`/`END` = 0/1/2. The browser engine loads these files at
 start and keeps written ones in `localStorage`.
 
+A save (script 6291) is little-endian 32-bit words: the next campaign
+mission (G2119), then for each row of table 6984 whose key is under 30, the
+key and column 0 of that row's table. Loading (6292) reads 23 rows and
+gives up if a key does not match. The slot's name is not in the file but
+in the INI, `[GnomeGames] savegame_<n>`.
+
 ## Hotspots
 
 Collision volumes, mostly for buildings. `AllocHotspots(n)` (`0x1002223c`)

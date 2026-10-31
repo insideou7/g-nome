@@ -22,6 +22,21 @@ export class Display {
     this.underlay = null;
     this.layer = null; // offscreen canvas for the sprite layer
     this.overlay = null; // (ctx, brightness 0..1) => void, after each frame
+    // Screen shake offsets still to show, one per presented frame (shake()).
+    /** @type {[number, number][]} */
+    this.shakes = [];
+  }
+  // SpriteScreenShake (RTLIB32 0x10038355, builtin 0xC8): the original
+  // scrolls the stage with ScrollDC by (dx, dy), then by (-2dx, -2dy), then
+  // by (dx, dy) back home, and repaints the edge strips the scrolls laid
+  // bare. The three scrolls happen in one call, so the eye catches the
+  // picture at +d and then at -d. Here each of those is one frame: the
+  // finished frame is copied over itself shifted, leaving the uncovered
+  // edge strips as they were, like ScrollDC does.
+  shake(dx, dy) {
+    if (!dx && !dy) return;
+    this.shakes.push([dx, dy], [-dx, -dy]);
+    this.dirty = true;
   }
   setPalette(rgb768, first = 0, count = 256) {
     this.palette.set(rgb768.subarray(first * 3, (first + count) * 3), first * 3);
@@ -43,6 +58,8 @@ export class Display {
   present() {
     if (!this.dirty) return;
     this.dirty = false;
+    const shake = this.shakes.shift();
+    if (shake) this.dirty = true; // the next frame draws unshifted (or the next offset)
     const src = this.frozen || this;
     const px = src.pixels, pal = src.palette.slice();
     for (let c = 30; c < 246 * 3; c++) pal[c] = pal[c] * this.fade;
@@ -68,6 +85,7 @@ export class Display {
       this.ctx.drawImage(under.canvas, under.x || 0, under.y || 0);
       this.ctx.drawImage(this.layer, 0, 0);
     }
+    if (shake) this.ctx.drawImage(this.ctx.canvas, shake[0], shake[1]);
     // Browser-port additions drawn on top in true colour (volume-panel.js).
     this.overlay?.(this.ctx, this.frozen ? 0 : this.fade);
   }
