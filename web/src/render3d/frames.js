@@ -5,16 +5,20 @@
 // Applying frame f replaces the local matrix of the clump tagged i + 1 with
 // matrix i. Clumps the model does not have are skipped.
 
+// The header's frame count, clamped to the data (resource 4733 claims 71
+// frames and holds 70).
 export function frameCount(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  return dv.getUint32(8, true);
+  const n = dv.getUint32(4, true);
+  const held = n ? Math.floor((bytes.length - 16) / (48 * n)) : 0;
+  return Math.min(dv.getUint32(8, true), held);
 }
 
 // Returns a pose: an array indexed by clump index, holding a local matrix
 // (Float32Array(16)) for each clump the frame moves.
 export function poseFromFrame(model, bytes, frame) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const n = dv.getUint32(4, true), frames = dv.getUint32(8, true);
+  const n = dv.getUint32(4, true), frames = frameCount(bytes);
   const pose = [];
   if (!frames) return pose;
   const f = Math.max(0, Math.min(frames - 1, frame | 0));

@@ -10,6 +10,12 @@ import { DEFAULT_LIGHTS, rgb01 } from "./scene.js";
 // the unit models: with the other sign the mechs render inside out.
 export const FRONT = 1;
 
+// Back-face culling is off: RenderWare drew G-Nome's ground tiles, which
+// face away by this rule when seen from above, so the original evidently
+// did not cull them. With the z-buffer, closed models look the same either
+// way. Lighting uses |N.L| for that reason.
+export const CULL = false;
+
 export class SoftTarget {
   constructor(width, height) {
     this.width = width;
@@ -68,6 +74,8 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
         if (alpha <= 0.01) continue;
         const k = (mat.ambient ?? 0.3) + (mat.diffuse ?? 0.7) || 1;
         const ka = (mat.ambient ?? 0.3) / k, kd = (mat.diffuse ?? 0.7) / k;
+        // A texture without the lit mode bit draws at full brightness.
+        const unlit = !!tex && mat.textureModes !== undefined && !(mat.textureModes & 1);
         for (let t = g.start; t < g.start + g.count; t += 3) {
           // Flat lighting from the face normal in world space.
           const nx0 = N[t * 3], ny0 = N[t * 3 + 1], nz0 = N[t * 3 + 2];
@@ -77,9 +85,10 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
           const nl = Math.hypot(nx, ny, nz) || 1;
           nx /= nl; ny /= nl; nz /= nl;
           const light = [ka * amb[0], ka * amb[1], ka * amb[2]];
-          for (const L of dirs) {
+          if (unlit) light.fill(1);
+          else for (const L of dirs) {
             const d = nx * L.d[0] + ny * L.d[1] + nz * L.d[2];
-            const dd = twoSided ? Math.abs(d) : Math.max(0, d);
+            const dd = CULL && !twoSided ? Math.max(0, d) : Math.abs(d);
             for (let i = 0; i < 3; i++) light[i] += kd * dd * L.c[i];
           }
           // To camera space.
@@ -103,7 +112,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
           });
           // Back-face test on the first three projected vertices.
           const area = (s[1][0] - s[0][0]) * (s[2][1] - s[0][1]) - (s[2][0] - s[0][0]) * (s[1][1] - s[0][1]);
-          if (!twoSided && area * FRONT <= 0) continue;
+          if (CULL && !twoSided && area * FRONT <= 0) continue;
           const col = mat.color || [1, 1, 1];
           for (let k2 = 1; k2 + 1 < s.length; k2++)
             raster(target, s[0], s[k2], s[k2 + 1], light, texel ? null : col, tex, texel, node.textureFrame, alpha, fog, useDepth);

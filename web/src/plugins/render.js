@@ -4,6 +4,7 @@
 import { decodeSound } from "../sound.js";
 import { battlefieldExterns } from "../battlefield/externs.js";
 import { install3D } from "../render3d/externs.js";
+import { installFileExterns } from "./files.js";
 
 export class RenderPlugin {
   constructor(engine) {
@@ -45,6 +46,7 @@ export class RenderPlugin {
     };
     // Objects, models, previews: web/src/render3d (docs/render3d.md).
     this.r3d = install3D(this);
+    this.files = installFileExterns(this);
   }
 
   // Once per display frame: run the battlefield's fixed ticks, then draw
