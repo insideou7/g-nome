@@ -28,6 +28,10 @@ resources stored across 80 pack files, `G-NOME.000` to `G-NOME.099`.
 
 ## Getting the game files
 
+The tools and the browser engine need the original game files, which this
+repo does not include. One source is the Internet Archive:
+<https://archive.org/details/g-nome-dos>.
+
 Put your copy of the game in `game/` at the repo root. Any layout works, for
 example `game/g-nome/G-NOME/G-NOME.BIN`, since the tools search `game/` for
 `G-NOME.BIN`.

@@ -25,11 +25,13 @@
   #status.error { color: #f88; }
   .hidden { display: none !important; }
   code { color: var(--fg); }
+  #build { color: var(--muted); font-size: 12px; font-weight: normal; margin-left: 8px; }
+  #build a { color: var(--muted); }
 </style>
 </head>
 <body>
 <main>
-  <h1>G-Nome engine (work in progress)</h1>
+  <h1>G-Nome engine (work in progress) <span id="build">version <!--build-->local copy<!--/build--></span></h1>
   <p>A reimplementation of 7th Level's Runtime Player that runs G-Nome (1997) from its own scripts, in your browser. You need your own copy of the game: nothing here contains game data, and your files are read on your computer and never uploaded.</p>
   <section id="picker">
     <h2>Load your copy of G-Nome</h2>

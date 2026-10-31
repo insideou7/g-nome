@@ -32,6 +32,13 @@ jobs:
           mkdir -p site
           cp web/index.html site/
           cp -r web/src site/src
+          # Stamp the page with the commit and build time, so players can
+          # tell whether they have the latest version.
+          sha=${GITHUB_SHA::7}
+          built=$(date -u '+%Y-%m-%d %H:%M UTC')
+          link="<a href=\"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA\">$sha</a>, built $built"
+          sed -i "s#<!--build-->.*<!--/build-->#<!--build-->$link<!--/build-->#" site/index.html
+          grep -q "<!--build-->$link<!--/build-->" site/index.html || { echo "build stamp missing from index.html"; exit 1; }
           # Fail if anything that looks like game data slipped in.
           if find site -iname '*.bin' -o -iname '*.smk' -o -iname 'g-nome.0*' -o -iname '*.dll' -o -iname '*.r32' | grep .; then
             echo "game files must not be published"; exit 1
