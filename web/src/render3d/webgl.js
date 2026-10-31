@@ -120,6 +120,7 @@ export class WebGLBackend {
       this.u[n] = gl.getUniformLocation(this.prog, n);
     this.meshes = new WeakMap(); // clump mesh -> VAO
     this.textures = new WeakMap(); // texture -> {tex, key}
+    this.glTextures = new Set(); // every WebGLTexture made by texture()
   }
 
   vao(mesh) {
@@ -147,6 +148,7 @@ export class WebGLBackend {
     if (t && t.key === key) return t.tex;
     if (!t) {
       t = { tex: gl.createTexture(), key: "" };
+      this.glTextures.add(t.tex);
       this.textures.set(tex, t);
     }
     gl.bindTexture(gl.TEXTURE_2D, t.tex);
@@ -158,6 +160,13 @@ export class WebGLBackend {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     t.key = key;
     return t.tex;
+  }
+
+  // Delete every model texture (FreeAllTextures). Backdrops are kept.
+  freeTextures() {
+    for (const t of this.glTextures) this.gl.deleteTexture(t);
+    this.glTextures.clear();
+    this.textures = new WeakMap();
   }
 
   // Draw into the viewport {x, y, width, height} of a canvas `cw` x `ch`

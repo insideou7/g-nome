@@ -97,6 +97,12 @@ export const BUILTINS = {
   0xe8() {
     return 0;
   },
+  // 0xf2: drop a pack copied by CachePack (missions 2 and 19 switch pack
+  // sets this way). See Engine.uncachePack.
+  0xf2(vm, [n]) {
+    vm.engine.uncachePack(n | 0);
+    return 0;
+  },
   // 0x03: absolute value (0x10004164)
   0x03(vm, [x]) {
     return Math.abs(x | 0) | 0;

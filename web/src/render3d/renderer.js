@@ -17,7 +17,7 @@ export class Renderer {
     this.engine = engine;
     this.textures = new TextureStore(engine);
     this.models = new Map(); // source resource id -> parsed model
-    this.texels = new Map(); // texture -> {key, rgba}
+    this.texels = new WeakMap(); // texture -> {key, version, rgba}
     this.lut = null; // RGB555 -> palette index
     this.lutKey = "";
     this.gl = null;
@@ -77,6 +77,14 @@ export class Renderer {
     if (!t) return null;
     if (typeof t === "object") return t;
     return this.textures.named(t, node?.model?.id ? node.model.id + 1 : 0);
+  }
+
+  // RENDER.R32 FreeAllTextures: drop every decoded texture, its RGBA copy
+  // and its WebGL texture. Anything still drawn loads its textures again.
+  freeTextures() {
+    this.textures.free();
+    this.texels = new WeakMap();
+    this.gl?.freeTextures();
   }
 
   paletteKey() {
