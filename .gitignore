@@ -1,0 +1,9 @@
+# Game files go here. Keep them out of git.
+game/
+
+# Ghidra projects and REA analysis output
+*.gpr
+*.rep/
+.rea/
+re-output/
+.venv/
