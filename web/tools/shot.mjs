@@ -1,5 +1,5 @@
 // Open the engine in headless Chromium, let it run, save screenshots.
-// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [key-at-second...]
+// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [second:Key | second:click@x,y ...]
 // Serves the repo root on :8642; game files are read from game/g-nome/G-NOME.
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -31,7 +31,21 @@ page.on("pageerror", (e) => console.log("pageerror:", e.message));
 await page.goto("http://localhost:8642/web/index.html?game=/game/g-nome/G-NOME/");
 for (let t = 1; t <= secs; t++) {
   await page.waitForTimeout(1000);
-  for (const [at, k] of keys) if (at === t) { await page.focus("#screen"); await page.keyboard.press(k); }
+  for (const [at, k] of keys) {
+    if (at !== t) continue;
+    if (k.startsWith("click@")) {
+      // click@x,y in game pixels (640x480)
+      const [x, y] = k.slice(6).split(",").map(Number);
+      const box = await page.locator("#screen").boundingBox();
+      await page.mouse.move(box.x + (x * box.width) / 640, box.y + (y * box.height) / 480);
+      await page.waitForTimeout(300);
+      await page.mouse.down();
+      await page.mouse.up();
+    } else {
+      await page.focus("#screen");
+      await page.keyboard.press(k);
+    }
+  }
   if (t === secs || t % 5 === 0) await page.locator("#screen").screenshot({ path: `${out}-${t}s.png` });
 }
 console.log((await page.locator("#log").textContent()).split("\n").slice(-25).join("\n"));

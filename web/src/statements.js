@@ -37,3 +37,18 @@ export function hex(b, s, e) {
   for (let i = s; i < e; i++) out.push(b[i].toString(16).padStart(2, "0"));
   return out.join(" ");
 }
+
+// Length of the statement at p (0x1001ea4b).
+export function stmtLength(b, dv, p) {
+  const op = dv.getUint16(p, true);
+  switch (op) {
+    case 0x01: return b[p + 9] * 4 + 10;
+    case 0x59: return 0x1a;
+    case 0x5a: return 0x12;
+    case 0x5b: case 0xe3: return dv.getInt32(p + 6, true);
+    case 0x68: return 6;
+    case 0xaf: case 0xa1: return dv.getUint32(p + 2, true);
+    case 0xa2: return 2;
+    default: return FIXED[op] || 0;
+  }
+}

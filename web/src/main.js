@@ -74,7 +74,16 @@ async function start(files) {
     if (vk && engine.input.keyDown(vk, e.shiftKey, e.ctrlKey)) e.preventDefault();
   });
   canvas.addEventListener("keyup", (e) => engine.input.keyUp(vkFromEvent(e)));
-  canvas.addEventListener("pointerdown", () => audio.resume());
+  const pos = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return [Math.floor(((e.clientX - r.left) * 640) / r.width), Math.floor(((e.clientY - r.top) * 480) / r.height)];
+  };
+  canvas.addEventListener("pointerdown", (e) => {
+    audio.resume();
+    canvas.focus();
+    engine.mouseDown(...pos(e), e.button);
+  });
+  canvas.addEventListener("pointermove", (e) => engine.mouseMove(...pos(e)));
   let last = performance.now();
   const frame = (t) => {
     engine.tick(Math.min(100, t - last));
