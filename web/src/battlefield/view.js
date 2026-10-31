@@ -61,8 +61,10 @@ export class BattleView {
       const d = sub(p.pos, pose.pos);
       h.setTransform({
         matrix: modelMatrix(p.basis, p.pos),
-        // Flag 0x80 (ObjectSetScene) only draws the model in its own scene.
-        visible: o.visible,
+        // FUN_10006446 skips objects with flag 0x100 (ObjectSetState 1: the
+        // LOD scripts hide the player's own unit this way) or 0x400. Flag
+        // 0x80 (ObjectSetScene) only draws the model in its own scene.
+        visible: o.visible && !(r3d.objects.get(o.id)?.flags & 0x500),
         level: o.level,
         depth: o.level >= 0,
         distance: dot(d, d),

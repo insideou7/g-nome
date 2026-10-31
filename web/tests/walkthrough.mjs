@@ -26,6 +26,9 @@ import { table } from "../src/builtins.js";
 // done; the run says when one is no longer hit.
 const KNOWN_GAPS = new Set([
   "extern:render.FreeAllTextures",
+  // The radar in vehicle cockpits (reached once mission1 swaps into a HAWC).
+  "extern:render.RadarDraw",
+  "extern:render.RadarClear",
   // Sets bit 15 of the sprite's flags (0x1003f25a -> 0x10036e10) and then
   // copies a position from the sprite's +0x1c record. Sent while quitting.
   "sprite message:14",
@@ -412,6 +415,14 @@ const SECTIONS = {
     check((r3d.objects.get(mech.id).flags & 0x80) !== 0, "a unit 4 units away uses its near model", `lod ${mech.lod}`);
     check(w.view.handles.get(mech.id)?.visible === true, "a unit up close is still drawn");
     p.shot("near-unit");
+    // In a vehicle the camera sits inside the player's own model; the LOD
+    // script hides it with ObjectSetState (flag 0x100).
+    p.engine.debug.swapVehicle(0); // Union Sentry HAWC
+    await p.wait(10);
+    const own = p.engine.vm.getGlobal(973);
+    check(r3d.objects.getProperty(own, 0) >= 100, "the debug panel puts the player in a HAWC", `class ${r3d.objects.getProperty(own, 0)}`);
+    check(w.view.handles.get(own)?.visible === false, "the player's own vehicle is not drawn over the view");
+    p.shot("in-hawc");
     finish(p);
   },
 };
