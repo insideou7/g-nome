@@ -225,7 +225,14 @@ procedure then sends the next key press to that script as `(device, key)`
 the key. Use/Save (6341) copies the map to the current one (G1856), writes
 `GKEY<G2100>.MAP` (script 2556) and splits it into 2545 and 2546
 (`script_2554`); the boot reads the file back. The browser keeps written
-files in localStorage (`web/src/anim/files.js`).
+files in localStorage (`web/src/anim/files.js`). While capturing, mouse
+moves reach the script as `(0, 0)`; after Clear or Cancel it returns 1 to
+the next one, which ends the capture.
+
+The port outlines conflicting cells in red (`web/src/key-conflicts.js`):
+the same input (devices 0 and 5 count as one; joysticks are left out) on two
+actions that share a control mode in table 2544 columns 2-5. The default map
+has none: Space is on actions 9 and 42, but no mode allows action 42.
 
 Devices: 0 the key alone, 1 Ctrl+key, 2 Shift+key, 5 the key without
 modifiers, 4 a mouse button (1 left, 2 right, 3 middle; only while
