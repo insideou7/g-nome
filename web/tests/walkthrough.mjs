@@ -19,6 +19,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Player, VK } from "./player.mjs";
+import { basisFromAt } from "../src/battlefield/math.js";
 import { table } from "../src/builtins.js";
 
 // Not implemented yet, and reached by this walk. Remove an entry when it is
@@ -400,6 +401,17 @@ const SECTIONS = {
     p.shot("turned");
     await p.wait(150);
     check(w.shown && !p.engine.quit, "five more seconds run without leaving the mission");
+    // Up close a unit switches to its near model, which ObjectSetScene puts
+    // in a scene of its own (flag 0x80); it must still be drawn.
+    const r3d = p.engine.render3d;
+    const mech = [...w.objects.values()].find((o) => r3d.objects.getProperty(o.id, 0) === 141 && Math.hypot(o.pos[0] + 49.88, o.pos[2] + 12.38) < 2);
+    const me = w.get(p.engine.vm.getGlobal(973));
+    me.setPosition([mech.pos[0], 0, mech.pos[2] + 4]);
+    me.basis = basisFromAt([0, 0, -1]);
+    await p.wait(10);
+    check((r3d.objects.get(mech.id).flags & 0x80) !== 0, "a unit 4 units away uses its near model", `lod ${mech.lod}`);
+    check(w.view.handles.get(mech.id)?.visible === true, "a unit up close is still drawn");
+    p.shot("near-unit");
     finish(p);
   },
 };

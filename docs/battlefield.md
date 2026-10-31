@@ -250,8 +250,14 @@ unit's LOD script (2145 and friends: copy the model into property 79, link
 it) has run before the rest of its setup. Later per-frame changes
 (`FUN_10029059`) only run for objects with an update record.
 `UpdateLOD(id)` (`0x10029743`) forgets the current choice and picks again.
-`ObjectSetScene(id, 0)` puts the model in the RenderWare scene, any other
-value takes it out (object flag `0x80`; the draw loop skips such objects).
+`ObjectSetScene(id, 0)` puts the model in the main RenderWare scene; any
+other value takes it out and sets object flag `0x80`. The object is still
+drawn: the sorted draw pass (`FUN_10006446`) adds a flagged object to a
+second scene (`DAT_1003d618[10]`, made the same way as the main one in
+`Init3D`), renders that scene and takes the object out again, so its
+polygons are sorted on their own. Units do this for their near level of
+detail (script 2166 sets property 139, and LOD script 2147 passes it on),
+so the browser engine draws flagged objects like any other.
 
 ## Collisions
 
