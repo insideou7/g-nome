@@ -10,6 +10,9 @@ that lets the agent decompile and inspect binaries. The server is registered in
 Setup, the Ghidra backend and troubleshooting are in
 [docs/reverse-engineering-setup.md](docs/reverse-engineering-setup.md).
 
+Project skills live in `.claude/skills/` (see its README), including the
+`caveman` terse-reply skill: `/caveman` on, `stop caveman` off.
+
 ## Working rules
 
 - Put the game files in `game/` (git-ignored). Never commit the original
