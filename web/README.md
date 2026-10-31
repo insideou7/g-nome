@@ -72,6 +72,9 @@ node web/tests/walkthrough.mjs game/g-nome/G-NOME --only lab --shots /tmp/walk
 # Battlefield checks (maths; plus mission 1 when given the game folder)
 node web/tests/battlefield-check.mjs game/g-nome/G-NOME
 
+# Enemy AI and mission goals: a guard attacks, winning and losing mission 1
+node web/tests/mission-check.mjs game/g-nome/G-NOME
+
 # Disassemble scripts (linear, includes else branches and switch cases)
 node web/tools/disasm.mjs game/g-nome/G-NOME/G-NOME.BIN 7 9 11
 node web/tools/disasm.mjs game/g-nome/G-NOME/G-NOME.BIN all > re-output/scripts.txt
@@ -80,6 +83,8 @@ node web/tools/disasm.mjs game/g-nome/G-NOME/G-NOME.BIN all > re-output/scripts.
 NODE_PATH=$(npm root -g) node web/tools/shot.mjs 15 /tmp/boot 12:Escape
 # ...of mission 1
 NODE_PATH=$(npm root -g) node web/tools/shot.mjs 12 /tmp/m1 '?mission=1' 2:Escape 3:Escape 4:Escape
+# ...and win it at 12 s (eval@ runs JavaScript in the page; see docs/missions.md)
+NODE_PATH=$(npm root -g) node web/tools/shot.mjs 30 /tmp/win '?mission=1' 2:Escape 3:Escape 4:Escape '12:eval@engine.mission.destroyEnemies()'
 
 # Check the FRME/OB3D decoders and the animation system on a real unit
 node web/tests/anim-check.mjs game/g-nome/G-NOME

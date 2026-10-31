@@ -1,5 +1,5 @@
 // Open the engine in headless Chromium, let it run, save screenshots.
-// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [?query] [second:Key | second:click@x,y ...]
+// Usage: node web/tools/shot.mjs <seconds> <out-prefix> [?query] [second:Key | second:click@x,y | second:eval@js ...]
 // A ?query argument is added to the page URL, e.g. ?mission=1.
 // Serves the repo root on :8642; game files are read from game/g-nome/G-NOME.
 import { createServer } from "node:http";
@@ -25,7 +25,7 @@ const server = createServer(async (req, res) => {
 const secs = Number(process.argv[2] || 5);
 const out = process.argv[3] || "shot";
 const query = process.argv.slice(4).find((s) => s.startsWith("?")) || "";
-const keys = process.argv.slice(4).filter((s) => !s.startsWith("?")).map((s) => { const [t, k] = s.split(":"); return [Number(t), k]; });
+const keys = process.argv.slice(4).filter((s) => !s.startsWith("?")).map((s) => { const i = s.indexOf(":"); return [Number(s.slice(0, i)), s.slice(i + 1)]; });
 const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 const page = await browser.newPage({ viewport: { width: 1000, height: 1000 } });
 page.on("console", (m) => console.log("console:", m.text()));
@@ -35,7 +35,10 @@ for (let t = 1; t <= secs; t++) {
   await page.waitForTimeout(1000);
   for (const [at, k] of keys) {
     if (at !== t) continue;
-    if (k.startsWith("click@")) {
+    if (k.startsWith("eval@")) {
+      // eval@js runs in the page, e.g. eval@engine.mission.win()
+      console.log("eval:", JSON.stringify(await page.evaluate(k.slice(5))));
+    } else if (k.startsWith("click@")) {
       // click@x,y in game pixels (640x480)
       const [x, y] = k.slice(6).split(",").map(Number);
       const box = await page.locator("#screen").boundingBox();
