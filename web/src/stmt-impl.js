@@ -252,8 +252,23 @@ export const STATEMENTS = {
   0x75(vm, b, dv, p) {
     vm.engine.loaded.add(vm.resolve(u32(dv, p + 2), b[p + 6]));
   },
+  // Unloading a sprite (type 20) or a sprite list (type 16, u32 sprite ids)
+  // destroys those sprites, which is how a screen's cleanup script (7270
+  // for the campaign briefing) takes its sprites down.
   0xdf(vm, b, dv, p) {
-    vm.engine.loaded.delete(vm.resolve(u32(dv, p + 2), b[p + 6]));
+    const e = vm.engine;
+    const id = vm.resolve(u32(dv, p + 2), b[p + 6]);
+    e.loaded.delete(id);
+    const src = e.dynamic.get(id) ?? id;
+    const t = src >= 0 && src < e.bin.count ? e.bin.type(src) : -1;
+    let ids = [];
+    if (t === 20) ids = [id];
+    else if (t === 16) {
+      const r = e.res(src);
+      const d = new DataView(r.buffer, r.byteOffset, r.byteLength);
+      for (let i = 0; i + 4 <= r.length; i += 4) ids.push(d.getUint32(i, true));
+    }
+    for (const s of ids) if (e.sprites.list.delete(s)) e.dirty = true;
   },
   // 0xa4: set the background (0x10001039). +2 mode: 0 bitmap resource at +6,
   // 1 solid colour index at +0x10, 2 none, 3 resource of type 22.
