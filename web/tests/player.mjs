@@ -71,6 +71,7 @@ export class Player {
       display: p.display,
       ini: p.ini,
       storage: p.storage,
+      viewDistance: opts.viewDistance,
       log: (m) => {
         p.logs.push(m);
         if (BAD_LOG.test(m)) p.errors.push(m);

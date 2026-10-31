@@ -19,12 +19,16 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Player, VK } from "./player.mjs";
+import { basisFromAt } from "../src/battlefield/math.js";
 import { table } from "../src/builtins.js";
 
 // Not implemented yet, and reached by this walk. Remove an entry when it is
 // done; the run says when one is no longer hit.
 const KNOWN_GAPS = new Set([
   "extern:render.FreeAllTextures",
+  // The radar in vehicle cockpits (reached once mission1 swaps into a HAWC).
+  "extern:render.RadarDraw",
+  "extern:render.RadarClear",
   // Sets bit 15 of the sprite's flags (0x1003f25a -> 0x10036e10) and then
   // copies a position from the sprite's +0x1c record. Sent while quitting.
   "sprite message:14",
@@ -69,7 +73,7 @@ const USE_SAVE = [424, 78];
 const PROMPT_SPRITE = 6400;
 const KEY_MAP = 6323; // the bindings on screen: rows of {action, ?, device, key} x 3
 const HELD_BINDINGS = 2546; // what missions read: {action, device, key} rows
-const VK_D = 0x44, VK_Q = 0x51, VK_W = 0x57;
+const VK_D = 0x44, VK_G = 0x47, VK_W = 0x57; // D and G are free in the default map
 const LAB_PREVIEW = [150, 60, 330, 330]; // the turning model on LAB screens
 const BRIEF_MAP = [130, 40, 330, 240];
 const BRIEF_PREVIEW = [340, 40, 510, 240];
@@ -224,13 +228,14 @@ const SECTIONS = {
     await toMainMenu(p);
     await press(p, MAIN.OPTIONS);
     await press(p, LEFT[0], 60);
+    check(p.engine.keyConflicts.shown && p.engine.keyConflicts.cells.length === 0, "the default keys have no conflicts", JSON.stringify(p.engine.keyConflicts.cells));
     await press(p, CELL(ROW.FIRE1, 0), 10);
     check(!!p.sprite(PROMPT_SPRITE) && !!p.engine.input.captureScript, "clicking a binding asks for a key");
     p.shot("prompt");
-    p.key(VK_Q);
+    p.key(VK_G);
     await p.wait(10);
-    check(same(binding(p, ROW.FIRE1, 0), [0, VK_Q]), "a key press rebinds Fire Weapon 1 to Q", `${binding(p, ROW.FIRE1, 0)}`);
-    check(p.texts().includes("Q") && !p.sprite(PROMPT_SPRITE) && !p.engine.input.captureScript, "the cell shows Q and the prompt closes");
+    check(same(binding(p, ROW.FIRE1, 0), [0, VK_G]), "a key press rebinds Fire Weapon 1 to G", `${binding(p, ROW.FIRE1, 0)}`);
+    check(p.texts().includes("G") && !p.sprite(PROMPT_SPRITE) && !p.engine.input.captureScript, "the cell shows G and the prompt closes");
     await press(p, CELL(ROW.FIRE1, 1), 10);
     await press(p, PROMPT.CLEAR, 10);
     check(same(binding(p, ROW.FIRE1, 1), [0, 0]), "Clear empties a binding", `${binding(p, ROW.FIRE1, 1)}`);
@@ -240,12 +245,22 @@ const SECTIONS = {
     p.key(VK_W);
     await p.wait(10);
     check(same(binding(p, ROW.FIRE2, 0), before) && !p.engine.input.captureScript, "Cancel keeps the old binding");
+    // G on Fire Weapon 2 as well: both cells are marked, and Clear fixes it.
+    await press(p, CELL(ROW.FIRE2, 2), 10);
+    p.key(VK_G);
+    await p.wait(10);
+    const marked = p.engine.keyConflicts.visibleCells().map((c) => `${c.row}.${c.col}`).sort();
+    check(same(marked, [`${ROW.FIRE1}.0`, `${ROW.FIRE2}.2`]), "a key used twice marks both cells", marked.join(" "));
+    p.shot("conflict");
+    await press(p, CELL(ROW.FIRE2, 2), 10);
+    await press(p, PROMPT.CLEAR, 10);
+    check(p.engine.keyConflicts.cells.length === 0, "clearing one of them removes the marks");
     await press(p, CELL(ROW.TURN_RIGHT, 0), 10);
     p.key(VK_D);
     await p.wait(10);
     await press(p, USE_SAVE, 30);
     const held = bindRows(p, HELD_BINDINGS);
-    check(held.includes(`29/0/${VK_Q}`) && held.includes(`1/0/${VK_D}`) && !held.includes("1/5/39"), "Use/Save hands the new keys to the game", held.slice(0, 12).join(" "));
+    check(held.includes(`29/0/${VK_G}`) && held.includes(`1/0/${VK_D}`) && !held.includes("1/5/39"), "Use/Save hands the new keys to the game", held.slice(0, 12).join(" "));
     check(p.storage.getItem("g-nome.file.GKEY0.MAP") !== null, "Use/Save keeps the key map in browser storage");
     finish(p);
 
@@ -389,6 +404,9 @@ const SECTIONS = {
     check(!!w.camera.attach, "the camera rides on the player's unit");
     const view = p.region(...VIEWPORT);
     check(view.colours > 30 && view.lit > view.area * 0.9, "the 3D view draws sky and ground", JSON.stringify(view));
+    // The far ground tiles once drew lit with Surface 0 0 0, which left a
+    // black band (about 900 pixels) between the ground and the backdrop.
+    check(view.area - view.lit < 100, "no black band at the horizon", `${view.area - view.lit} black pixels`);
     check(p.region(0, 300, 640, 480).colours > 50, "the cockpit is drawn over it");
     check(p.texts().length > 0, "the HUD shows its readouts", JSON.stringify(p.texts()));
     p.shot("battlefield");
@@ -400,6 +418,25 @@ const SECTIONS = {
     p.shot("turned");
     await p.wait(150);
     check(w.shown && !p.engine.quit, "five more seconds run without leaving the mission");
+    // Up close a unit switches to its near model, which ObjectSetScene puts
+    // in a scene of its own (flag 0x80); it must still be drawn.
+    const r3d = p.engine.render3d;
+    const mech = [...w.objects.values()].find((o) => r3d.objects.getProperty(o.id, 0) === 141 && Math.hypot(o.pos[0] + 49.88, o.pos[2] + 12.38) < 2);
+    const me = w.get(p.engine.vm.getGlobal(973));
+    me.setPosition([mech.pos[0], 0, mech.pos[2] + 4]);
+    me.basis = basisFromAt([0, 0, -1]);
+    await p.wait(10);
+    check((r3d.objects.get(mech.id).flags & 0x80) !== 0, "a unit 4 units away uses its near model", `lod ${mech.lod}`);
+    check(w.view.handles.get(mech.id)?.visible === true, "a unit up close is still drawn");
+    p.shot("near-unit");
+    // In a vehicle the camera sits inside the player's own model; the LOD
+    // script hides it with ObjectSetState (flag 0x100).
+    p.engine.debug.swapVehicle(0); // Union Sentry HAWC
+    await p.wait(10);
+    const own = p.engine.vm.getGlobal(973);
+    check(r3d.objects.getProperty(own, 0) >= 100, "the debug panel puts the player in a HAWC", `class ${r3d.objects.getProperty(own, 0)}`);
+    check(w.view.handles.get(own)?.visible === false, "the player's own vehicle is not drawn over the view");
+    p.shot("in-hawc");
     finish(p);
   },
 };

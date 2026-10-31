@@ -13,6 +13,10 @@ export class BattleCamera {
     this.viewwindow = [0.61, 0.457];
     this.near = 0.1;
     this.far = 30;
+    // How much further than the scripts' far plane to draw (and to keep
+    // the near levels of detail). 1 is the original; more keeps the ground
+    // tiles and distant objects on screen further out. See drawFar.
+    this.viewDistance = 1;
     this.background = [0, 0, 0];
     this.fog = null; // {depth, color: [r, g, b] 0..255}
     this.backdrop = null; // {bitmap: resource id, mode}
@@ -30,6 +34,13 @@ export class BattleCamera {
     this.attach = null;
     this.pos = pos;
     this.basis = basisFromAt(at, this.basis.up);
+  }
+
+  // The far plane used for drawing and for level-of-detail distances. The
+  // scripts' own value (SetCameraClipping) stays in `far` for everything
+  // else, such as sound volume by distance.
+  get drawFar() {
+    return this.far * this.viewDistance;
   }
 
   attachTo(id, clump, offset) {

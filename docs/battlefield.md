@@ -225,7 +225,14 @@ procedure then sends the next key press to that script as `(device, key)`
 the key. Use/Save (6341) copies the map to the current one (G1856), writes
 `GKEY<G2100>.MAP` (script 2556) and splits it into 2545 and 2546
 (`script_2554`); the boot reads the file back. The browser keeps written
-files in localStorage (`web/src/anim/files.js`).
+files in localStorage (`web/src/anim/files.js`). While capturing, mouse
+moves reach the script as `(0, 0)`; after Clear or Cancel it returns 1 to
+the next one, which ends the capture.
+
+The port outlines conflicting cells in red (`web/src/key-conflicts.js`):
+the same input (devices 0 and 5 count as one; joysticks are left out) on two
+actions that share a control mode in table 2544 columns 2-5. The default map
+has none: Space is on actions 9 and 42, but no mode allows action 42.
 
 Devices: 0 the key alone, 1 Ctrl+key, 2 Shift+key, 5 the key without
 modifiers, 4 a mouse button (1 left, 2 right, 3 middle; only while
@@ -250,8 +257,18 @@ unit's LOD script (2145 and friends: copy the model into property 79, link
 it) has run before the rest of its setup. Later per-frame changes
 (`FUN_10029059`) only run for objects with an update record.
 `UpdateLOD(id)` (`0x10029743`) forgets the current choice and picks again.
-`ObjectSetScene(id, 0)` puts the model in the RenderWare scene, any other
-value takes it out (object flag `0x80`; the draw loop skips such objects).
+`ObjectSetScene(id, 0)` puts the model in the main RenderWare scene; any
+other value takes it out and sets object flag `0x80`. The object is still
+drawn: the sorted draw pass (`FUN_10006446`) adds a flagged object to a
+second scene (`DAT_1003d618[10]`, made the same way as the main one in
+`Init3D`), renders that scene and takes the object out again, so its
+polygons are sorted on their own. Units do this for their near level of
+detail (script 2166 sets property 139, and LOD script 2147 passes it on),
+so the browser engine draws flagged objects like any other. What the draw
+pass does skip is an object with flag `0x100` or `0x400` (byte `+0x55` bits
+1 and 4). `ObjectSetState(id, 1)` (`0x10014335`) sets `0x100`, and LOD script
+2147 calls it for a unit with property 133 set: that is how the player's own
+vehicle, with the camera inside it, is kept out of the view.
 
 ## Collisions
 

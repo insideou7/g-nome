@@ -41,6 +41,16 @@ behaviour can be checked against the original.
   the z-buffer, and lighting uses |N.L|.
 - Model op `0x32` is RWX TextureModes (1 lit, 2 foreshorten, 4 filter). A
   texture without the lit bit draws at full brightness; ground tiles use 2.
+- A texture on a material with `Surface 0 0 0` and no TextureModes also
+  draws at full brightness (`materialLight` in `scene.js`). 176 models are
+  like that, among them the far ground tiles, trees and bushes; lit, they
+  came out black (a black band at the horizon, black trees).
+- `ObjectSetState(obj, 1)` (flag `0x100`) hides the object: the ground
+  tiles' last level of detail (script 2140) and the unit the camera rides
+  in (script 2171) use it.
+- The battlefield draws `viewDistance` (default 3, `?view=1` for the
+  original) times the scripts' far plane, and picks levels of detail
+  against that distance, so the ground reaches the horizon.
 
 ## Using it
 

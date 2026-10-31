@@ -208,7 +208,10 @@ async function start(rawFiles) {
     display.unfreeze();
     display.underlay = null;
     display.overlay = null;
-    engine = new Engine(files, { log, display, audio, ini, trace: $("trace").checked });
+    // ?view=N draws the battlefield N times the original distance (1 = as
+    // the original game).
+    const view = Number(new URLSearchParams(location.search).get("view")) || undefined;
+    engine = new Engine(files, { log, display, audio, ini, trace: $("trace").checked, viewDistance: view });
     log("loading game files...");
     await engine.init();
     engine.onCursor = (c) => {
