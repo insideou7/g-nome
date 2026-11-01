@@ -15,7 +15,8 @@
 // Step syntax, run in order with 60 ticks (2 s) after each:
 //   goto:REF[,dx,dz]    put the player's unit next to REF (offset in world units)
 //   walkto:REF[,ticks]  face REF and drive at it until the player reaches it
-//   drive:REF[,ticks]   drive to REF on a path round the solid hotspots
+//   drive:REF[,ticks[,clear]]  drive to REF on a path round the solid hotspots,
+//                       keeping `clear` world units from them
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
 //   killpilots:SIDE     destroy every pilot on foot whose side (p115) is SIDE
@@ -24,7 +25,10 @@
 //   click:X,Y           click at screen pixels
 //   iff:N               dial the IFF code N with U, I, O and P (one octal digit each)
 //   call:S(ARGS)        run script S with REF arguments
-// REF is a global (G381), an array element (G73[0]) or a number.
+//   fire:REF[,ticks[,group]]  face REF and fire weapon group 1-4 (keys 1-4, default 1)
+//                       until REF is destroyed
+// REF is a global (G381), an array element (G73[0]) or a number; drive also
+// takes a point X/Z in world units.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -115,6 +119,21 @@ const SOLUTIONS = {
     "goto:G53[1],2,0", "walkto:G53[1],200", "wait:2400",
     "kill:G13[0]", "kill:G13[1]", "kill:G13[2]", "killpilots:0", "wait:2400",
     "goto:G53[2],3,0", "drive:G625[1]", "drive:G625[8]"],
+  // 3-5 Ion-Strike: "Destroy G-Nome laboratory", "Defeat rocket tower
+  // defense", "Destroy laboratory with ion-strike". The four rocket towers
+  // (G333, class 234) belong to the control station G345 (class 222);
+  // destroying it runs 2126, which stops their update scripts. The lab
+  // G417 (class 227) sits against a mesa, so only some spots see it; from
+  // the trigger G625[0] the second weapon group hits it. Its death (hook
+  // G985 = 9133) marks objective 0 and starts dialogue 9129; the last
+  // line (9136, 9137) waits 5 s and 9138 wins (2246) if the player is in
+  // a vehicle, or calls the ion strike (1649) down on a player on foot.
+  // Nothing in the mission gives the player the laser sight (weapon kind
+  // 32, the Ctrl+Z cheat), so the lab is shot down. The escorts and
+  // turrets are killed, and their crews, as in other missions.
+  16: ["kill:G53[0]", "kill:G53[1]", "kill:G53[2]", "kill:G53[3]", "kill:G53[4]", "kill:G53[5]",
+    "kill:G273[0]", "kill:G273[1]", "kill:G273[2]", "kill:G273[3]", "wait:100", "killpilots:3",
+    "drive:-26/-50,20000,1.5", "fire:G345,900,2", "drive:G625[0],20000,1", "fire:G417,1800,2", "wait:600"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -138,20 +157,23 @@ const files = {
   has: (/** @type {string} */ n) => names.has(n.toUpperCase()),
 };
 
-const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d;
+const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d, VK_FIRE = 0x31; // 1-4: fire actions 29-32
 const TILE = 6; // ground tiles (level -100) sit on a 6-unit grid
 const TRIGGER = 500; // class of trigger zones: their hotspots never block
+const DEAD = 1729; // update script of a destroyed unit (script 2278)
 
 // Waypoints (x, z) from `from` to `to` on a 1-unit grid: cells on a ground
 // tile and outside every solid hotspot still in its object's hotspot list
 // (property 16; scripts 434/435 take a gate's barrier out of it), found
-// breadth first. Null when there is no way.
+// breadth first. With `clear`, a cell also needs that much room round it
+// (for a wide vehicle that would catch on a corner). Null when there is no way.
 /**
  * @param {any} engine
  * @param {number[]} from
  * @param {number[]} to
+ * @param {number} clear
  */
-function findPath(engine, from, to) {
+function findPath(engine, from, to, clear = 0) {
   const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
   const objs = [...engine.world.objects.values()];
   const tiles = new Set();
@@ -170,8 +192,11 @@ function findPath(engine, from, to) {
       if (h && h.flags & 1) solid.push(h);
     }
   }
+  const ring = clear ? [[0, 0], ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => [clear * Math.cos(k * Math.PI / 4), clear * Math.sin(k * Math.PI / 4)])] : [[0, 0]];
   const blocked = (/** @type {number} */ x, /** @type {number} */ z) =>
     !tiles.has(`${Math.round(x / TILE)},${Math.round(z / TILE)}`) ||
+    ring.some(([dx, dz]) => inside(x + dx, z + dz));
+  const inside = (/** @type {number} */ x, /** @type {number} */ z) =>
     solid.some((h) => {
       if (h.type === 0x10) return Math.hypot(h.pos[0] - x, h.pos[2] - z) <= h.id / 100;
       const fp = engine.collision.footprint(h);
@@ -268,9 +293,10 @@ async function play(n) {
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)}`);
       } else if (k === "drive") {
-        const [r, ticks = "20000"] = v.split(",");
+        const [r, ticks = "20000", clear = "0"] = v.split(",");
         const id = ref(r);
-        const way = findPath(engine, obj(player()).pos, obj(id).pos);
+        const point = /^(-?[\d.]+)\/(-?[\d.]+)$/.exec(r);
+        const way = findPath(engine, obj(player()).pos, point ? [Number(point[1]), 0, Number(point[2])] : obj(id).pos, Number(clear));
         assert.ok(way, `mission ${n}: ${s}: no way through`);
         let i = 0;
         for (const [x, z] of way) {
@@ -296,6 +322,33 @@ async function play(n) {
         // crews that eject from destroyed vehicles.
         for (const id of engine.mission.units())
           if (prop(id, 0) < 100 && prop(id, 115) === Number(v) && prop(id, 77)) engine.mission.destroy(id);
+      }
+      else if (k === "fire") {
+        // Shots, hits and damage all go through the game's own scripts.
+        const [r, ticks = "900", group = "1"] = v.split(",");
+        const id = ref(r), vk = VK_FIRE + Number(group) - 1;
+        // Gone: the mission cleared its global, or the object is dead (death
+        // script 2278 leaves structures standing with update script 1729).
+        const alive = () => ref(r) === id && obj(id) && obj(id).updateScript !== DEAD;
+        for (let i = 0; i < Number(ticks) && alive() && engine.mission.status().outcome === "playing"; i++) {
+          // Stand still: drive and walkto can leave some throttle on, and
+          // walking into a building boards it.
+          if (i < 30) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
+          else if (i === 30) engine.input.keyUp(VK_THROTTLE_DOWN);
+          const me = obj(player()), target = obj(id);
+          const dx = target.pos[0] - me.pos[0], dz = target.pos[2] - me.pos[2], d = Math.hypot(dx, dz);
+          if (i % 60 === 0 && d > 0.5) {
+            me.basis = { at: [dx / d, 0, dz / d], up: [0, 1, 0], right: [-dz / d, 0, dx / d] };
+            me.tickBasis = me.basis;
+          }
+          // Tap once a second: a held key fires the energy weapons at
+          // whatever charge they have.
+          if (i % 30 === 0) engine.input.keyDown(vk);
+          if (i % 30 === 2) engine.input.keyUp(vk);
+          await step(1);
+        }
+        engine.input.keyUp(vk);
+        if (verbose) console.log(`    ${r} ${alive() ? "still there" : "destroyed"}`);
       }
       else if (k === "wait") await step(Number(v));
       else if (k === "key") {
