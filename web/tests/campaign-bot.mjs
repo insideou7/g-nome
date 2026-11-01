@@ -17,15 +17,19 @@
 //   walkto:REF[,ticks]  face REF and drive at it until the player reaches it
 //   drive:REF[,ticks[,clear[,dx,dz]]]  drive to REF (plus an offset) on a path round the
 //                       solid hotspots, keeping `clear` world units from them (empty: default)
+//   avoid:REF,R[,N]     keep later drive paths more than R world units from REF
+//                       (or from each of REF[0..N-1], such as the mines of a minefield); avoid:none forgets them
 //   stop                throttle down until the player's unit stands still
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
-//   killpilots:SIDE     destroy every pilot on foot whose side (p115) is SIDE
+//   killpilots[:SIDE]   destroy every pilot on foot whose side (p115) is SIDE, or every hostile one
 //   wait:T              let T more ticks run
 //   key:VK              press and release a key (virtual-key code)
 //   click:X,Y           click at screen pixels
 //   iff:N               dial the IFF code N with U, I, O and P (one octal digit each)
 //   hold:REF,G[,ticks]  face REF and hold fire key G (1-4: the weapon group) for ticks (default 1)
+//   face:REF[,ticks]    keep facing REF for ticks (default 1), such as to hold a
+//                       target in the sights (script 582) while an airstrike is painted
 //   near:REF,D[,ticks]  wait (at most ticks, default 1200) until REF is within D world units; no 60-tick pause after
 //   tab:REF             press Tab (next target, script 2000) until REF is the target (G1811)
 //   call:S(ARGS)        run script S with REF arguments
@@ -190,6 +194,40 @@ const SOLUTIONS = {
   // getting out there wins (2246). Losing Kylle (G5) or the HQ fails it.
   // The whole way is driven, with the player's unit vulnerable.
   17: ["kill:G419", "drive:G625[0]", "wait:300", "eject", "wait:200"],
+  // 4-2 Scorp Defense: "Defend Ur-Kinsk", "Occupy guard towers", "Command
+  // Sant Drones, F5-F8". Scorp craft (G13) head for the HQ (G397) and the
+  // security tower (G419). The player's pilot (G1) boarding a guard tower
+  // (G273, hook G984 = 9168) marks the towers done. While the drawbridge
+  // G349 is down (p42 = 0) each of G13[6] and G13[7] that dies is replaced
+  // (9169); raising it from its control station (G373, the panel at
+  // 184,146) stops that and drops whatever is on it. The kill hook (G985 =
+  // 9167) wins (2245) once G2487 Scorps (6 on easy, plus one per
+  // replacement) are down and the bridge is up, or once G1868 passes 900.
+  // Losing either wingman (G5, G2), or ten of the player's side, fails it.
+  // The wingmen fight on foot, so the two Scorps nearest them go first.
+  18: ["kill:G13[2]", "kill:G13[1]", "goto:G273[1],0,3", "walkto:G273[1],300", "eject",
+    "goto:G373,-4,0", "walkto:G373,600", "click:184,146", "wait:100",
+    "kill:G13[4]", "kill:G13[5]", "kill:G13[6]", "kill:G13[7]"],
+  // 4-3 War Zone: "Cross Shalten war zone to waypoint three", "Use Union
+  // HAWCs and one airstrike". The player (G13[0], pilot G1) and two
+  // wingmen (G2, G5 in G13[1], G13[2]) start north; losing either wingman's
+  // pilot fails it (9190 -> 2249). The base is a maze of walls whose two
+  // ways south are minefields (G467, G499: class 570, owned by the mine
+  // control G595, warnings G625[3]/[4]) and the gate G349; the gates start
+  // open (1780). Hotspots wake the defenders as the player comes: G367 by
+  // the north gate (G73[1], G73[3], G33[1], G33[2]), G361 east (G33[3]),
+  // G369 west, G357 south. G73[0] attacks from the start; the crews of
+  // destroyed vehicles carry EGGER guns that throw the player out of his
+  // HAWC, so they go too. The airstrike is weapon 32 in the pilot's own
+  // list (group 3 on foot): fire it at the target (G974, held in the sights
+  // for 10 checks by script 582) and keep it there about 10 s; 1649 -> 1650
+  // then destroys it. Destroying G595 sets off all 32 mines. Waypoint three
+  // (G625[0], 9200) wins. The supply stops (ammunition G713, objective 4;
+  // shield doubler G397, objective 3) are optional. The way to the south
+  // gate lines up north of it first: its posts leave a lane under 2 units.
+  19: ["avoid:G467,3,16", "avoid:G499,3,16", "kill:G73[0]", "killpilots", "drive:G367", "kill:G73[1]", "kill:G73[3]",
+    "kill:G33[1]", "kill:G33[2]", "killpilots", "drive:G595,20000,,-3,5", "kill:G33[3]", "eject",
+    "tab:G595", "face:G595,60", "hold:G595,3,3", "face:G595,400", "walkto:G13[0],300", "avoid:none", "drive:G349,20000,,0,5", "drive:G625[0]"],
   // 4-5 Sheridan's Lair: "Destroy Recombination laboratory" (G417, class
   // 227) "before arrival of transport ship (20 min.)" (9233 checks the
   // clock every 10 s and fails at 1200 s, 2248), "Breach defenses" and
@@ -209,6 +247,19 @@ const SOLUTIONS = {
     "drive:30/38", "key:48", "wait:300", "fire:G419,900,1", "fire:G419,900,2", "kill:G53[1]",
     "drive:38/-62,20000,0", "key:48", "wait:300", "eject", "drive:36/-76,20000,0",
     "target:G417", "fire:G417,900,4", "wait:400"],
+  // 4-6 Mano-a-Mano: "Kill Sheridan and G-Nome". Sheridan (G3, side 3)
+  // drives the G-Nome (G13[1]) along waypoints G605[0], G605[1], G359 to
+  // the gate G349; reaching G357 behind it fails the mission (9257). His
+  // update script 9259 keeps his target scan off until the player crosses
+  // trigger G625[1] (9260); then he still heads for the gate but shoots
+  // back, and if he gets there the mission fails. Killing him (hook G985
+  // = 9255) wins (2246). Before that trigger he circles the rock at
+  // G605[0] after bumping it: the collision sets his circle target (p70)
+  // and only the scan timer that 9259 holds off would clear it. He is
+  // shot with single full-charge shots (a held key fires weak ones) from
+  // close by; about 26 bring the G-Nome down, so after 24 the kill step
+  // finishes it, and then his pilot, thrown out when it dies.
+  22: ["drive:G625[1]", "near:G13[1],20,3000", "goto:G13[1],-8,0", ...Array(24).fill("hold:G13[1],1,1"), "kill:G13[1]", "wait:100", "kill:G3"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -251,8 +302,9 @@ const DEAD = 1729; // update script of a destroyed unit (script 2278)
  * @param {number[]} to
  * @param {number} clear
  * @param {boolean} round
+ * @param {number[][]} avoid circles (x, z, radius) to keep out of
  */
-function findPath(engine, from, to, clear = CLEAR, round = false) {
+function findPath(engine, from, to, clear = CLEAR, round = false, avoid = []) {
   const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
   const objs = [...engine.world.objects.values()];
   const tiles = new Set();
@@ -289,6 +341,7 @@ function findPath(engine, from, to, clear = CLEAR, round = false) {
   const ring = round && clear ? [[0, 0], ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => [clear * Math.cos(k * Math.PI / 4), clear * Math.sin(k * Math.PI / 4)])] : [[0, 0]];
   const blocked = (/** @type {number} */ x, /** @type {number} */ z) =>
     !tiles.has(`${Math.round(x / TILE)},${Math.round(z / TILE)}`) ||
+    avoid.some(([ax, az, r]) => Math.hypot(ax - x, az - z) < r) ||
     ring.some(([dx, dz]) => inside(x + dx, z + dz)) ||
     (!round && clear > 0 && [...prints.values()].some((fp) => fp.pts.length > 0 && nearEdge(fp, x, z)));
   const inside = (/** @type {number} */ x, /** @type {number} */ z) =>
@@ -338,6 +391,8 @@ async function play(n) {
       return r ? vm.getGlobal(Number(r[1]) + Number(r[2] || 0)) : Number(s);
     };
     const player = () => vm.getGlobal(973);
+    /** @type {number[][]} */
+    const avoid = []; // circles (x, z, radius) drive keeps out of
     const obj = (/** @type {number} */ id) => engine.world.get(id);
     const step = async (/** @type {number} */ ticks) => {
       for (let i = 0; i < ticks; i++) {
@@ -395,8 +450,8 @@ async function play(n) {
         const at = point ? [Number(point[1]), 0, Number(point[2])] : obj(id).pos;
         const goal = [at[0] + Number(dx), 0, at[2] + Number(dz)];
         // Without a clearance, try the default and then none.
-        const way = clear !== undefined ? findPath(engine, obj(player()).pos, goal, Number(clear), true)
-          : findPath(engine, obj(player()).pos, goal) || findPath(engine, obj(player()).pos, goal, 0);
+        const way = clear !== undefined ? findPath(engine, obj(player()).pos, goal, Number(clear), true, avoid)
+          : findPath(engine, obj(player()).pos, goal, CLEAR, false, avoid) || findPath(engine, obj(player()).pos, goal, 0, false, avoid);
         assert.ok(way, `mission ${n}: ${s}: no way through`);
         let i = 0;
         for (const [x, z] of way) {
@@ -415,6 +470,15 @@ async function play(n) {
         for (let j = 0; j < 20; j++) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, j > 0);
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)} after ${i} ticks`);
+      } else if (k === "avoid") {
+        if (v === "none") avoid.length = 0;
+        // REF,R[,N]: N > 1 avoids the array REF[0..N-1] (skipping empty slots).
+        const [r, rad, count = "1"] = v.split(",");
+        const base = /^G(\d+)$/.exec(r);
+        for (let i = 0; v !== "none" && i < Number(count); i++) {
+          const p = obj(base && Number(count) > 1 ? vm.getGlobal(Number(base[1]) + i) : ref(r))?.pos;
+          if (p) avoid.push([p[0], p[2], Number(rad)]);
+        }
       } else if (k === "eject") engine.callScript(1943, []);
       else if (k === "stop") {
         for (let i = 0; i < 300 && (obj(player())?.speed ?? 0) > 0; i++) {
@@ -423,12 +487,16 @@ async function play(n) {
         }
         engine.input.keyUp(VK_THROTTLE_DOWN);
       }
-      else if (k === "kill") engine.mission.destroy(ref(v));
+      // Once the mission is won, more kills would run its win script again.
+      else if (k === "kill") {
+        if (!engine.mission.status().ending) engine.mission.destroy(ref(v));
+      }
       else if (k === "killpilots") {
-        // Pilots on foot (class below 100) of side p115 = v, such as the
-        // crews that eject from destroyed vehicles.
+        // Pilots on foot (class below 100): the hostile ones, or those of
+        // side p115 = v, such as the crews that eject from destroyed vehicles.
         for (const id of engine.mission.units())
-          if (prop(id, 0) < 100 && prop(id, 115) === Number(v) && prop(id, 77)) engine.mission.destroy(id);
+          if (id !== player() && prop(id, 0) < 100 && (v ? prop(id, 115) === Number(v) && prop(id, 77) : engine.mission.hostile(player(), id)))
+            engine.mission.destroy(id);
       }
       else if (k === "fire") {
         // Shots, hits and damage all go through the game's own scripts.
@@ -500,11 +568,12 @@ async function play(n) {
           }
         }
         assert.equal(prop(player(), 113), want, `mission ${n}: IFF dial`);
-      } else if (k === "hold") {
-        const [r, g, ticks = "1"] = v.split(",");
+      } else if (k === "hold" || k === "face") {
+        const [r, a, b = "1"] = v.split(",");
+        const g = k === "hold" ? Number(a) : 0, ticks = k === "hold" ? b : a || "1";
         const id = ref(r);
         assert.ok(obj(id) && obj(player()), `mission ${n}: ${s}: no such unit`);
-        engine.input.keyDown(0x30 + Number(g));
+        if (g) engine.input.keyDown(0x30 + g);
         for (let i = 0; i < Number(ticks); i++) {
           const me = obj(player()), target = obj(id);
           if (!me || !target) break;
@@ -513,7 +582,7 @@ async function play(n) {
           me.tickBasis = me.basis;
           await step(1);
         }
-        engine.input.keyUp(0x30 + Number(g));
+        if (g) engine.input.keyUp(0x30 + g);
       } else if (k === "near") {
         const [r, dist, ticks = "1200"] = v.split(",");
         const id = ref(r);
