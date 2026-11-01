@@ -181,6 +181,8 @@ swaps the tag). Properties seen so far:
 
 ## Externs implemented
 
+The full list of RENDER.R32 exports is [render-r32.md](render-r32.md).
+
 | Extern | Address | Notes |
 | --- | --- | --- |
 | `GetProperty`, `SetProperty` | `0x1001271e`, `0x10016c09` | |

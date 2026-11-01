@@ -179,7 +179,6 @@ export class Collision {
   constructor(engine) {
     this.engine = engine;
     this.boxes = new Map(); // model id -> per-clump local bounds
-    this.captureKey = 0; // CaptureKey's virtual key
   }
 
   get world() {
@@ -760,12 +759,6 @@ export function collisionExterns(engine) {
       const rec = engine.render3d?.objects?.get(id);
       if (rec) rec.flags = mode === 2 ? rec.flags | 0xa00 : mode === 0 ? rec.flags & ~0xa00 : rec.flags | 0x200;
       return 0;
-    },
-    // CaptureKey(vk) 0x1000db64: remembered only (the window procedure reads
-    // it to hand one key to a script).
-    CaptureKey(vk) {
-      c.captureKey = vk;
-      return 1;
     },
     // GetFrameRate(n) 0x1001234b: 3 is the clock mod 10000; the others are
     // frame counters the original's FPS display reads.

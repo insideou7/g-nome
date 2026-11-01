@@ -136,6 +136,9 @@ export class World {
     this.camera = new BattleCamera();
     this.camera.viewDistance = engine.viewDistance ?? 1;
     this.time = 0; // simulation clock, ms
+    this.backProcess = false; // SetBackProcess
+    /** @type {number | undefined} */
+    this.savedState = undefined; // state before activate(false)
     this.acc = 0; // ms not yet simulated
     this.alpha = 0; // how far drawing is into the current tick, 0..1
     this.groundFlag = 0; // SetGroundFlag (DAT_1003cfc0)
@@ -284,6 +287,23 @@ export class World {
   onTick(fn) {
     this.tickListeners.add(fn);
     return () => this.tickListeners.delete(fn);
+  }
+
+  // RENDER.R32's activation hook (0x10001750): when the game's window
+  // goes to the background the battlefield is suspended (state 6), unless
+  // SetBackProcess(1); coming back restores the state it had. main.js calls
+  // this when the page is hidden or shown.
+  /** @param {boolean} active */
+  activate(active) {
+    if (this.state === STATE.OFF || this.backProcess) return;
+    if (!active) {
+      if (this.state === STATE.SUSPENDED) return;
+      this.savedState = this.state;
+      this.state = STATE.SUSPENDED;
+    } else if (this.state === STATE.SUSPENDED && this.savedState !== undefined) {
+      this.state = this.savedState;
+      this.savedState = undefined;
+    }
   }
 
   // Advance the simulation by real elapsed time; called every display frame.

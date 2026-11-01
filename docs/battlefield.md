@@ -109,9 +109,13 @@ mission's objects from a type 11 table. Each row of that table:
 Table 5843 (197 x 5) is the object catalog: column 0 the resource to copy
 (type 9 `OB3D`), 1 an init script, 2 the kind (1 scenery, 2 building, 3
 unit; picks `script_2040`, `2041` or `2043`), 3 a class code and 4 a type
-index. Classes 250 are road pieces (placed on a 1200 grid with 90 degree
-yaws; `SetModelTexture` picks the environment's road texture 2482-2485),
-251 gets `SetLevel(-50)` and 570 `SetLevel(-25)`.
+index. Class 250 objects are mountain pieces: rocky ridges 2.4 to 10.7
+units tall, placed on a 1200 grid with 90 degree yaws (`SetModelTexture`
+picks the environment's rock texture 2482-2485). Each one's init script
+adds a solid footprint hotspot of kind 9 (`script_439`) about the size of
+the piece, so units have to go around them: in mission 6 a HAWC driven
+straight from the start towards the landing site stops at the ridge at
+(18, 18). Class 251 gets `SetLevel(-50)` and 570 `SetLevel(-25)`.
 
 `script_2040` and friends do the placement:
 

@@ -173,6 +173,13 @@ node web/tests/aim-check.mjs game/g-nome/G-NOME [--verbose]
 # FreeAllTextures and UncachePack: caches do not grow from mission to mission
 node web/tests/free-check.mjs game/g-nome/G-NOME
 
+# RENDER.R32's wave player: five voices, done scripts (the briefing reads
+# every line), DSPauseAudio and the Pause key in mission 1
+node web/tests/waves-check.mjs game/g-nome/G-NOME
+
+# docs/render-r32.md lists every RENDER.R32 export; every called one exists
+node web/tests/render-coverage-check.mjs game/g-nome/G-NOME
+
 # Check the Smacker decoder against FFmpeg
 node web/tests/smacker-check.mjs game/g-nome/G-NOME/G-NOME.SMK
 ```

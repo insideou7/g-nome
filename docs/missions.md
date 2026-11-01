@@ -117,7 +117,7 @@ mission 1) places the objects and then runs a setup script (8737) that:
 | G984 | 14 | `(unit, pilot)` | 2240 | a unit changes hands (a pilot boards it) |
 | G985 | 15 | `(unit)` | 2278 | any unit is destroyed |
 | G986 | 16 | `(other, unit)` | 2229, 2233, 2234, 2239 | a unit bumps into another (the collision scripts) |
-| G987 | 17 | `(unit, shooter)` | 1709 | a shot damages a unit (shooter = the shot's owner, property 42); EGGER hits (weapon kind 25, script 1711) and kind 26 (1715) return before it |
+| G987 | 17 | `(unit, shooter)` | 1709 | a unit takes damage from a shot (`shooter` is the shot's p42) |
 | G988 | 18 | `(target, unit)` | 2015 | a guard picks a target |
 | G989, G990 | 0 | `(unit)` | 582 | the player keeps a unit in the sights long enough to select it (G989), or loses it (G990) |
 | G991 | 0 | `(unit, old task, new task)` | 421 | a unit moves on from a task |
