@@ -26,6 +26,10 @@ export function crand() {
   seed = (Math.imul(seed, 214013) + 2531011) | 0;
   return (seed >>> 16) & 0x7fff;
 }
+/** Reseed crand (srand), so runs in one process start alike. @param {number} s */
+export function csrand(s) {
+  seed = s | 0;
+}
 
 // Give an instance its own model record, so cutting it doesn't change other
 // copies of the same model.

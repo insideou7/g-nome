@@ -19,7 +19,7 @@
 //                       solid hotspots, keeping `clear` world units from them (empty: default)
 //   avoid:REF,R[,N]     keep later drive paths more than R world units from REF
 //                       (or from each of REF[0..N-1], such as the mines of a minefield); avoid:none forgets them
-//   stop                throttle down until the player's unit stands still
+//   stop                hold the throttle against the motion until the unit stands still
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
 //   killpilots[:SIDE]   destroy every pilot on foot whose side (p115) is SIDE, or every hostile one
@@ -32,6 +32,8 @@
 //                       target in the sights (script 582) while an airstrike is painted
 //   near:REF,D[,ticks]  wait (at most ticks, default 1200) until REF is within D world units; no 60-tick pause after
 //   tab:REF             press Tab (next target, script 2000) until REF is the target (G1811)
+//   killclass:N         destroy every hostile unit of class N (units that appear
+//                       during play, such as spawned HAWCs or ejected pilots)
 //   call:S(ARGS)        run script S with REF arguments
 //   fire:REF[,ticks[,group]]  face REF and fire weapon group 1-4 (keys 1-4, default 1)
 //                       until REF is destroyed
@@ -42,6 +44,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { insidePolygon } from "../src/battlefield/collision.js";
+import { csrand } from "../src/combat/damage.js";
 
 // Mission goals and how the bot meets them (briefing text in quotes).
 const SOLUTIONS = {
@@ -171,6 +174,34 @@ const SOLUTIONS = {
     "drive:G54,600,,-31.5,26", "drive:G54,600,,-31.5,5", "killpilots:3", "drive:G54,600,,-10,4", "stop", "killpilots:3",
     "tab:G54", "key:113", "key:115", "killpilots:3", "tab:G55", "key:114", "key:115", "killpilots:3",
     "tab:G56", "key:115", "key:115", "killpilots:3", "wait:300", "killpilots:3", "wait:300"],
+  // 3-4 Ur-Alr': "Primary: Help Sheridan enter Scorp HQ at Ur-Alr'",
+  // "Cross Eraskat River, defeat bridge defenses", "Approach Ur-Alr':
+  // Waypoint two", "Attack Ur-Alr'". Five seconds in the bridge (G349)
+  // swings open (timer -> 1787). Its control station (G373) has a Scorp
+  // crew, so nobody else can board it (2240), and losing it or the bridge
+  // before crossing fails the mission (9112 -> 2249). The bunkers G273[0],
+  // G273[1] guard it. The wingman's pilot (G5) carries an EGGER (1656 in
+  // 9107; weapon kind 25): send the wingman at the station (F1+F2), get
+  // him out (F1+F6, message 8) and his EGGER throws the crew out (1711 ->
+  // 1712). Board the station from the south, dial a friendly IFF so the
+  // wingman stops shooting at it (its code is still Scorp), and click the
+  // panel to close the bridge (1777 -> 4399). The east end (trigger G357,
+  // 9109) is objective 1; the walk on stays in the 1.7-unit lane of the
+  // deck. Waypoint two (G625[0], 9110) wakes Sheridan's team. Sheridan
+  // (G3) is the pilot of G13[3]; when the shield building G411 falls
+  // (9112), 2121 sends him to the HQ (G397) and boarding it (hook G984 =
+  // 9111) wins. For that he must be on foot near the base (from his start
+  // by the north camp he stalls on the compound's corner), alive (the
+  // fence G595, power plant G385, gun G273[4] and the HAWCs G411 spawns
+  // shoot him), and the HQ empty: with its Scorp crew he cannot board it,
+  // so the EGGER hit (1711) that the wingman would bring is run directly.
+  // His transport is destroyed to put him out, as the base usually does.
+  15: ["wait:200", "kill:G273[0]", "kill:G273[1]", "goto:G373,8,-8", "key:112", "key:113", "wait:600",
+    "key:112", "key:117", "wait:1200", "goto:G373,0,-4", "eject", "walkto:G373,300", "iff:1053",
+    "click:184,146", "wait:200", "eject", "goto:G13[0],0,-3", "walkto:G13[0],300", "kill:G53[2]",
+    "kill:G53[0]", "drive:G357", "walkto:G359,300", "drive:G625[0]", "stop", "kill:G595", "kill:G385",
+    "kill:G273[4]", "wait:600", "killclass:24", "killclass:142", "kill:G13[3]", "killclass:24",
+    "call:1711(G397,G5)", "kill:G411", "killclass:142", "wait:1500"],
   // 3-5 Ion-Strike: "Destroy G-Nome laboratory", "Defeat rocket tower
   // defense", "Destroy laboratory with ion-strike". The four rocket towers
   // (G333, class 234) belong to the control station G345 (class 222);
@@ -228,6 +259,22 @@ const SOLUTIONS = {
   19: ["avoid:G467,3,16", "avoid:G499,3,16", "kill:G73[0]", "killpilots", "drive:G367", "kill:G73[1]", "kill:G73[3]",
     "kill:G33[1]", "kill:G33[2]", "killpilots", "drive:G595,20000,,-3,5", "kill:G33[3]", "eject",
     "tab:G595", "face:G595,60", "hold:G595,3,3", "face:G595,400", "walkto:G13[0],300", "avoid:none", "drive:G349,20000,,0,5", "drive:G625[0]"],
+  // 4-4 General Delivery: "Lower bridge for reinforcements". The player
+  // (pilot G1) starts in a vehicle (G53[0]). Five seconds in, a timer
+  // (1787) raises the bridge G349. On the way west: guards G13[1..3], gun
+  // towers G283, and a minefield (G467, class 570) owned by G595, whose
+  // death sets all the mines off (2278 -> 2117). The trigger past the
+  // mines (G625[0], script 9217) sends two craft (G13[6..7] on easy) after
+  // the player, and G13[8] guards the bridge control G373. Some guns throw
+  // the pilot out of the vehicle (weapon kind 26, 1715), and the crews of
+  // destroyed units fight on foot, so the bot clears them as it goes. In
+  // the control, the mission 2 panel lowers the bridge (1777 -> 4399, p42
+  // = 0); getting out with it down (hook G983 = 9216) wins through 2246.
+  // Losing the bridge, or the control while the bridge is up, fails (hook
+  // G985 = 9214). The whole way is driven, with the player vulnerable.
+  20: ["kill:G13[1]", "kill:G13[2]", "kill:G13[3]", "kill:G283[0]", "kill:G283[1]", "kill:G283[2]",
+    "kill:G595", "wait:300", "killpilots:0", "drive:G625[0]", "kill:G13[6]", "kill:G13[7]", "kill:G13[8]",
+    "wait:300", "killpilots:0", "drive:G373", "eject", "walkto:G373,600", "click:184,146", "wait:100", "eject"],
   // 4-5 Sheridan's Lair: "Destroy Recombination laboratory" (G417, class
   // 227) "before arrival of transport ship (20 min.)" (9233 checks the
   // clock every 10 s and fails at 1200 s, 2248), "Breach defenses" and
@@ -378,6 +425,7 @@ const IFF_KEYS = [0x55, 0x49, 0x4f, 0x50]; // U I O P: actions 55-58, scripts 19
 /** @param {number} n */
 async function play(n) {
   let seed = 1;
+  csrand(1); // explosions' rand(), kept per process
   const random = Math.random;
   Math.random = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
   try {
@@ -481,11 +529,22 @@ async function play(n) {
         }
       } else if (k === "eject") engine.callScript(1943, []);
       else if (k === "stop") {
-        for (let i = 0; i < 300 && (obj(player())?.speed ?? 0) > 0; i++) {
-          engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
+        let held = 0;
+        for (let i = 0; i < 150; i++) {
+          const speed = obj(player())?.speed || 0;
+          const want = speed > 0.05 ? VK_THROTTLE_DOWN : speed < -0.05 ? VK_THROTTLE_UP : 0;
+          if (want !== held) {
+            if (held) engine.input.keyUp(held);
+            if (want) engine.input.keyDown(want);
+            held = want;
+          }
+          if (!want) break;
           await step(1);
         }
-        engine.input.keyUp(VK_THROTTLE_DOWN);
+        if (held) engine.input.keyUp(held);
+      }
+      else if (k === "killclass") {
+        for (const e of engine.mission.status().enemies) if (e.class === Number(v)) engine.mission.destroy(e.id);
       }
       // Once the mission is won, more kills would run its win script again.
       else if (k === "kill") {
