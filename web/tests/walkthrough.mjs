@@ -7,7 +7,7 @@
 //   [--only name,...] [--verbose]
 //   --shots   save a PNG of each screen the walk visits
 //   --only    run only these sections (boot, menus, options, controls,
-//             network, game, lab, exit, mission1, saves)
+//             joystick, network, game, lab, exit, mission1, saves)
 //   --verbose print the engine log
 // Exits non-zero if a check fails. Each section boots a fresh engine, so a
 // failure in one does not hide the others. A full run takes about 15 s.
@@ -70,6 +70,8 @@ const CROSSHAIR = 562; // cockpit crosshair sprite (scripts 575-577)
 const KEY_MAP = 6323; // the bindings on screen: rows of {action, ?, device, key} x 3
 const HELD_BINDINGS = 2546; // what missions read: {action, device, key} rows
 const VK_CTRL = 0x11;
+const JOY_TOGGLE = { ON: [344, 380], OFF: [397, 380] }; // INTERFACE scripts 6330/6331
+const JOY_ON = 2078; // the joystick setting (kept in the .ini)
 const VK_D = 0x44, VK_G = 0x47, VK_W = 0x57; // D and G are free in the default map
 const LAB_PREVIEW = [150, 60, 330, 330]; // the turning model on LAB screens
 const BRIEF_MAP = [130, 40, 330, 240];
@@ -319,6 +321,61 @@ const SECTIONS = {
     const heldNow = fire2();
     p2.engine.input.keyUp(VK_CTRL);
     check(idle === 0 && heldNow === 1, "holding Ctrl fires weapon 2", `${idle} -> ${heldNow}`);
+    finish(p2);
+  },
+
+  // A gamepad stands in for the joystick (web/src/battlefield/joystick.js).
+  // The default map already binds it: stick to turn, hat to throttle and
+  // twist, buttons 1-4 to the weapons.
+  async joystick(p) {
+    const pads = [];
+    const usePads = (pl) => (pl.engine.world.controls.joystick.pads = () => pads);
+    usePads(p);
+    const pad = { connected: true, mapping: "standard", axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    pads.push(pad);
+    await toMainMenu(p);
+    await press(p, MAIN.OPTIONS);
+    await press(p, LEFT[0], 60);
+    const j = p.engine.world.controls.joystick;
+    check(p.engine.vm.getGlobal(JOY_ON) === 0 && !j.on, "the joystick starts off, as in the original");
+    await press(p, JOY_TOGGLE.ON, 30);
+    check(p.engine.vm.getGlobal(JOY_ON) === 1 && j.flags === 1, "INTERFACE turns the joystick on and finds the gamepad", `flags ${j.flags}`);
+    check(hasText(p, "Joy Btn 1") && hasText(p, "Hat Up"), "the default map shows joystick bindings");
+    await press(p, CELL(ROW.FIRE1, 2), 10);
+    pad.buttons[2].pressed = true; // X: button 3
+    await p.wait(4);
+    pad.buttons[2].pressed = false;
+    await p.wait(10);
+    check(same(binding(p, ROW.FIRE1, 2), [3, 19]) && !p.engine.input.captureScript, "a gamepad button binds as joystick button 3", `${binding(p, ROW.FIRE1, 2)}`);
+    check(p.texts().filter((t) => t === "Joy Btn 3").length === 2, "the cell names it Joy Btn 3");
+    await press(p, USE_SAVE, 30);
+    finish(p);
+
+    const p2 = await Player.start(dir, { verbose, ini: p.ini, storage: p.storage });
+    p2.shot = p.shot;
+    usePads(p2);
+    await toMainMenu(p2);
+    await launchMission1(p2);
+    await p2.wait(60);
+    const w = p2.engine.world, vm = p2.engine.vm;
+    check(w.controls.joystick.flags === 1, "the mission turns the joystick on");
+    const held = (action) => w.controls.check(2544, HELD_BINDINGS, action, vm.getGlobal(1854) + 2, vm.getGlobal(1857));
+    const a = w.cameraPose(1).at;
+    pad.axes[0] = 1;
+    await p2.wait(30);
+    pad.axes[0] = 0;
+    await p2.wait(2);
+    const b = w.cameraPose(1).at;
+    check(Math.hypot(b[0] - a[0], b[2] - a[2]) > 0.1, "the left stick turns the unit");
+    const idle = held(29);
+    pad.buttons[0].pressed = true;
+    const fire = held(29);
+    pad.buttons[0].pressed = false;
+    check(idle === 0 && fire === 1, "button 1 fires weapon 1", `${idle} -> ${fire}`);
+    pad.buttons[12].pressed = true;
+    const up = held(2);
+    pad.buttons[12].pressed = false;
+    check(up === 1 && held(2) === 0, "hat up raises the throttle");
     finish(p2);
   },
 

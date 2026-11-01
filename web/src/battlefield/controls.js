@@ -9,8 +9,10 @@
 //   2546  held actions:  rows {action, device, key}, ended by action -1
 //   2545, 2547  pressed actions (MapActionKeys): the same layout
 // Device: 0 key alone, 1 Ctrl+key, 2 Shift+key, 5 key without modifiers,
-// 4 mouse button (1 left, 2 right, 3 middle), 3 and 6 joysticks.
+// 4 mouse button (1 left, 2 right, 3 middle), 3 and 6 joysticks 1 and 2
+// (keys in joystick.js).
 import { table } from "../builtins.js";
+import { Joystick } from "./joystick.js";
 /** @import { Engine } from "../engine.js" */
 
 const CTRL = 0x11, SHIFT = 0x10;
@@ -26,6 +28,7 @@ export class Controls {
     this.mouse = false; // MouseOnOff
     /** @type {any} */
     this.map = null; // MapActionKeys: {actions, events: [ids], column, mask}
+    this.joystick = new Joystick();
   }
 
   /**
@@ -94,7 +97,12 @@ export class Controls {
     let r = -1;
     for (const [a, device, key] of this.rows(binds)) {
       if (a !== action) continue;
-      if (device === 3 || device === 6) continue; // joystick: never present
+      if (device === 3 || device === 6) {
+        const j = this.joystick.held(device === 3 ? 0 : 1, key);
+        if (j === 1) return 1;
+        if (j === 0) r = 0;
+        continue;
+      }
       r = 0;
       if (this.held(device, key)) return 1;
     }
@@ -104,7 +112,7 @@ export class Controls {
   // A press: run the scripts of the actions bound to it (the window
   // procedure's loop over both event tables). Repeats are ignored.
   /**
-   * @param {string} device
+   * @param {"key" | "mouse" | "joy1" | "joy2"} device
    * @param {number} key
    */
   press(device, key) {
@@ -114,12 +122,44 @@ export class Controls {
     for (const id of m.events) {
       for (const [action, dev, k] of this.rows(id)) {
         if (k !== key) continue;
-        if (device === "mouse" ? dev !== 4 : !matchesKey(dev, ctrl, shift, k)) continue;
+        if (device === "mouse" ? dev !== 4 : device === "joy1" ? dev !== 3 : device === "joy2" ? dev !== 6 : !matchesKey(dev, ctrl, shift, k)) continue;
         if (!this.action(m.actions, action, m.column) || !(m.mask & this.action(m.actions, action, 1))) continue;
         const script = this.action(m.actions, action, 0);
         if (script) this.engine.callScript(script, [action]);
       }
     }
+  }
+
+  // RangeJoystickAxis(binds, action, min, max, deadZone) 0x1000d184: -1
+  // with no joystick on, else the first binding of the action read as an
+  // axis (-1 when it is not a joystick axis).
+  /**
+   * @param {number} binds
+   * @param {number} action
+   * @param {number} min
+   * @param {number} max
+   * @param {number} deadZone
+   */
+  axis(binds, action, min, max, deadZone) {
+    const j = this.joystick;
+    if (!j.flags) return -1;
+    if (action === -1) return 0;
+    const row = this.rows(binds).find(([a]) => a === action);
+    if (!row || (row[1] !== 3 && row[1] !== 6)) return -1;
+    return j.range(row[1] === 3 ? 0 : 1, row[2], min, max, deadZone);
+  }
+
+  // Once a frame: poll the joysticks. A button or hat press goes to a
+  // pending CaptureKey as device 3 or 6, else to the press bindings
+  // (window procedure 0x1000dc7a, messages MM_JOY1/2BUTTONDOWN).
+  /**
+   * @param {number} now ms
+   */
+  pollJoystick(now) {
+    this.joystick.poll(now, (n, key) => {
+      if (this.engine.input.captured(n ? 6 : 3, key)) return;
+      this.press(n ? "joy2" : "joy1", key);
+    });
   }
 
   /**
