@@ -72,6 +72,17 @@ const SOLUTIONS = {
   // priority 1 and TaskSetHighestIndex keeps the current task, as RENDER.R32
   // does. It must live (8920: its pilot G2 dying fails the mission).
   8: ["kill:G420", "drive:G625[1]", "kill:G419", "drive:G625[2]"],
+  // 2-4 Egger: "Help Thane steal Merc Patrol HAWC", "Lure Merc HAWC into
+  // Thane's EGGER range", "Signal Thane to attack". Three Merc kills
+  // (G707) bring Thane (G5, on foot) in at the trigger G625[0]. Shooting
+  // range of the patrol HAWC (G33[0]) makes it chase the player; lead it
+  // to within 12 world units of Thane (update script 8942), then F1+F9
+  // (hook G1221 = 8944) sends him in. His EGGER shot (weapon kind 25,
+  // script 1711) throws the crew out, he boards the empty HAWC (hook G984
+  // = 8938) and 2246 wins. Stand north of him: scenery south-east of him
+  // (9739, class 253) stops shots from that side.
+  9: ["kill:G33[1]", "kill:G33[2]", "kill:G33[3]", "goto:G33[0],-15,10", "wait:200",
+    "goto:G5,0,10", "wait:300", "key:112", "key:120", "wait:1300"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
