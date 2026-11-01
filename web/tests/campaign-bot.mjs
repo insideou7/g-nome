@@ -17,7 +17,10 @@
 //   walkto:REF[,ticks]  face REF and drive at it until the player reaches it
 //   drive:REF[,ticks]   drive to REF on a path round the solid hotspots
 //   eject               leave the current vehicle or building (script 1943)
+//   stop                hold the throttle against the motion until the unit stands still
 //   kill:REF            destroy REF (script 2242)
+//   killclass:N         destroy every hostile unit of class N (units that appear
+//                       during play, such as spawned HAWCs or ejected pilots)
 //   wait:T              let T more ticks run
 //   key:VK              press and release a key (virtual-key code)
 //   click:X,Y           click at screen pixels
@@ -96,6 +99,34 @@ const SOLUTIONS = {
   // mission (8967 -> 2249), so G33[3] goes too.
   10: ["kill:G419", "kill:G420", "kill:G263[2]", "goto:G33[4],0,15", "wait:100",
     "kill:G33[4]", "kill:G33[3]", "wait:2100", "goto:G625[0],0,8", "eject", "walkto:G625[0],400"],
+  // 3-4 Ur-Alr': "Primary: Help Sheridan enter Scorp HQ at Ur-Alr'",
+  // "Cross Eraskat River, defeat bridge defenses", "Approach Ur-Alr':
+  // Waypoint two", "Attack Ur-Alr'". Five seconds in the bridge (G349)
+  // swings open (timer -> 1787). Its control station (G373) has a Scorp
+  // crew, so nobody else can board it (2240), and losing it or the bridge
+  // before crossing fails the mission (9112 -> 2249). The bunkers G273[0],
+  // G273[1] guard it. The wingman's pilot (G5) carries an EGGER (1656 in
+  // 9107; weapon kind 25): send the wingman at the station (F1+F2), get
+  // him out (F1+F6, message 8) and his EGGER throws the crew out (1711 ->
+  // 1712). Board the station from the south, dial a friendly IFF so the
+  // wingman stops shooting at it (its code is still Scorp), and click the
+  // panel to close the bridge (1777 -> 4399). The east end (trigger G357,
+  // 9109) is objective 1; the walk on stays in the 1.7-unit lane of the
+  // deck. Waypoint two (G625[0], 9110) wakes Sheridan's team. Sheridan
+  // (G3) is the pilot of G13[3]; when the shield building G411 falls
+  // (9112), 2121 sends him to the HQ (G397) and boarding it (hook G984 =
+  // 9111) wins. For that he must be on foot near the base (from his start
+  // by the north camp he stalls on the compound's corner), alive (the
+  // fence G595, power plant G385, gun G273[4] and the HAWCs G411 spawns
+  // shoot him), and the HQ empty: with its Scorp crew he cannot board it,
+  // so the EGGER hit (1711) that the wingman would bring is run directly.
+  // His transport is destroyed to put him out, as the base usually does.
+  15: ["wait:200", "kill:G273[0]", "kill:G273[1]", "goto:G373,8,-8", "key:112", "key:113", "wait:600",
+    "key:112", "key:117", "wait:1200", "goto:G373,0,-4", "eject", "walkto:G373,300", "iff:1053",
+    "click:184,146", "wait:200", "eject", "goto:G13[0],0,-3", "walkto:G13[0],300", "kill:G53[2]",
+    "kill:G53[0]", "drive:G357", "walkto:G359,300", "drive:G625[0]", "stop", "kill:G595", "kill:G385",
+    "kill:G273[4]", "wait:600", "killclass:24", "killclass:142", "kill:G13[3]", "killclass:24",
+    "call:1711(G397,G5)", "kill:G411", "killclass:142", "wait:1500"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -270,8 +301,25 @@ async function play(n) {
         for (let j = 0; j < 20; j++) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, j > 0);
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)} after ${i} ticks`);
+      } else if (k === "stop") {
+        let held = 0;
+        for (let i = 0; i < 150; i++) {
+          const speed = obj(player())?.speed || 0;
+          const want = speed > 0.05 ? VK_THROTTLE_DOWN : speed < -0.05 ? VK_THROTTLE_UP : 0;
+          if (want !== held) {
+            if (held) engine.input.keyUp(held);
+            if (want) engine.input.keyDown(want);
+            held = want;
+          }
+          if (!want) break;
+          await step(1);
+        }
+        if (held) engine.input.keyUp(held);
       } else if (k === "eject") engine.callScript(1943, []);
       else if (k === "kill") engine.mission.destroy(ref(v));
+      else if (k === "killclass") {
+        for (const e of engine.mission.status().enemies) if (e.class === Number(v)) engine.mission.destroy(e.id);
+      }
       else if (k === "wait") await step(Number(v));
       else if (k === "key") {
         engine.input.keyDown(Number(v));
