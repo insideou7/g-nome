@@ -88,8 +88,10 @@ export function disassemble(bin, id, names = BUILTIN_NAMES) {
         }
         tables.push([p + tab, p + tab + 12 * n]);
         text = `switch ${subj} {${cases.join(", ")}} default:${at(dv.getInt32(p + 10, true))}`;
-        // The record runs to the end of its expression; case bodies follow.
-        if (op === 0xdb) { let q = p + 0x10; len = exprEnd(b, q) - p; } else len = 0x10;
+        // The record runs to the end of its expression, padded to an even
+        // length (statements start on even offsets); case bodies follow.
+        if (op === 0xdb) len = (exprEnd(b, p + 0x10) - p + 1) & ~1;
+        else len = 0x10;
         break;
       }
       case 0x59: len = 0x1a; text = `if_cmp_call ${hex(b, p + 2, p + 0x1a)}`; break;
