@@ -3,18 +3,29 @@
 // itself a software renderer, so this also matches the original's look:
 // flat shading, perspective-correct textures, a z-buffer.
 import { mul } from "./math.js";
-import { clumpMatrices } from "./model.js";
+import { alignClumps, clumpMatrices } from "./model.js";
 import { activeLights, addLights, materialLight, rgb01 } from "./scene.js";
 
-// Front faces wind this way in screen space (+1 or -1). Checked by eye on
-// the unit models: with the other sign the mechs render inside out.
-export const FRONT = 1;
+// Front faces wind this way in screen space (x right, y down): +1 or -1.
+// RWL20's back-face test (FUN_10049000, called by RwRenderImmediateTriangle
+// and the clump renderer FUN_1002bcc0) draws a polygon when
+// (v1 - v0) x (v2 - v0) < 0 on screen. That is the side the model normals
+// (B - A) x (C - A) point out of, so ground tiles face up.
+export const FRONT = -1;
 
-// Back-face culling is off: RenderWare drew G-Nome's ground tiles, which
-// face away by this rule when seen from above, so the original evidently
-// did not cull them. With the z-buffer, closed models look the same either
-// way. Lighting uses |N.L| for that reason.
-export const CULL = false;
+// RenderWare 2 skips back faces unless the polygon's material has
+// MaterialModes double (8). SetObjDoubleface makes a whole clump two-sided.
+// Two-sided polygons are lit from either side (|N.L|).
+export const DOUBLE = 8;
+
+/**
+ * @param {any} mat
+ * @param {any} node
+ * @param {number} ci
+ */
+export function twoSidedOf(mat, node, ci) {
+  return ((mat.materialModes ?? DOUBLE) & DOUBLE) !== 0 || !!node.doubleSided[ci];
+}
 
 export class SoftTarget {
   /**
@@ -57,29 +68,34 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
   const [vw, vh] = camera.viewwindow;
   const near = camera.near;
   const lights = activeLights(scene);
+  const camToWorld = camera.cameraToWorld();
 
   const cam = new Float32Array(8 * 6); // clip buffers: x y z u v per vertex
   for (const node of scene.ordered()) {
     const useDepth = node.depth !== false;
     const model = node.model;
-    const worlds = clumpMatrices(model, node.matrix, node.pose, node.instance?.joints);
+    const worlds = alignClumps(model, clumpMatrices(model, node.matrix, node.pose, node.instance?.joints), camToWorld);
     model.clumps.forEach((/** @type {any} */ clump, /** @type {number} */ ci) => {
       if (node.clumpHidden[ci]) return;
       const w = worlds[ci];
       const mv = mul(w, view);
       const { positions: P, normals: N, uvs: UV } = clump.mesh;
       const clumpAlpha = node.clumpOpacity[ci] ?? 1;
-      const twoSided = !!node.doubleSided[ci];
       for (const g of clump.mesh.groups) {
         const mat = g.material;
+        const twoSided = twoSidedOf(mat, node, ci);
         const tex = textureOf(mat, node);
         const texel = tex ? rgbaOf(tex) : null;
         const alpha = (mat.opacity ?? 1) * clumpAlpha;
         if (alpha <= 0.01) continue;
         const { unlit, ka, kd, ks } = materialLight(mat, !!tex);
         for (let t = g.start; t < g.start + g.count; t += 3) {
-          // Flat lighting from the face normal in world space.
-          const nx0 = N[t * 3], ny0 = N[t * 3 + 1], nz0 = N[t * 3 + 2];
+          // Flat lighting from the face normal in world space (the mean of
+          // the vertex normals, which are the face normal unless the
+          // material has LightSampling vertex).
+          const nx0 = N[t * 3] + N[t * 3 + 3] + N[t * 3 + 6];
+          const ny0 = N[t * 3 + 1] + N[t * 3 + 4] + N[t * 3 + 7];
+          const nz0 = N[t * 3 + 2] + N[t * 3 + 5] + N[t * 3 + 8];
           let nx = nx0 * w[0] + ny0 * w[4] + nz0 * w[8];
           let ny = nx0 * w[1] + ny0 * w[5] + nz0 * w[9];
           let nz = nx0 * w[2] + ny0 * w[6] + nz0 * w[10];
@@ -91,7 +107,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
             // Point and cone lights reach the face at its first vertex.
             const x = P[t * 3], y = P[t * 3 + 1], z = P[t * 3 + 2];
             const p = [x * w[0] + y * w[4] + z * w[8] + w[12], x * w[1] + y * w[5] + z * w[9] + w[13], x * w[2] + y * w[6] + z * w[10] + w[14]];
-            addLights(light, lights, [nx, ny, nz], p, kd, ks, !CULL || twoSided);
+            addLights(light, lights, [nx, ny, nz], p, kd, ks, twoSided);
           }
           for (let i = 0; i < 3; i++) light[i] = Math.min(1, light[i]);
           // To camera space.
@@ -115,7 +131,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
           });
           // Back-face test on the first three projected vertices.
           const area = (s[1][0] - s[0][0]) * (s[2][1] - s[0][1]) - (s[2][0] - s[0][0]) * (s[1][1] - s[0][1]);
-          if (CULL && !twoSided && area * FRONT <= 0) continue;
+          if (!twoSided && area * FRONT <= 0) continue;
           const col = mat.color || [1, 1, 1];
           for (let k2 = 1; k2 + 1 < s.length; k2++)
             raster(target, s[0], s[k2], s[k2 + 1], light, texel ? null : col, tex, texel, node.textureFrame, alpha, fog, useDepth);

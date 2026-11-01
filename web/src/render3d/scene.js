@@ -28,7 +28,8 @@ export function meshModel(spec) {
   if (!spec.normals) flatNormals(positions, normals);
   const groups = (spec.groups || [{ start: 0, count: n, material: {} }]).map((/** @type {any} */ g) => ({
     start: g.start, count: g.count,
-    material: { color: [1, 1, 1], ambient: 1, diffuse: 0, specular: 0, opacity: 1, texture: "", ...g.material },
+    // Built meshes are two-sided (MaterialModes double) unless they say not.
+    material: { color: [1, 1, 1], ambient: 1, diffuse: 0, specular: 0, opacity: 1, texture: "", materialModes: 8, ...g.material },
   }));
   const clump = { index: 0, parent: -1, tag: 0, local: identity(), children: [], mesh: { positions, normals, uvs, groups, count: n } };
   return { clumps: [clump], roots: [0], tagged: [], count: 0 };
@@ -186,7 +187,7 @@ export function activeLights(scene) {
 
 // Light reaching a point p with unit normal n from the active lights
 // (diffuse and specular weights applied), added into `out` (3 floats).
-// `twoSided`: light either face (|N.L|), see CULL in soft.js.
+// `twoSided`: light either face (|N.L|), see twoSidedOf in soft.js.
 /**
  * @param {number[]} out
  * @param {any} lights

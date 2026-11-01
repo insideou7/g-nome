@@ -149,11 +149,11 @@ a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
 | `0x1C` | float | opacity |
 | `0x2E` | int, path | texture. The path is only there when the int is not 0. It is NUL-terminated and padded to 4 bytes. |
 | `0x2D` | int | tag: the clump's part number, used by FRME animations |
-| `0x04` | int | RwSetAxisAlignment |
-| `0x0D` | int | RwSetSurfaceGeometrySampling |
-| `0x0F` | int | RwSetHints |
-| `0x16` | int | RwSetSurfaceLightSampling |
-| `0x19` | int | RwSetSurfaceMaterialModes |
+| `0x04` | int | RwSetAxisAlignment (4 = XYZ, faces the camera) |
+| `0x0D` | int | RwSetSurfaceGeometrySampling (4 = solid) |
+| `0x0F` | int | RwSetHints (bits 1 container, 2 HS, 4 editable) |
+| `0x16` | int | RwSetSurfaceLightSampling (1 facet, 2 vertex) |
+| `0x19` | int | RwSetSurfaceMaterialModes (8 = double-sided) |
 | `0x32` | int | RwSetSurfaceTextureModes (1 lit, 2 foreshorten, 4 filter) |
 
 Op `n` calls entry `n - 1` of RENDER.R32's table of RWX functions
