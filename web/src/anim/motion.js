@@ -449,12 +449,15 @@ export function motionExterns(engine) {
       m.twistLeft = a / 100 - prop(o.id, p) / 100;
       return ftol(m.twistLeft * 100);
     }),
-    // StepTwist(obj, ms, twistProp, limitProp): one step of the pending
-    // twist, kept within ±limit (unless the limit is 180° or more). Returns
-    // the step ×100 for the script to add to its twist property.
+    // StepTwist(obj, ms, twistProp, limitProp) 0x100177a4: one step of the
+    // pending twist, kept within ±limit (unless the limit is 180° or more).
+    // With no twist angle pending it turns at the twist rate instead (the
+    // rate SetTargetTwist ramps for the player's torso keys, and
+    // MoveSubClumpToFace sets for an AI turret). Returns the step ×100 for
+    // the script to add to its twist property.
     StepTwist: withObj((/** @type {any} */ o, /** @type {number} */ ms, /** @type {any} */ pTwist, /** @type {any} */ pLimit) => {
       const m = motionOf(o);
-      if (m.twistLeft === 0) return 0;
+      if (m.twistLeft === 0) return ftol(m.twistRate * (ms / 1000) * 100);
       const cur = prop(o.id, pTwist) / 100;
       const lim = prop(o.id, pLimit) / 100;
       const rate = { v: m.twistRate };

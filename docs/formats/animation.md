@@ -333,7 +333,7 @@ return the step ×100.
 | `SetTargetAxisAngle(obj, angle, axis)` | `0x100170de` | axis 2 only: `+0x74 = angle / 100` |
 | `SetTargetTwist(obj, dir, ms)` | `0x1001714a` | the same ramp on the twist rate (yaw limits), while no twist angle is pending; returns `rate · dt · 100` |
 | `SetTargetTwistAngle(obj, angle, prop)` | `0x10017408` | `+0x70 = (angle - property prop) / 100`; returns it ×100 |
-| `StepTwist(obj, ms, twistProp, limitProp)` | `0x100177a4` | one controller step of the pending twist, kept within ±limit when the limit is under 180°; returns the step ×100 (the script adds it to its twist property) |
+| `StepTwist(obj, ms, twistProp, limitProp)` | `0x100177a4` | one controller step of the pending twist, kept within ±limit when the limit is under 180°; with no twist pending (`+0x70` = 0) it turns at the twist rate `+0x6C` × ms instead, which is how the player's torso keys (`SetTargetTwist`) and AI turrets (`MoveSubClumpToFace` with no rate property) turn; returns the step ×100 (the script adds it to its twist property) |
 | `UpdateOrient(obj, ms)` | `0x100180fe` | the spin step |
 | `UpdatePos(obj, ms)` | `0x1001817e` | `vel.y += gravity·dt`, `pos += vel·dt` (`FUN_1001a754`) |
 
