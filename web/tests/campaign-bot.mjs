@@ -15,7 +15,8 @@
 // Step syntax, run in order with 60 ticks (2 s) after each:
 //   goto:REF[,dx,dz]    put the player's unit next to REF (offset in world units)
 //   walkto:REF[,ticks]  face REF and drive at it until the player reaches it
-//   drive:REF[,ticks[,dx,dz]]  drive to REF (plus an offset) on a path round the solid hotspots
+//   drive:REF[,ticks[,clear[,dx,dz]]]  drive to REF (plus an offset) on a path round the
+//                       solid hotspots, keeping `clear` world units from them (empty: default)
 //   stop                throttle down until the player's unit stands still
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
@@ -24,11 +25,15 @@
 //   key:VK              press and release a key (virtual-key code)
 //   click:X,Y           click at screen pixels
 //   iff:N               dial the IFF code N with U, I, O and P (one octal digit each)
-//   fire:REF,G[,ticks]  face REF and hold fire key G (1-4: the weapon group) for ticks (default 1)
+//   hold:REF,G[,ticks]  face REF and hold fire key G (1-4: the weapon group) for ticks (default 1)
 //   near:REF,D[,ticks]  wait (at most ticks, default 1200) until REF is within D world units; no 60-tick pause after
-//   target:REF          press Tab (next target, script 2000) until REF is the target (G1811)
+//   tab:REF             press Tab (next target, script 2000) until REF is the target (G1811)
 //   call:S(ARGS)        run script S with REF arguments
-// REF is a global (G381), an array element (G73[0]) or a number.
+//   fire:REF[,ticks[,group]]  face REF and fire weapon group 1-4 (keys 1-4, default 1)
+//                       until REF is destroyed
+//   target:REF          step the target with Tab until it is REF, and face it
+// REF is a global (G381), an array element (G73[0]) or a number; drive also
+// takes a point X/Z in world units.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -88,6 +93,19 @@ const SOLUTIONS = {
   // (9739, class 253) stops shots from that side.
   9: ["kill:G33[1]", "kill:G33[2]", "kill:G33[3]", "goto:G33[0],-15,10", "wait:200",
     "goto:G5,0,10", "wait:300", "key:112", "key:120", "wait:1300"],
+  // 2-5 The Citadel Approach: "Rendezvous at base of Mesa Caracon",
+  // "Destroy base defenses" (three of the towers G419/G420, the bunkers
+  // G263 or the popup cluster G345: hook 8967 counts G707), "Draw sentry
+  // vehicles away from elevator" (sentry G33[4] chasing the player into
+  // trigger G625[3] runs 8968 -> 8969, which also fires when it is hit,
+  // hook G987, or killed: Thane (G5) then walks to the elevator), and
+  // "Rendezvous at elevator on Thane's signal" (trigger G625[0], script
+  // 8974, on foot: G1 is the player's pilot). Thane's dialogue (table
+  // 8960, rows from 5) ends with the win (2245). With only G33[4] gone,
+  // something still guarding the way shoots Thane, which fails the
+  // mission (8967 -> 2249), so G33[3] goes too.
+  10: ["kill:G419", "kill:G420", "kill:G263[2]", "goto:G33[4],0,15", "wait:100",
+    "kill:G33[4]", "kill:G33[3]", "wait:2100", "goto:G625[0],0,8", "eject", "walkto:G625[0],400"],
   // 2-6 Battle in the Clouds: "Defend Citadel buildings". The wingmen man
   // the Citadel (G5 the shuttle G417, G2 a Meson tower); the player takes
   // another tower (G263[0]). Waves of craft (G33, class 181) come for the
@@ -114,6 +132,17 @@ const SOLUTIONS = {
     "goto:G53[1],2,0", "walkto:G53[1],200", "wait:2400",
     "kill:G13[0]", "kill:G13[1]", "kill:G13[2]", "killpilots:0", "wait:2400",
     "goto:G53[2],3,0", "drive:G625[1]", "drive:G625[8]"],
+  // 3-2 CommArray at Ur-Kinsk: "Kylie/Sheridan to attack rocket tower",
+  // "Thane to wait for signal at generator", "Destroy or disable Meson
+  // Tower, signal Thane", "Proceed to waypoint 2". Near the rocket tower
+  // (G273[1]) E targets it, then F2 / F4 pick Kylie / Sheridan on the radio
+  // and F1 sends them at the target (2019). The Meson tower (G381) stands in
+  // a walled yard open to the south; destroying it (script 9060) arms
+  // waypoint 2 (G625[3], hook 9062 wins). F3 + F9 signals Thane (message 6,
+  // hook G1221 = 9058) and he attacks the generator (G385). Thane's pilot
+  // (G5) dying fails the mission.
+  13: ["goto:G273[1],-15,5", "key:69", "key:113", "key:112", "key:115", "key:112",
+    "goto:G381,-6,-20", "kill:G381", "key:114", "key:120", "drive:G625[3]"],
   // 3-3 Raid on Ur-Ulit: "Instruct wingmen to occupy Scorp vehicles"
   // (G53[1..3], hook G984 = 9084 wins once all three have friendly
   // pilots). Shooting the Merc HAWC G53[0] (hit hook G987 = 9081) sends it
@@ -132,12 +161,54 @@ const SOLUTIONS = {
   // Tab picks each Scorp, F2-F4 picks a wingman and F4 (message 9, script
   // 2121) sends him out of his vehicle and into the target.
   14: ["kill:G397", "kill:G595", "kill:G183[0]", "kill:G273[0]", "kill:G273[1]", "killpilots:3",
-    "key:112", "key:116", "drive:G625[1],20000,6,8", "wait:600",
-    "goto:G53,-12,0", "fire:G53,1,3", "goto:G625[1],6,8", "near:G53,25", "eject", "near:G53,12",
-    "goto:G53,0,5", "fire:G53,2,20", "wait:30", "walkto:G53,300",
-    "drive:G54,600,-31.5,26", "drive:G54,600,-31.5,5", "killpilots:3", "drive:G54,600,-10,4", "stop", "killpilots:3",
-    "target:G54", "key:113", "key:115", "killpilots:3", "target:G55", "key:114", "key:115", "killpilots:3",
-    "target:G56", "key:115", "key:115", "killpilots:3", "wait:300", "killpilots:3", "wait:300"],
+    "key:112", "key:116", "drive:G625[1],20000,,6,8", "wait:600",
+    "goto:G53,-12,0", "hold:G53,1,3", "goto:G625[1],6,8", "near:G53,25", "eject", "near:G53,12",
+    "goto:G53,0,5", "hold:G53,2,20", "wait:30", "walkto:G53,300",
+    "drive:G54,600,,-31.5,26", "drive:G54,600,,-31.5,5", "killpilots:3", "drive:G54,600,,-10,4", "stop", "killpilots:3",
+    "tab:G54", "key:113", "key:115", "killpilots:3", "tab:G55", "key:114", "key:115", "killpilots:3",
+    "tab:G56", "key:115", "key:115", "killpilots:3", "wait:300", "killpilots:3", "wait:300"],
+  // 3-5 Ion-Strike: "Destroy G-Nome laboratory", "Defeat rocket tower
+  // defense", "Destroy laboratory with ion-strike". The four rocket towers
+  // (G333, class 234) belong to the control station G345 (class 222);
+  // destroying it runs 2126, which stops their update scripts. The lab
+  // G417 (class 227) sits against a mesa, so only some spots see it; from
+  // the trigger G625[0] the second weapon group hits it. Its death (hook
+  // G985 = 9133) marks objective 0 and starts dialogue 9129; the last
+  // line (9136, 9137) waits 5 s and 9138 wins (2246) if the player is in
+  // a vehicle, or calls the ion strike (1649) down on a player on foot.
+  // Nothing in the mission gives the player the laser sight (weapon kind
+  // 32, the Ctrl+Z cheat), so the lab is shot down. The escorts and
+  // turrets are killed, and their crews, as in other missions.
+  16: ["kill:G53[0]", "kill:G53[1]", "kill:G53[2]", "kill:G53[3]", "kill:G53[4]", "kill:G53[5]",
+    "kill:G273[0]", "kill:G273[1]", "kill:G273[2]", "kill:G273[3]", "wait:100", "killpilots:3",
+    "drive:-26/-50,20000,1.5", "fire:G345,900,2", "drive:G625[0],20000,1", "fire:G417,1800,2", "wait:600"],
+  // 4-1 Captured!: "Rescue Kylle at Scorp Imperial HQ". The HQ (G397)
+  // sits in a walled compound whose gates (G427, class 237) belong to the
+  // security tower G419 (script 2098); destroying it opens them (2101 ->
+  // 2279). The trigger by the HQ (G625[0], script 9156) sends the guards
+  // out and sets the eject hook G983 = 9155: the player's pilot (G1)
+  // getting out there wins (2246). Losing Kylle (G5) or the HQ fails it.
+  // The whole way is driven, with the player's unit vulnerable.
+  17: ["kill:G419", "drive:G625[0]", "wait:300", "eject", "wait:200"],
+  // 4-5 Sheridan's Lair: "Destroy Recombination laboratory" (G417, class
+  // 227) "before arrival of transport ship (20 min.)" (9233 checks the
+  // clock every 10 s and fails at 1200 s, 2248), "Breach defenses" and
+  // "Paint lab with laser sight for Ion-strike". The lab sits in a walled
+  // compound whose gates (G427) belong to the security tower G419 (2098);
+  // shooting the tower down opens them (2101 -> 2279). The player's pilot
+  // G1 carries the laser sight (weapon 32, group 4; 9228 gives it). On
+  // foot, within 12 world units, with the lab selected (Tab, then facing
+  // it), holding 4 paints it (p141 = G974, script 1681); when the charge
+  // runs out the ion strike (1649 -> 1650) destroys it. Its death (hook
+  // G985 = 9230) marks objectives 0 and 4 and starts dialogue 9226 row 1,
+  // whose callback 9232 wins (2246). The missile turrets G283[0] and
+  // G283[3] reach the compound and kill a pilot on foot, and patrols hunt
+  // the player, so they are killed. Nothing in the scripts checks
+  // "exchange vehicles with Wilkins".
+  21: ["kill:G283[0]", "kill:G283[3]", "kill:G283[6]", "kill:G53[2]", "kill:G53[6]", "kill:G53[7]",
+    "drive:30/38", "key:48", "wait:300", "fire:G419,900,1", "fire:G419,900,2", "kill:G53[1]",
+    "drive:38/-62,20000,0", "key:48", "wait:300", "eject", "drive:36/-76,20000,0",
+    "target:G417", "fire:G417,900,4", "wait:400"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -161,20 +232,27 @@ const files = {
   has: (/** @type {string} */ n) => names.has(n.toUpperCase()),
 };
 
-const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d;
+const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d, VK_FIRE = 0x31; // 1-4: fire actions 29-32
+const VK_TAB = 0x09; // next target (action 44)
 const TILE = 6; // ground tiles (level -100) sit on a 6-unit grid
+const CLEAR = 1; // world units drive keeps from wall edges where it can
 const TRIGGER = 500; // class of trigger zones: their hotspots never block
+const DEAD = 1729; // update script of a destroyed unit (script 2278)
 
 // Waypoints (x, z) from `from` to `to` on a 1-unit grid: cells on a ground
 // tile and outside every solid hotspot still in its object's hotspot list
 // (property 16; scripts 434/435 take a gate's barrier out of it), found
-// breadth first. Null when there is no way.
+// breadth first. With `clear`, a cell also keeps that far from wall edges
+// (nearEdge), or with `round` has that much room all round it (for a wide
+// vehicle that would catch on a corner). Null when there is no way.
 /**
  * @param {any} engine
  * @param {number[]} from
  * @param {number[]} to
+ * @param {number} clear
+ * @param {boolean} round
  */
-function findPath(engine, from, to) {
+function findPath(engine, from, to, clear = CLEAR, round = false) {
   const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
   const objs = [...engine.world.objects.values()];
   const tiles = new Set();
@@ -193,11 +271,30 @@ function findPath(engine, from, to) {
       if (h && h.flags & 1) solid.push(h);
     }
   }
+  // Keep `clear` units away from wall edges too: a cell just outside a
+  // wall lets the unit cut the corner into it and get stuck in a notch
+  // (mission 17's rocks). Narrow ways (mission 8's canyon) need clear = 0.
+  const prints = new Map(solid.filter((h) => h.type !== 0x10).map((h) => [h, engine.collision.footprint(h)]));
+  const nearEdge = (/** @type {any} */ fp, /** @type {number} */ x, /** @type {number} */ z) => {
+    const { pts, flags } = fp;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if (flags[i]) continue;
+      const [ax, , az] = pts[j], [bx, , bz] = pts[i];
+      const ex = bx - ax, ez = bz - az, l2 = ex * ex + ez * ez;
+      const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2)) : 0;
+      if (Math.hypot(ax + ex * t - x, az + ez * t - z) < clear) return true;
+    }
+    return false;
+  };
+  const ring = round && clear ? [[0, 0], ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => [clear * Math.cos(k * Math.PI / 4), clear * Math.sin(k * Math.PI / 4)])] : [[0, 0]];
   const blocked = (/** @type {number} */ x, /** @type {number} */ z) =>
     !tiles.has(`${Math.round(x / TILE)},${Math.round(z / TILE)}`) ||
+    ring.some(([dx, dz]) => inside(x + dx, z + dz)) ||
+    (!round && clear > 0 && [...prints.values()].some((fp) => fp.pts.length > 0 && nearEdge(fp, x, z)));
+  const inside = (/** @type {number} */ x, /** @type {number} */ z) =>
     solid.some((h) => {
       if (h.type === 0x10) return Math.hypot(h.pos[0] - x, h.pos[2] - z) <= h.id / 100;
-      const fp = engine.collision.footprint(h);
+      const fp = prints.get(h);
       if (!fp.pts.length) return false;
       return insidePolygon(fp.pts, x, z) !== (h.type === 8);
     });
@@ -291,9 +388,15 @@ async function play(n) {
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)}`);
       } else if (k === "drive") {
-        const [r, ticks = "20000", dx = "0", dz = "0"] = v.split(",");
-        const to = obj(ref(r)).pos;
-        const way = findPath(engine, obj(player()).pos, [to[0] + Number(dx), 0, to[2] + Number(dz)]);
+        const [r, ticks = "20000", c = "", dx = "0", dz = "0"] = v.split(",");
+        const clear = c === "" ? undefined : c;
+        const id = ref(r);
+        const point = /^(-?[\d.]+)\/(-?[\d.]+)$/.exec(r);
+        const at = point ? [Number(point[1]), 0, Number(point[2])] : obj(id).pos;
+        const goal = [at[0] + Number(dx), 0, at[2] + Number(dz)];
+        // Without a clearance, try the default and then none.
+        const way = clear !== undefined ? findPath(engine, obj(player()).pos, goal, Number(clear), true)
+          : findPath(engine, obj(player()).pos, goal) || findPath(engine, obj(player()).pos, goal, 0);
         assert.ok(way, `mission ${n}: ${s}: no way through`);
         let i = 0;
         for (const [x, z] of way) {
@@ -327,6 +430,54 @@ async function play(n) {
         for (const id of engine.mission.units())
           if (prop(id, 0) < 100 && prop(id, 115) === Number(v) && prop(id, 77)) engine.mission.destroy(id);
       }
+      else if (k === "fire") {
+        // Shots, hits and damage all go through the game's own scripts.
+        const [r, ticks = "900", group = "1"] = v.split(",");
+        const id = ref(r), vk = VK_FIRE + Number(group) - 1;
+        // Gone: the mission cleared its global, or the object is dead (death
+        // script 2278 leaves structures standing with update script 1729).
+        const alive = () => ref(r) === id && obj(id) && obj(id).updateScript !== DEAD;
+        let brake = false;
+        for (let i = 0; i < Number(ticks) && alive() && engine.mission.status().outcome === "playing"; i++) {
+          // Stand still: drive and walkto can leave some throttle on, and
+          // walking into a building boards it. Not when the throttle (p12)
+          // is already 0 (key 0, the game's full stop): that would back away.
+          if (i === 0) brake = prop(player(), 12) > 0;
+          if (i < 30 && brake) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
+          else if (i === 30) engine.input.keyUp(VK_THROTTLE_DOWN);
+          const me = obj(player()), target = obj(id);
+          const dx = target.pos[0] - me.pos[0], dz = target.pos[2] - me.pos[2], d = Math.hypot(dx, dz);
+          if (i % 60 === 0 && d > 0.5) {
+            me.basis = { at: [dx / d, 0, dz / d], up: [0, 1, 0], right: [-dz / d, 0, dx / d] };
+            me.tickBasis = me.basis;
+          }
+          // Tap once a second: a held key fires the energy weapons at
+          // whatever charge they have.
+          if (i % 30 === 0) engine.input.keyDown(vk);
+          if (i % 30 === 2) engine.input.keyUp(vk);
+          await step(1);
+        }
+        engine.input.keyUp(vk);
+        if (verbose) console.log(`    ${r} ${alive() ? "still there" : "destroyed"}`);
+      }
+      else if (k === "target") {
+        // Tab (action 44, script 2000) steps the target G1811 through the
+        // unit list; facing it for 10 frames selects it (G974, script 582),
+        // which is what the laser sight paints.
+        const id = ref(v);
+        for (let i = 0; i < 150 && vm.getGlobal(1811) !== id; i++) {
+          engine.input.keyDown(VK_TAB);
+          await step(1);
+          engine.input.keyUp(VK_TAB);
+          await step(1);
+        }
+        const me = obj(player()), t = obj(id);
+        const dx = t.pos[0] - me.pos[0], dz = t.pos[2] - me.pos[2], d = Math.hypot(dx, dz);
+        me.basis = { at: [dx / d, 0, dz / d], up: [0, 1, 0], right: [-dz / d, 0, dx / d] };
+        me.tickBasis = me.basis;
+        await step(15);
+        assert.equal(vm.getGlobal(974), id, `mission ${n}: ${s}: not selected`);
+      }
       else if (k === "wait") await step(Number(v));
       else if (k === "key") {
         engine.input.keyDown(Number(v));
@@ -349,7 +500,7 @@ async function play(n) {
           }
         }
         assert.equal(prop(player(), 113), want, `mission ${n}: IFF dial`);
-      } else if (k === "fire") {
+      } else if (k === "hold") {
         const [r, g, ticks = "1"] = v.split(",");
         const id = ref(r);
         assert.ok(obj(id) && obj(player()), `mission ${n}: ${s}: no such unit`);
@@ -372,7 +523,7 @@ async function play(n) {
           await step(1);
         }
         continue;
-      } else if (k === "target") {
+      } else if (k === "tab") {
         const id = ref(v);
         for (let i = 0; i < 150 && vm.getGlobal(1811) !== id; i++) {
           engine.input.keyDown(0x09);
