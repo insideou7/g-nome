@@ -285,6 +285,15 @@ They act on the battlefield's world object; the struct fields are:
 | `+0xC4`, `+0xC8`, `+0xCC` | maximum angular acceleration: pitch, yaw, roll |
 | `+0xD0`, `+0xD4`, `+0xD8` | maximum angular velocity: pitch, yaw, roll |
 
+When `0x100043f0` expands an OB3D it first runs `FUN_1001a850`, which
+clears the header and sets the limits to 0.2 (`+0xC0`), 7, 40, 7 degrees/s²
+(`+0xC4`-`+0xCC`) and 7, 90, 7 degrees/s (`+0xD0`-`+0xD8`). Only
+`SetMaxAccel`, `SetMaxAngularAccel` and `SetMaxAngularVelocity` change them,
+so an object whose init script skips one keeps these. Script 3304 (the
+class 181 craft of mission 11) calls `SetMaxAngularVelocity` twice and never
+`SetMaxAngularAccel`, so it turns at the default 40 degrees/s²; with no
+acceleration at all the controller below would never turn it.
+
 `FUN_100050d0(obj, roll, pitch, yaw)` turns about the object's own axes:
 pitch about `right`, then yaw about `up`, then roll about `at` (degrees,
 RenderWare's right-hand rotation).
