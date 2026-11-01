@@ -1,9 +1,29 @@
-# g-nome
+# G-NOME
 
 Reverse engineering **G-Nome**, a 3D mech action game released by 7th Level
 in 1997 for Windows 95. The game is abandonware. This repo holds what we have
 learned about it: file format specs, notes on the engine, and tools that read
 the game's data. It does not contain the game itself.
+
+## Running the game
+https://insideou7.github.io/g-nome/
+
+Visit or deploy the pages URL and upload the game files. You can upload a zipped folder as well.
+
+There is an added debug menu under options that has various cheats from the original.
+
+## Getting the game files
+
+The tools and the browser engine need the original game files, which this
+repo does not include. One source is the Internet Archive:
+<https://archive.org/details/g-nome-dos>.
+
+Put your copy of the game in `game/` at the repo root. Any layout works, for
+example `game/g-nome/G-NOME/G-NOME.BIN`, since the tools search `game/` for
+`G-NOME.BIN`.
+
+`game/` is git-ignored. **Never commit the original game binaries or assets,
+or anything extracted from them.** Commit notes, specs and code instead.
 
 ## What is in the repo
 
@@ -34,19 +54,6 @@ Player" script engine. The engine opens `G-NOME.BIN`, loads the plugin DLLs
 `RENDER.R32` (3D and AI on RenderWare 2.0), `NETGN.R32` (DirectPlay) and
 `SMACKER.R32` (video), and runs script 0. `G-NOME.BIN` indexes 9,440
 resources stored across 80 pack files, `G-NOME.000` to `G-NOME.099`.
-
-## Getting the game files
-
-The tools and the browser engine need the original game files, which this
-repo does not include. One source is the Internet Archive:
-<https://archive.org/details/g-nome-dos>.
-
-Put your copy of the game in `game/` at the repo root. Any layout works, for
-example `game/g-nome/G-NOME/G-NOME.BIN`, since the tools search `game/` for
-`G-NOME.BIN`.
-
-`game/` is git-ignored. **Never commit the original game binaries or assets,
-or anything extracted from them.** Commit notes, specs and code instead.
 
 ## Extracting the assets
 
