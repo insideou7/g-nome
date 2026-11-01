@@ -128,6 +128,17 @@ const SOLUTIONS = {
     "goto:G53[1],2,0", "walkto:G53[1],200", "wait:2400",
     "kill:G13[0]", "kill:G13[1]", "kill:G13[2]", "killpilots:0", "wait:2400",
     "goto:G53[2],3,0", "drive:G625[1]", "drive:G625[8]"],
+  // 3-2 CommArray at Ur-Kinsk: "Kylie/Sheridan to attack rocket tower",
+  // "Thane to wait for signal at generator", "Destroy or disable Meson
+  // Tower, signal Thane", "Proceed to waypoint 2". Near the rocket tower
+  // (G273[1]) E targets it, then F2 / F4 pick Kylie / Sheridan on the radio
+  // and F1 sends them at the target (2019). The Meson tower (G381) stands in
+  // a walled yard open to the south; destroying it (script 9060) arms
+  // waypoint 2 (G625[3], hook 9062 wins). F3 + F9 signals Thane (message 6,
+  // hook G1221 = 9058) and he attacks the generator (G385). Thane's pilot
+  // (G5) dying fails the mission.
+  13: ["goto:G273[1],-15,5", "key:69", "key:113", "key:112", "key:115", "key:112",
+    "goto:G381,-6,-20", "kill:G381", "key:114", "key:120", "drive:G625[3]"],
   // 3-5 Ion-Strike: "Destroy G-Nome laboratory", "Defeat rocket tower
   // defense", "Destroy laboratory with ion-strike". The four rocket towers
   // (G333, class 234) belong to the control station G345 (class 222);
