@@ -18,6 +18,7 @@
 //   drive:REF[,ticks]   drive to REF on a path round the solid hotspots
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
+//   killpilots:SIDE     destroy every pilot on foot whose side (p115) is SIDE
 //   wait:T              let T more ticks run
 //   key:VK              press and release a key (virtual-key code)
 //   click:X,Y           click at screen pixels
@@ -72,6 +73,17 @@ const SOLUTIONS = {
   // priority 1 and TaskSetHighestIndex keeps the current task, as RENDER.R32
   // does. It must live (8920: its pilot G2 dying fails the mission).
   8: ["kill:G420", "drive:G625[1]", "kill:G419", "drive:G625[2]"],
+  // 2-4 Egger: "Help Thane steal Merc Patrol HAWC", "Lure Merc HAWC into
+  // Thane's EGGER range", "Signal Thane to attack". Three Merc kills
+  // (G707) bring Thane (G5, on foot) in at the trigger G625[0]. Shooting
+  // range of the patrol HAWC (G33[0]) makes it chase the player; lead it
+  // to within 12 world units of Thane (update script 8942), then F1+F9
+  // (hook G1221 = 8944) sends him in. His EGGER shot (weapon kind 25,
+  // script 1711) throws the crew out, he boards the empty HAWC (hook G984
+  // = 8938) and 2246 wins. Stand north of him: scenery south-east of him
+  // (9739, class 253) stops shots from that side.
+  9: ["kill:G33[1]", "kill:G33[2]", "kill:G33[3]", "goto:G33[0],-15,10", "wait:200",
+    "goto:G5,0,10", "wait:300", "key:112", "key:120", "wait:1300"],
   // 2-5 The Citadel Approach: "Rendezvous at base of Mesa Caracon",
   // "Destroy base defenses" (three of the towers G419/G420, the bunkers
   // G263 or the popup cluster G345: hook 8967 counts G707), "Draw sentry
@@ -85,6 +97,24 @@ const SOLUTIONS = {
   // mission (8967 -> 2249), so G33[3] goes too.
   10: ["kill:G419", "kill:G420", "kill:G263[2]", "goto:G33[4],0,15", "wait:100",
     "kill:G33[4]", "kill:G33[3]", "wait:2100", "goto:G625[0],0,8", "eject", "walkto:G625[0],400"],
+  // 3-1 Scorp Crossing: "Pass through Ur-Binshar crossing". The player
+  // (G1) and two pilots (G2, G5) start on foot. Walking into trigger G625[9]
+  // wakes the Scorp vehicle G53[1] and its three guards (G183, whose guns
+  // throw a pilot out of his vehicle). Boarding G53[1] (hook G984 = 9022)
+  // calls the two pilots aboard; when both are in (hook G993 = 9029) the
+  // player's IFF becomes a Scorp code and the Scorp convoy G53[2..4] sets
+  // off (9030). The pilots walk, so that takes about a minute. The convoy
+  // meets a Union patrol (G13) and they fight; three dead Union pilots
+  // (hook G985 = 9021, G710) send the convoy on to the crossing (9033), so
+  // the bot destroys the patrol and the crews that eject. The crossing
+  // trigger G625[1] lets the player through only with a convoy vehicle
+  // within 7 units (9031); otherwise the guards attack and the mission
+  // fails 15 s later (2249). The far side (trigger G625[8] or G625[2],
+  // 9032) wins.
+  12: ["goto:G625[9],-3,0", "walkto:G625[9],100", "kill:G183[0]", "kill:G183[1]", "kill:G183[2]",
+    "goto:G53[1],2,0", "walkto:G53[1],200", "wait:2400",
+    "kill:G13[0]", "kill:G13[1]", "kill:G13[2]", "killpilots:0", "wait:2400",
+    "goto:G53[2],3,0", "drive:G625[1]", "drive:G625[8]"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -261,6 +291,12 @@ async function play(n) {
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)} after ${i} ticks`);
       } else if (k === "eject") engine.callScript(1943, []);
       else if (k === "kill") engine.mission.destroy(ref(v));
+      else if (k === "killpilots") {
+        // Pilots on foot (class below 100) of side p115 = v, such as the
+        // crews that eject from destroyed vehicles.
+        for (const id of engine.mission.units())
+          if (prop(id, 0) < 100 && prop(id, 115) === Number(v) && prop(id, 77)) engine.mission.destroy(id);
+      }
       else if (k === "wait") await step(Number(v));
       else if (k === "key") {
         engine.input.keyDown(Number(v));
