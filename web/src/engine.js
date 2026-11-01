@@ -439,6 +439,7 @@ export class Engine {
     this.sprites.tick(ms);
     this.serviceTimers();
     this.serviceFades(ms);
+    this.debug.followInvulnerable();
     this.volumes.update();
     this.keyConflicts.update();
     if (this.display) {

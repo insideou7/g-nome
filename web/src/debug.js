@@ -18,7 +18,7 @@ import { table, BUILTINS } from "./builtins.js";
 export const CHEATS = [
   { code: "Range Goes Gory", effect: "Most of the below at once: every Ctrl-key cheat, all missions, and the Swiss Throat and Mother Mourn Us extras", keys: "" },
   { code: "Redtop Trod", effect: "Unlock all 23 campaign missions in the mission list", keys: "" },
-  { code: "Had A Nude On", effect: "Invulnerability (sets property 140, which the damage scripts skip)", keys: "Ctrl+I" },
+  { code: "Had A Nude On", effect: "Invulnerability (sets property 140, which the damage scripts skip, on your unit; it follows you in and out of vehicles)", keys: "Ctrl+I" },
   { code: "Horny Elk Leer", effect: "Repair: shields and energy back to full", keys: "Ctrl+P" },
   { code: "Brass Clue", effect: "Refill ammunition", keys: "Ctrl+X" },
   { code: "Oh No! Less Japan", effect: "Give your vehicle weapon 32", keys: "Ctrl+Z" },
@@ -46,6 +46,10 @@ export const DEV_KEYS = [
   { keys: "Ctrl+C", effect: "Toggle a state on your vehicle (scripts 1226-1228)" },
 ];
 
+const PLAYER = 973; // the unit the player controls
+const MISSION_ENDED = 1818; // 1 once script 2243 has ended the mission
+const INVULNERABLE = 140; // unit property the damage scripts skip (Ctrl+I)
+const PILOT = 78; // a vehicle's pilot (script 2240 boards, 2241 ejects)
 const OPTIONS_SCRIPT = 8380; // INTERFACE button's click script: the OPTIONS screen is up
 const SLOT = { l: 557, t: 147, r: 640, b: 183 }; // first blue slot on the right, screen pixels
 
@@ -89,12 +93,36 @@ export class Debug {
     this.colors = null;
     this.vehicle = -1; // catalog row (table 5843) to start missions in, -1 = the mission's own
     this.extraWeapons = false; // give the player the unused weapons on a start from here
+    this.player = 0; // G973 last tick, for followInvulnerable
+    this.pilot = 0; // and its pilot (property 78)
   }
 
   // Is the OPTIONS screen up?
   get shown() {
     const e = this.engine;
     return e.clickRects.some((/** @type {any} */ r) => r.script === OPTIONS_SCRIPT && !r.off) && !e.world?.shown && !e.plugins.some((/** @type {any} */ p) => p.ownsScreen);
+  }
+
+  // Ctrl+I (script 1950, the "Had A Nude On" cheat) sets property 140 on
+  // G973, the unit the player is in at that moment, and nothing clears it.
+  // So ejecting left the empty vehicle invulnerable (an enemy pilot who
+  // boards it gets an unkillable HAWC) and the pilot on foot was not, and
+  // boarding another vehicle dropped the protection. Here the flag follows
+  // the player when G973 moves between a pilot and the vehicle they board
+  // or leave (script 2088); a new mission's unit does not inherit it.
+  followInvulnerable() {
+    const e = this.engine, objs = e.render3d?.objects;
+    if (!objs || !e.world) return;
+    const cur = e.vm.getGlobal(PLAYER);
+    const last = this.player, lastPilot = this.pilot;
+    this.player = e.vm.getGlobal(MISSION_ENDED) ? 0 : cur;
+    this.pilot = this.player ? objs.getProperty(cur, PILOT) : 0;
+    if (!last || !this.player || last === cur || !objs.getProperty(last, INVULNERABLE)) return;
+    // boarded (the vehicle's pilot is the old unit) or ejected (the old
+    // vehicle's pilot is the new unit)
+    if (objs.getProperty(cur, PILOT) !== last && cur !== lastPilot) return;
+    objs.setProperty(last, INVULNERABLE, 0);
+    objs.setProperty(cur, INVULNERABLE, 1);
   }
 
   /**
