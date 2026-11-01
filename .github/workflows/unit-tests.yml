@@ -1,0 +1,27 @@
+# Unit tests for the browser engine (web/tests/unit): Node's built-in test
+# runner, no dependencies and no game files.
+name: Unit tests
+
+on:
+  pull_request:
+    paths: [web/**, .github/workflows/unit-tests.yml]
+  push:
+    branches: [main]
+    paths: [web/**, .github/workflows/unit-tests.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test

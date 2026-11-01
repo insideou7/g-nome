@@ -189,6 +189,34 @@ the engine in Node, clicks and presses keys at screen coordinates, and reads
 back click regions, visible text, sprites and the screen (with the 3D view).
 New tests can drive the game the same way.
 
+## Unit tests
+
+Small, fast tests for the core pieces, with Node's built-in test runner
+(no dependencies, no game files, under a second):
+
+```sh
+cd web && npm test
+```
+
+They live in `web/tests/unit/`:
+
+- `vm.test.mjs`: the script VM. Scripts are assembled by hand: expression
+  ops, if/goto/switch/compare statements, script calls and locals,
+  builtins and externs, the step limit, memory checks.
+- `motion.test.mjs`: the steering helpers in `src/anim/motion.js`
+  (`approachAngle`, `rampRate`, `leadDirection`, yaw/pitch steering).
+- `math.test.mjs`: `src/render3d/math.js` matrices and
+  `src/battlefield/math.js` vectors and bases.
+- `formats.test.mjs`: G-NOME.BIN header and index, bitmaps (RLE, stored
+  and LZW packing), FRME and OB3D/OPRT, built byte by byte in the test.
+- `geometry.test.mjs`: point in polygon, segment crossing and footprints
+  from `src/battlefield/collision.js`.
+- `saves.test.mjs`: save export and import.
+
+`.github/workflows/unit-tests.yml` runs them on pull requests that touch
+`web/`. Add a `*.test.mjs` file there for new pure code; the `*-check.mjs`
+scripts and the walkthrough stay the tests that need the game files.
+
 ## Type checking
 
 The engine stays plain JavaScript with no build step, but TypeScript checks

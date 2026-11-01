@@ -69,3 +69,17 @@ player's side (property 113).
 The names come from the LAB: table 8115 row 0 (vehicles) and row 2
 (personnel) hold one table per side, whose rows are a catalog row and an
 offset of a length-prefixed name in `LABTEXT.DAT`.
+
+## Unused weapons
+
+"Unused weapons: on" in the level select adds the two weapons that nothing in
+the game hands out (kinds 12 and 27 of table 1281, see
+[unused-content.md](unused-content.md)) after the mission starts
+(`Debug.giveWeapons`). Each goes on the first mount (0-3) with no weapon
+(`script_1665(unit, mount) == -1`) through `script_1656(unit, kind,
+ammunition, mount)`, as the units' setup scripts do; with every mount taken
+the last one is swapped with `script_1658`, like a pickup. Keys 1-4 fire
+mounts 0-3. Ammunition is a pickup's (`column 23 x 1.5`, script 1659),
+except that energy weapons get 2000 like in the setup scripts: kind 27's
+column 23 is 0, and script 1682 does not fire a weapon with no ammunition
+left, so a pickup of kind 27 would never have fired either.

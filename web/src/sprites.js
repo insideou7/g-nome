@@ -107,6 +107,7 @@ export class Sprites {
       keepTime: false, // message 13: clocks advance from the last deadline, not from now
       range: null, // {from, to}: the cels that cycle while the sprite moves
       path: null, // the motion record running (see runPath)
+      pausedAt: /** @type {number | undefined} */ (undefined), // SpritePause: engine time it paused at
     };
     this.list.set(id, s);
     return s;
@@ -363,12 +364,35 @@ export class Sprites {
     return true;
   }
 
-  // Advance every sprite by `ms` (SpriteAnimate).
+  // Advance every sprite by `ms` (SpriteAnimate). Paused sprites wait.
   /**
    * @param {number} ms
    */
   tick(ms) {
-    for (const s of this.list.values()) this.step(s, ms);
+    for (const s of this.list.values()) if (s.pausedAt === undefined) this.step(s, ms);
+  }
+
+  // SpritePause (builtin 0x8C, 0x10037413): id 0 = every sprite. Pausing
+  // keeps the time (sprite flag 0x1000); resuming moves the sprite's clocks
+  // on by the paused span (+0x50), so a motion picks up where it stopped.
+  /**
+   * @param {number} id
+   * @param {boolean} on
+   */
+  pause(id, on) {
+    const all = id ? [this.list.get(id)] : [...this.list.values()];
+    const now = this.engine.time;
+    for (const s of all) {
+      if (!s || (s.pausedAt !== undefined) === on) continue;
+      if (on) {
+        s.pausedAt = now;
+        continue;
+      }
+      const d = now - s.pausedAt;
+      if (s.moveAt) s.moveAt += d;
+      if (s.celAt) s.celAt += d;
+      s.pausedAt = undefined;
+    }
   }
 
   /**
