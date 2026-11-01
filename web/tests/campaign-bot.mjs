@@ -19,7 +19,7 @@
 //   stop                throttle down until the player's unit stands still
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
-//   killpilots          destroy every hostile pilot on foot
+//   killpilots:SIDE     destroy every pilot on foot whose side (p115) is SIDE
 //   wait:T              let T more ticks run
 //   key:VK              press and release a key (virtual-key code)
 //   click:X,Y           click at screen pixels
@@ -88,6 +88,32 @@ const SOLUTIONS = {
   // (9739, class 253) stops shots from that side.
   9: ["kill:G33[1]", "kill:G33[2]", "kill:G33[3]", "goto:G33[0],-15,10", "wait:200",
     "goto:G5,0,10", "wait:300", "key:112", "key:120", "wait:1300"],
+  // 2-6 Battle in the Clouds: "Defend Citadel buildings". The wingmen man
+  // the Citadel (G5 the shuttle G417, G2 a Meson tower); the player takes
+  // another tower (G263[0]). Waves of craft (G33, class 181) come for the
+  // player; 8993 sends in the next one as each dies, and G2471 kills (8 on
+  // easy, counting the first from 8992) win through 2246. Losing either
+  // wingman, or the shuttle while G5 flies it, fails (8995).
+  11: ["goto:G263[0],0,-4", "walkto:G263[0],400", "kill:G33[1]", "kill:G33[2]", "kill:G33[3]",
+    "kill:G33[4]", "kill:G33[5]", "kill:G33[6]", "kill:G33[7]"],
+  // 3-1 Scorp Crossing: "Pass through Ur-Binshar crossing". The player
+  // (G1) and two pilots (G2, G5) start on foot. Walking into trigger G625[9]
+  // wakes the Scorp vehicle G53[1] and its three guards (G183, whose guns
+  // throw a pilot out of his vehicle). Boarding G53[1] (hook G984 = 9022)
+  // calls the two pilots aboard; when both are in (hook G993 = 9029) the
+  // player's IFF becomes a Scorp code and the Scorp convoy G53[2..4] sets
+  // off (9030). The pilots walk, so that takes about a minute. The convoy
+  // meets a Union patrol (G13) and they fight; three dead Union pilots
+  // (hook G985 = 9021, G710) send the convoy on to the crossing (9033), so
+  // the bot destroys the patrol and the crews that eject. The crossing
+  // trigger G625[1] lets the player through only with a convoy vehicle
+  // within 7 units (9031); otherwise the guards attack and the mission
+  // fails 15 s later (2249). The far side (trigger G625[8] or G625[2],
+  // 9032) wins.
+  12: ["goto:G625[9],-3,0", "walkto:G625[9],100", "kill:G183[0]", "kill:G183[1]", "kill:G183[2]",
+    "goto:G53[1],2,0", "walkto:G53[1],200", "wait:2400",
+    "kill:G13[0]", "kill:G13[1]", "kill:G13[2]", "killpilots:0", "wait:2400",
+    "goto:G53[2],3,0", "drive:G625[1]", "drive:G625[8]"],
   // 3-3 Raid on Ur-Ulit: "Instruct wingmen to occupy Scorp vehicles"
   // (G53[1..3], hook G984 = 9084 wins once all three have friendly
   // pilots). Shooting the Merc HAWC G53[0] (hit hook G987 = 9081) sends it
@@ -105,13 +131,13 @@ const SOLUTIONS = {
   // pilot for the Scorps, so they are shot on the way in. At the Scorps,
   // Tab picks each Scorp, F2-F4 picks a wingman and F4 (message 9, script
   // 2121) sends him out of his vehicle and into the target.
-  14: ["kill:G397", "kill:G595", "kill:G183[0]", "kill:G273[0]", "kill:G273[1]", "killpilots",
+  14: ["kill:G397", "kill:G595", "kill:G183[0]", "kill:G273[0]", "kill:G273[1]", "killpilots:3",
     "key:112", "key:116", "drive:G625[1],20000,6,8", "wait:600",
     "goto:G53,-12,0", "fire:G53,1,3", "goto:G625[1],6,8", "near:G53,25", "eject", "near:G53,12",
     "goto:G53,0,5", "fire:G53,2,20", "wait:30", "walkto:G53,300",
-    "drive:G54,600,-31.5,26", "drive:G54,600,-31.5,5", "killpilots", "drive:G54,600,-10,4", "stop", "killpilots",
-    "target:G54", "key:113", "key:115", "killpilots", "target:G55", "key:114", "key:115", "killpilots",
-    "target:G56", "key:115", "key:115", "killpilots", "wait:300", "killpilots", "wait:300"],
+    "drive:G54,600,-31.5,26", "drive:G54,600,-31.5,5", "killpilots:3", "drive:G54,600,-10,4", "stop", "killpilots:3",
+    "target:G54", "key:113", "key:115", "killpilots:3", "target:G55", "key:114", "key:115", "killpilots:3",
+    "target:G56", "key:115", "key:115", "killpilots:3", "wait:300", "killpilots:3", "wait:300"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -293,11 +319,15 @@ async function play(n) {
           await step(1);
         }
         engine.input.keyUp(VK_THROTTLE_DOWN);
-      } else if (k === "kill") engine.mission.destroy(ref(v));
+      }
+      else if (k === "kill") engine.mission.destroy(ref(v));
       else if (k === "killpilots") {
-        // Shoot every hostile pilot on foot (class below 100).
-        for (const id of engine.mission.units()) if (id !== player() && prop(id, 0) < 100 && engine.mission.hostile(player(), id)) engine.mission.destroy(id);
-      } else if (k === "wait") await step(Number(v));
+        // Pilots on foot (class below 100) of side p115 = v, such as the
+        // crews that eject from destroyed vehicles.
+        for (const id of engine.mission.units())
+          if (prop(id, 0) < 100 && prop(id, 115) === Number(v) && prop(id, 77)) engine.mission.destroy(id);
+      }
+      else if (k === "wait") await step(Number(v));
       else if (k === "key") {
         engine.input.keyDown(Number(v));
         await step(2);
