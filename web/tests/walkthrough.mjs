@@ -462,6 +462,24 @@ const SECTIONS = {
     p.shot("turned");
     await p.wait(150);
     check(w.shown && !p.engine.quit, "five more seconds run without leaving the mission");
+    // Pause (VK 0x13) runs the pause script RENDER.R32 was given
+    // (SetPauseScript 2262): TimersPause, SpritePause and Pause3D hold the
+    // game until Pause is pressed again, and the timers then run on from
+    // where they were.
+    const e = p.engine;
+    const due = () => [...e.timers.values()].map((t) => t.due - e.time);
+    p.key(0x13);
+    await p.wait(2);
+    const left = due();
+    check(e.vm.getGlobal(979) === 1 && e.timersPaused && w.state === 4, "Pause pauses the mission", `G979 ${e.vm.getGlobal(979)}, world state ${w.state}`);
+    check([...e.sprites.list.values()].some((s) => s.pausedAt !== undefined), "Pause pauses the sprites");
+    await p.wait(60); // 2000 ms
+    check(left.length > 0 && due().every((d, i) => Math.abs(d + 2000 - left[i]) < 1), "the game's timers wait while paused", `${left} -> ${due()}`);
+    p.key(0x13);
+    await p.wait(2);
+    check(e.vm.getGlobal(979) === 0 && !e.timersPaused && w.state !== 4, "Pause again resumes the mission");
+    // two ticks after pausing and two after resuming: the same time left
+    check(due().every((d, i) => Math.abs(d - left[i]) < 1), "the timers run on from where they stopped", `${left} -> ${due()}`);
     // Up close a unit switches to its near model, which ObjectSetScene puts
     // in a scene of its own (flag 0x80); it must still be drawn.
     const r3d = p.engine.render3d;
@@ -510,6 +528,24 @@ const SECTIONS = {
     const marked = [[319, 412], [320, 411], [320, 412], [320, 413], [321, 412]].filter(([x, y]) => coloured(px(x, y)));
     check(marked.length >= 3, "the radar marks the player's unit at its centre", `${marked.length} pixels`);
     p.shot("in-hawc");
+    // The debug panel's "Unused weapons": kinds 12 and 27 of table 1281,
+    // which no unit or pickup gets, go on free mounts and fire.
+    const mounts = e.debug.giveWeapons([12, 27]);
+    check(mounts.every((m) => m >= 0), "the unused weapons fit on free mounts", String(mounts));
+    const shots = new Map();
+    const runScript = e.vm.runScript.bind(e.vm);
+    e.vm.runScript = (id) => {
+      shots.set(id, (shots.get(id) || 0) + 1);
+      return runScript(id);
+    };
+    for (const [m, spawn] of mounts.map((m, i) => [m, [1697, 1691][i]])) {
+      for (let k = 0; k < 3; k++) {
+        await p.holdKey(49 + m, 2); // keys 1-4 fire mounts 0-3
+        await p.wait(40);
+      }
+      check(shots.get(spawn) > 0, `weapon kind ${m === mounts[0] ? 12 : 27} fires (spawn script ${spawn})`, `${shots.get(spawn) || 0} shots`);
+    }
+    e.vm.runScript = runScript;
     finish(p);
   },
 

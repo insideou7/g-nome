@@ -163,6 +163,19 @@ export const BUILTINS = {
     vm.engine.display?.shake(dx | 0, dy | 0);
     return 0;
   },
+  // 0x8c: SpritePause(sprite, on), sprite 0 = every sprite (0x10037413).
+  // A paused sprite keeps its place in its queue; on resume its clock moves
+  // on by the time it was paused.
+  0x8c(vm, [id, on]) {
+    vm.engine.sprites.pause(id, !!on);
+    return 0;
+  },
+  // 0x8d: TimersPause(on) (0x10021e7b). While paused no timer fires; on
+  // resume every timer's due time moves on by the paused time.
+  0x8d(vm, [on]) {
+    vm.engine.pauseTimers(!!on);
+    return 0;
+  },
   // 0xce: send a message to a sprite (type 20): sprite, message, args...
   0xce(vm, [id, ...msg]) {
     return vm.engine.sprites.send(id, msg);
