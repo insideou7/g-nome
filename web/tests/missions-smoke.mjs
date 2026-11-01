@@ -54,7 +54,8 @@ const TICKS = Number(opts.ticks || 1500);
 const G = { MISSION: 2118, CAMPAIGN: 2119, BRIEFED: 2141, DIFFICULTY: 982, PLAYER: 973 };
 const START = 8317; // the briefing's start button
 const GROUND = -100;
-const INVULNERABLE = 140; // unit property the damage scripts skip // world level of the ground tiles
+const INVULNERABLE = 140; // unit property the damage scripts skip
+const IFF = 113; // unit property: side code
 
 async function play(n) {
   const r = { mission: n, ok: true, problems: [], unknown: [] };
@@ -94,11 +95,15 @@ async function play(n) {
 
     // Nobody plays: the mission should keep running. The player's unit is
     // invulnerable (property 140, the Ctrl+I cheat) so enemies shooting an
-    // idle player don't end it.
+    // idle player don't end it. So are the units on the player's side
+    // (same IFF, property 113): in mission 11 the shots meant for an idle
+    // player kill the wingman next to them, and losing him fails it.
     const ob = p.engine.render3d.objects;
     for (let t = 0; t < TICKS && !p.engine.quit; t += 30) {
       const me = vm.getGlobal(G.PLAYER);
       if (me) ob.setProperty(me, INVULNERABLE, 1);
+      const iff = me ? ob.getProperty(me, IFF) : 0;
+      for (const id of iff ? p.engine.mission.units() : []) if (ob.getProperty(id, IFF) === iff) ob.setProperty(id, INVULNERABLE, 1);
       await p.wait(30);
       const s = p.engine.mission.status();
       if (!w.shown || s.outcome !== "playing") {
