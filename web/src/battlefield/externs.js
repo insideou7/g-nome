@@ -66,8 +66,11 @@ export function battlefieldExterns(engine) {
       if (![STATE.PAUSED, STATE.STOPPED, STATE.SUSPENDED].includes(world.state)) world.state = STATE.REDRAW;
       return 1;
     },
-    // SetBackProcess(on): keep running while the window is in the background
-    SetBackProcess() {
+    // SetBackProcess(on) 0x1002970f: keep running while the window is in
+    // the background (see World.activate); also RtBackgroundProcess for
+    // RTLIB32, which the browser's main loop does not need.
+    SetBackProcess(on) {
+      world.backProcess = !!on;
       return 1;
     },
 
@@ -264,10 +267,15 @@ export function battlefieldExterns(engine) {
       controls.mouse = !!on;
       return 1;
     },
-    // RangeJoystickAxis(...): no joystick, so the axis rests at 0
+    // RangeJoystickAxis(binds, action, min, max, ?) 0x1000d184: the bound
+    // joystick axis scaled to min..max; -1 while no joystick is enabled
+    // (+0x110 = 0), which is always the case here.
     RangeJoystickAxis() {
-      return 0;
+      return -1;
     },
+    // EnableJoystick(on, ?) 0x1000d80b: joyGetPosEx on joysticks 1 and 2,
+    // centre of each axis, and their buttons as key presses (MM_JOY1/2
+    // BUTTONDOWN in 0x1000dc7a). No joystick support in the browser yet.
     EnableJoystick() {
       return 1;
     },

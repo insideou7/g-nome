@@ -60,7 +60,9 @@ export class Audio {
   /**
    * @param {any} snd
    */
-  play(snd, { loop = false, volume = 1, pan = 0 } = {}) {
+  // `gains`: [left, right] (DirectSound pan, see waves.js) instead of `pan`;
+  // `offset`: seconds into the sound.
+  play(snd, { loop = false, volume = 1, pan = 0, gains = /** @type {number[] | null} */ (null), offset = 0 } = {}) {
     const frames = snd.samples.length / snd.channels;
     if (!frames) return null;
     const buf = this.ctx.createBuffer(snd.channels, frames, snd.rate);
@@ -74,13 +76,24 @@ export class Audio {
     const gain = this.ctx.createGain();
     gain.gain.value = volume;
     let out = src.connect(gain);
-    if (pan && this.ctx.createStereoPanner) {
+    if (gains && (gains[0] !== 1 || gains[1] !== 1)) {
+      const split = this.ctx.createChannelSplitter(2), merge = this.ctx.createChannelMerger(2);
+      for (let c = 0; c < 2; c++) {
+        const g = this.ctx.createGain();
+        g.gain.value = gains[c];
+        // A mono source feeds both sides from its one channel.
+        split.connect(g, snd.channels === 1 ? 0 : c);
+        g.connect(merge, 0, c);
+      }
+      out.connect(split);
+      out = merge;
+    } else if (pan && this.ctx.createStereoPanner) {
       const p = this.ctx.createStereoPanner();
       p.pan.value = pan;
       out = out.connect(p);
     }
     out.connect(this.buses.effects);
-    src.start();
+    src.start(0, Math.max(0, offset));
     return src;
   }
   /**

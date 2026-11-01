@@ -300,6 +300,9 @@ async function start(rawFiles) {
     const ch = /** @type {Record<string, number>} */ ({ Enter: 13, Escape: 27, Backspace: 8 })[e.key] ?? (e.key.length === 1 && !e.ctrlKey ? e.key.charCodeAt(0) : 0);
     if (ch && engine.input.char(ch)) e.preventDefault();
   });
+  // The window going to the background (WM_ACTIVATEAPP): RENDER.R32
+  // suspends the battlefield unless SetBackProcess(1).
+  document.addEventListener("visibilitychange", () => engine.world?.activate(document.visibilityState === "visible"));
   canvas.addEventListener("keyup", (/** @type {any} */ e) => engine.input.keyUp(vkFromEvent(e)));
   /** @returns {[number, number]} */
   const pos = (/** @type {any} */ e) => {

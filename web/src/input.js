@@ -13,6 +13,7 @@ export class Input {
     this.engine = engine;
     this.keys = new Map(); // key code -> {down, shift, ctrl, shiftCtrl, up, disabled}
     this.captureScript = 0;
+    this.pauseScript = 0; // SetPauseScript: run when Pause is pressed
     this.lonelyModifier = 0; // Shift/Ctrl pressed alone during a capture
     this.edit = null; // text being typed into (rt+0x3d5b), see startEdit
   }
@@ -141,6 +142,15 @@ export class Input {
    * @param {number} vk
    */
   keyDown(vk, shift = false, ctrl = false, repeat = false) {
+    // Pause: RENDER.R32's window procedure (0x1000dc7a) runs the script
+    // from SetPauseScript at once, ahead of everything else, while action
+    // keys are mapped (MapActionKeys with a table and a non-zero mask).
+    // Scripts 2262 (battlefield) and 8395 (menus) pause and resume.
+    const map = this.engine.world?.controls.map;
+    if (vk === 0x13 && this.pauseScript && map?.mask) {
+      this.engine.run(this.pauseScript);
+      return true;
+    }
     if (this.edit) {
       if (vk === 0x2e) this.engine.texts.setText(this.edit.text, "_");
       return true;
