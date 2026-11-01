@@ -53,6 +53,9 @@ Project skills live in `.claude/skills/` (see its README), including the
 - `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
   mission 1 on the game files. Run it after engine changes; add a check
   when you fix a bug a player would see.
+- `web/tests/missions-smoke.mjs`: smoke test for all 22 campaign missions
+  (start, 50 s unattended with the player invulnerable, force a win, check
+  the next briefing). About 4 minutes; `--missions 2,5-7` for a subset.
 - [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
   actions they unlock, and the DEBUG button on the OPTIONS screen
   (`web/src/debug.js`).
