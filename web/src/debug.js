@@ -12,7 +12,7 @@
 // developer keys (Ctrl+C, Shift+R).
 
 import { ORIGIN_X, ORIGIN_Y } from "./sprites.js";
-import { table } from "./builtins.js";
+import { table, BUILTINS } from "./builtins.js";
 /** @import { Engine } from "./engine.js" */
 
 export const CHEATS = [
@@ -31,6 +31,13 @@ export const CHEATS = [
   { code: "Mother Mourn Us", effect: "Changes your unit's setup in mission 5 (scripts 8822, 8823)", keys: "" },
   { code: "O'Sarge", effect: "Uses an alternate table (9283) in mission 31, a bonus mission", keys: "" },
   { code: "A Scramble On", effect: "Turns on RTLIB32's flag 0x94dd (an Escape-key path)", keys: "" },
+];
+
+// Weapons in table 1281 that no unit, pickup or cheat ever gets
+// (docs/unused-content.md). The kind is column 0.
+export const UNUSED_WEAPONS = [
+  { kind: 12, name: "red pulse gun, 30 damage, long range" },
+  { kind: 27, name: "green energy gun, 10 damage, short range" },
 ];
 
 // Developer keys (mask bit 2): actions 96 and 97 of table 2544.
@@ -81,6 +88,7 @@ export class Debug {
     this.onOpen = null; // set by the browser shell: opens the panel
     this.colors = null;
     this.vehicle = -1; // catalog row (table 5843) to start missions in, -1 = the mission's own
+    this.extraWeapons = false; // give the player the unused weapons on a start from here
   }
 
   // Is the OPTIONS screen up?
@@ -239,9 +247,49 @@ export class Debug {
   /**
    * @param {number} n
    */
-  startMission(n, vehicle = this.vehicle) {
+  startMission(n, vehicle = this.vehicle, extraWeapons = this.extraWeapons) {
     startMission(this.engine, n);
     if (vehicle >= 0) this.swapVehicle(vehicle);
+    if (extraWeapons) this.giveWeapons(UNUSED_WEAPONS.map((w) => w.kind));
+  }
+
+  // Add weapons (column 0 of table 1281) to the player's unit, each on the
+  // first free mount, the way a unit's setup script does:
+  // script_1656(unit, kind, ammunition, mount). With every mount taken the
+  // last one is swapped (script_1658), like a pickup (script 1659).
+  // Returns the mounts used, -1 where the weapon did not fit.
+  /**
+   * @param {number[]} kinds
+   */
+  giveWeapons(kinds) {
+    const e = this.engine, vm = e.vm;
+    const unit = vm.getGlobal(973);
+    if (!unit) return [];
+    const mounts = this.prop(unit, 102);
+    const out = [];
+    for (const kind of kinds) {
+      let row = -1;
+      for (let r = 0; r < 32; r++) if (BUILTINS[0x52](vm, [1281, r, 0]) === kind) row = r;
+      // a pickup's ammunition (script 1659); energy weapons (type 1) get
+      // 2000 shots as in the setup scripts, since script 1682 will not fire
+      // with none left and their column 23 is 0
+      const energy = row >= 0 && BUILTINS[0x52](vm, [1281, row, 1]) === 1;
+      const ammo = row < 0 ? 0 : energy ? 2000 : Math.trunc((BUILTINS[0x52](vm, [1281, row, 23]) * 15) / 10);
+      let mount = -1;
+      for (let m = 0; m < Math.min(mounts, 4) && mount < 0; m++) {
+        e.callScript(1665, [unit, m]);
+        if (vm.retval === -1) mount = m;
+      }
+      if (mount >= 0) {
+        e.callScript(1656, [unit, kind, ammo, mount]);
+      } else if (mounts > 0) {
+        mount = Math.min(mounts, 4) - 1;
+        e.callScript(1658, [unit, mount, kind, ammo]);
+      }
+      out.push(mount);
+    }
+    e.log(`debug: weapons ${kinds.join(", ")} on mounts ${out.join(", ")}`);
+    return out;
   }
 
   // A unit's property, through RENDER.R32's externs.

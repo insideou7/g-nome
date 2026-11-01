@@ -122,6 +122,8 @@ export class Engine {
     this.hover = -1;
     this.dirty = true;
     this.timers = new Map(); // statement 0xc4: id -> {script, ms, due, repeat}
+    this.timersPaused = false; // TimersPause (builtin 0x8D)
+    this.timersPausedAt = 0;
     /** @type {any} */
     this.fades = []; // queued palette fades {to, ms}
     this.fadedOut = false;
@@ -183,7 +185,25 @@ export class Engine {
     return l;
   }
 
+  // TimersPause (builtin 0x8D): RTLIB32 keeps the time it paused at
+  // (rt+0xb78) and adds the paused span to every due time on resume.
+  /**
+   * @param {boolean} on
+   */
+  pauseTimers(on) {
+    if (on) {
+      this.timersPausedAt = this.time;
+      this.timersPaused = true;
+      return;
+    }
+    if (!this.timersPaused) return;
+    const d = this.time - this.timersPausedAt;
+    for (const t of this.timers.values()) t.due += d;
+    this.timersPaused = false;
+  }
+
   serviceTimers() {
+    if (this.timersPaused) return;
     for (const [id, t] of [...this.timers]) {
       if (this.time < t.due) continue;
       if (t.repeat) t.due = this.time + Math.max(t.ms, 1);

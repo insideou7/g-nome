@@ -2,7 +2,7 @@
 // big black window, plus the FPS counter. Browser only; the actions live in
 // debug.js.
 
-import { CHEATS, DEV_KEYS } from "./debug.js";
+import { CHEATS, DEV_KEYS, UNUSED_WEAPONS } from "./debug.js";
 /** @import { Engine } from "./engine.js" */
 
 const CSS = `
@@ -57,7 +57,7 @@ function load(key, fallback) {
 }
 /**
  * @param {string} key
- * @param {number} v
+ * @param {number | boolean} v
  */
 function save(key, v) {
   try {
@@ -85,6 +85,7 @@ export class DebugPanel {
     this.frames = [];
     this.fps.style.display = this.showFps ? "block" : "none";
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
+    this.debug.extraWeapons = load("g-nome.debug.weapons", false);
     this.debug.onOpen = () => this.open();
     this.root.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.close();
@@ -101,6 +102,7 @@ export class DebugPanel {
     this.engine = engine;
     this.debug = engine.debug;
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
+    this.debug.extraWeapons = load("g-nome.debug.weapons", false);
     this.debug.onOpen = () => this.open();
     /** @type {any} */
     this.used = null;
@@ -144,6 +146,16 @@ export class DebugPanel {
       d.vehicle = Number(vehicle.value);
       save("g-nome.debug.vehicle", d.vehicle);
     });
+    const weaponsLabel = () => `Unused weapons: ${d.extraWeapons ? "on" : "off"}`;
+    const weapons = el("button", {
+      class: d.extraWeapons ? "on" : "",
+      onclick: () => {
+        d.extraWeapons = !d.extraWeapons;
+        save("g-nome.debug.weapons", d.extraWeapons);
+        weapons.className = d.extraWeapons ? "on" : "";
+        weapons.textContent = weaponsLabel();
+      },
+    }, weaponsLabel());
     const start = el("button", {
       onclick: () => {
         save("g-nome.debug.mission", Number(mission.value));
@@ -198,7 +210,9 @@ export class DebugPanel {
       status,
       el("h3", {}, "Level select"),
       el("div", { class: "row" }, mission, vehicle, start),
+      el("div", { class: "row" }, weapons),
       el("div", { class: "note" }, "The vehicle choice also sticks for later starts from here. Personnel are on foot."),
+      el("div", { class: "note" }, `Unused weapons: the game has two finished weapons nobody ever gets (${UNUSED_WEAPONS.map((w) => `kind ${w.kind}, ${w.name}`).join("; ")}). On, a start from here adds them to free mounts: fire them with the number keys after your own weapons.`),
       el("h3", {}, "Display"),
       el("div", { class: "row" }, fps),
       el("h3", {}, "Game cheats"),
