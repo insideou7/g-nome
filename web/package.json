@@ -4,7 +4,8 @@
   "type": "module",
   "description": "Browser engine for G-Nome. No build step: the site is web/index.html plus web/src as is. TypeScript only checks the JSDoc-annotated JavaScript.",
   "scripts": {
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test": "node --test \"tests/unit/*.test.mjs\""
   },
   "devDependencies": {
     "typescript": "6.0.2"

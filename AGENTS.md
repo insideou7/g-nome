@@ -51,6 +51,10 @@ Project skills live in `.claude/skills/` (see its README), including the
   the in-game message kinds and their byte layouts, and the browser version
   (`web/src/plugins/netgn.js`, `web/src/net/`, `web/tools/net-server.mjs`).
   Test with `web/tests/netgn-check.mjs` and `web/tests/net-tabs.mjs`.
+- Unit tests: `cd web && npm test` (Node's test runner over
+  `web/tests/unit/*.test.mjs`: script VM, motion, math, file parsers,
+  collision geometry, saves; no game files, under a second; CI runs it on
+  PRs). Add a test there when you change pure engine code.
 - Type checking: `cd web && npm ci && npm run typecheck` (TypeScript over the
   JSDoc-annotated JavaScript, no build step; CI runs it on PRs). See the
   Type checking section of [web/README.md](web/README.md).
