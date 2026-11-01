@@ -34,15 +34,17 @@ const SOLUTIONS = {
   2: ["goto:G73[0],0,1", "walkto:G73[0],300", "goto:G373,-4,0", "eject", "walkto:G373,600",
     "click:184,146", "wait:100", "eject", "goto:G359,0,8", "walkto:G359,400",
     "kill:G173[3]", "kill:G173[4]", "kill:G173[5]"],
-  // 1-3 Convoy: board the motor pool (G407) for the IFF code, take a Union
-  // HAWC, dial the Darken IFF, start the convoy (trigger G625[0]), answer
-  // its call on the radio (F1 opens the menu, F9 sends message 6), then
-  // enter the Darken HQ (G397) on foot. These steps win in
-  // web/tools/mission-play.mjs but not yet here (the pilot stops on the HQ
-  // without boarding it), so the bot skips them until that is understood.
-  "3?": ["goto:G407,0,6", "walkto:G407,400", "eject", "goto:G13[0],0,2", "walkto:G13[0],300",
-    "call:409(G973,2408)", "goto:G625[0],0,3", "walkto:G625[0],200", "goto:G73[0],5,0", "wait:100",
-    "key:112", "key:120", "eject", "goto:G397,12,0", "walkto:G397,600"],
+  // 1-3 Convoy: "Enter Darken HQ at Chansk". Board the motor pool (G407)
+  // for the IFF code, take a Union HAWC, dial the Darken IFF, start the
+  // convoy (trigger G625[0]) and catch up with it. Six seconds later the
+  // convoy calls and the radio menu opens by itself (script 366) for five
+  // seconds: F9 answers (message 6, hook G1221 = 8790), which unlocks the
+  // HQ (G397). Pressing F1 then would close the menu instead. Getting out
+  // after that turns every enemy hostile (hook G983 = 8792), so leave the
+  // HAWC just west of the HQ and run in before its guns get you.
+  3: ["goto:G407,0,6", "walkto:G407,400", "eject", "goto:G13[0],0,2", "walkto:G13[0],300",
+    "call:409(G973,2408)", "goto:G625[0],0,3", "walkto:G625[0],200", "goto:G73[0],5,0", "wait:200",
+    "key:120", "goto:G397,-3,0", "eject", "walkto:G397,600"],
   // 1-4 LATLON: enter the array (G381) on foot, wait for the radio, leave
   // and destroy it.
   4: ["goto:G381,-8,0", "eject", "walkto:G381,600", "wait:200", "eject", "kill:G381"],
