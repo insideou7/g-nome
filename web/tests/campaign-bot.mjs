@@ -72,6 +72,19 @@ const SOLUTIONS = {
   // priority 1 and TaskSetHighestIndex keeps the current task, as RENDER.R32
   // does. It must live (8920: its pilot G2 dying fails the mission).
   8: ["kill:G420", "drive:G625[1]", "kill:G419", "drive:G625[2]"],
+  // 2-5 The Citadel Approach: "Rendezvous at base of Mesa Caracon",
+  // "Destroy base defenses" (three of the towers G419/G420, the bunkers
+  // G263 or the popup cluster G345: hook 8967 counts G707), "Draw sentry
+  // vehicles away from elevator" (sentry G33[4] chasing the player into
+  // trigger G625[3] runs 8968 -> 8969, which also fires when it is hit,
+  // hook G987, or killed: Thane (G5) then walks to the elevator), and
+  // "Rendezvous at elevator on Thane's signal" (trigger G625[0], script
+  // 8974, on foot: G1 is the player's pilot). Thane's dialogue (table
+  // 8960, rows from 5) ends with the win (2245). With only G33[4] gone,
+  // something still guarding the way shoots Thane, which fails the
+  // mission (8967 -> 2249), so G33[3] goes too.
+  10: ["kill:G419", "kill:G420", "kill:G263[2]", "goto:G33[4],0,15", "wait:100",
+    "kill:G33[4]", "kill:G33[3]", "wait:2100", "goto:G625[0],0,8", "eject", "walkto:G625[0],400"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -182,8 +195,16 @@ async function play(n) {
         await new Promise((r) => setImmediate(r));
       }
     };
+    // Skip the opening movie and wait for the main menu (script 8344's
+    // rect), as a player would. Left running, the movie's end script sets
+    // G2119 (the campaign mission) to 0 about 70 s in, which breaks every
+    // objective lookup (script 8318) in a long mission.
+    for (let i = 0; i < 60 && !engine.plugins.some((/** @type {any} */ p) => p.ownsScreen); i++) await step(1);
+    engine.input.keyDown(0x1b);
+    engine.input.keyUp(0x1b);
+    for (let i = 0; i < 150 && !engine.clickRects.some((/** @type {any} */ r) => !r.off && r.script === 8344); i++) await step(1);
+    await step(30);
     // Start the mission the way the briefing's launch button does (8317).
-    await step(60);
     for (const g of [2118, 2119]) vm.setGlobal(g, n);
     vm.setGlobal(982, 0);
     engine.run(8317);
