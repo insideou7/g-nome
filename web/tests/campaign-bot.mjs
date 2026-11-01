@@ -44,6 +44,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { insidePolygon } from "../src/battlefield/collision.js";
+import { csrand } from "../src/combat/damage.js";
 
 // Mission goals and how the bot meets them (briefing text in quotes).
 const SOLUTIONS = {
@@ -424,6 +425,7 @@ const IFF_KEYS = [0x55, 0x49, 0x4f, 0x50]; // U I O P: actions 55-58, scripts 19
 /** @param {number} n */
 async function play(n) {
   let seed = 1;
+  csrand(1); // explosions' rand(), kept per process
   const random = Math.random;
   Math.random = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
   try {
