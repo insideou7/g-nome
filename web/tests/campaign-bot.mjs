@@ -131,6 +131,20 @@ const SOLUTIONS = {
   // getting out there wins (2246). Losing Kylle (G5) or the HQ fails it.
   // The whole way is driven, with the player's unit vulnerable.
   17: ["kill:G419", "drive:G625[0]", "wait:300", "eject", "wait:200"],
+  // 4-2 Scorp Defense: "Defend Ur-Kinsk", "Occupy guard towers", "Command
+  // Sant Drones, F5-F8". Scorp craft (G13) head for the HQ (G397) and the
+  // security tower (G419). The player's pilot (G1) boarding a guard tower
+  // (G273, hook G984 = 9168) marks the towers done. While the drawbridge
+  // G349 is down (p42 = 0) each of G13[6] and G13[7] that dies is replaced
+  // (9169); raising it from its control station (G373, the panel at
+  // 184,146) stops that and drops whatever is on it. The kill hook (G985 =
+  // 9167) wins (2245) once G2487 Scorps (6 on easy, plus one per
+  // replacement) are down and the bridge is up, or once G1868 passes 900.
+  // Losing either wingman (G5, G2), or ten of the player's side, fails it.
+  // The wingmen fight on foot, so the two Scorps nearest them go first.
+  18: ["kill:G13[2]", "kill:G13[1]", "goto:G273[1],0,3", "walkto:G273[1],300", "eject",
+    "goto:G373,-4,0", "walkto:G373,600", "click:184,146", "wait:100",
+    "kill:G13[4]", "kill:G13[5]", "kill:G13[6]", "kill:G13[7]"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -322,7 +336,10 @@ async function play(n) {
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)} after ${i} ticks`);
       } else if (k === "eject") engine.callScript(1943, []);
-      else if (k === "kill") engine.mission.destroy(ref(v));
+      // Once the mission is won, more kills would run its win script again.
+      else if (k === "kill") {
+        if (!engine.mission.status().ending) engine.mission.destroy(ref(v));
+      }
       else if (k === "killpilots") {
         // Pilots on foot (class below 100) of side p115 = v, such as the
         // crews that eject from destroyed vehicles.
