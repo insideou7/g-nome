@@ -54,7 +54,6 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
   const fog = camera.fogRange();
   const W = target.width, H = target.height;
   const view = camera.view();
-  const camWorld = camera.cameraToWorld();
   const [vw, vh] = camera.viewwindow;
   const near = camera.near;
   const lights = activeLights(scene);
@@ -63,7 +62,7 @@ export function renderSoft(scene, camera, target, { textureOf, rgbaOf }) {
   for (const node of scene.ordered()) {
     const useDepth = node.depth !== false;
     const model = node.model;
-    const worlds = clumpMatrices(model, node.matrix, node.pose, node.instance?.joints, camWorld);
+    const worlds = clumpMatrices(model, node.matrix, node.pose, node.instance?.joints);
     model.clumps.forEach((/** @type {any} */ clump, /** @type {number} */ ci) => {
       if (node.clumpHidden[ci]) return;
       const w = worlds[ci];

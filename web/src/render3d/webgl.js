@@ -250,9 +250,8 @@ export class WebGLBackend {
       gl.bindVertexArray(this.vao(clump.mesh));
       gl.drawArrays(gl.TRIANGLES, g.start, g.count);
     };
-    const camWorld = camera.cameraToWorld();
     for (const node of scene.ordered()) {
-      const worlds = clumpMatrices(node.model, node.matrix, node.pose, node.instance?.joints, camWorld);
+      const worlds = clumpMatrices(node.model, node.matrix, node.pose, node.instance?.joints);
       node.model.clumps.forEach((/** @type {any} */ clump, /** @type {number} */ ci) => {
         if (node.clumpHidden[ci] || !clump.mesh.count) return;
         for (const g of clump.mesh.groups) {

@@ -23,13 +23,11 @@ const OPS = {
   // diffuse, specular).
   0x08: ["color", "fff"], 0x2c: ["surface", "fff"], 0x1c: ["opacity", "f"],
   0x2e: ["texture", "is"],
-  // RwSetAxisAlignment (0x04): 1 none, 2 zorientx, 3 zorienty, 4 xyz (the
-  // clump turns to face the camera). Only 4 is used: the 29 explosion, shot
-  // and smoke sprites. Read but not used (see g-nome-bin.md for the values):
-  // RwSetSurfaceGeometrySampling (0x0D, always 4 solid), RwSetHints (0x0F),
+  // Int settings read but not used: RwSetAxisAlignment (0x04),
+  // RwSetSurfaceGeometrySampling (0x0D), RwSetHints (0x0F),
   // RwSetSurfaceLightSampling (0x16: 1 facet, 2 vertex) and
-  // RwSetSurfaceMaterialModes (0x19, always 8 double-sided).
-  0x04: ["axisalignment", "i"], 0x0d: ["op0d", "i"], 0x0f: ["op0f", "i"],
+  // RwSetSurfaceMaterialModes (0x19).
+  0x04: ["op04", "i"], 0x0d: ["op0d", "i"], 0x0f: ["op0f", "i"],
   0x16: ["op16", "i"], 0x19: ["op19", "i"],
   // RWX TextureModes: 1 lit, 2 foreshorten (perspective), 4 filter. Without
   // the lit bit a texture draws at full brightness (ground tiles use 2).
@@ -149,7 +147,6 @@ export function parseModel(bytes) {
       case "surface": mat = { ...mat, ambient: a[0], diffuse: a[1], specular: a[2] }; break;
       case "opacity": mat = { ...mat, opacity: a[0] }; break;
       case "tag": if (clump) clump.tag = a[0]; break;
-      case "axisalignment": if (clump) clump.align = a[0]; break;
       case "texturemodes": mat = { ...mat, textureModes: a[0] }; break;
       case "texture": mat = { ...mat, texture: a[0] ? bmpName(a[1]) : "" }; break;
     }
@@ -208,40 +205,20 @@ function buildMesh(verts, tris) {
 // World matrices for every clump, given the model's placement and optional
 // per-clump pose overrides (pose[i] replaces clump i's local matrix) and
 // joint matrices (RotateSubClump; joints[i] applies before the local one).
-// With `camera` (a camera-to-world matrix), clumps with axis alignment 4
-// (rwALIGNXYZ) take the camera's orientation, keeping their position and
-// scale, so explosion and shot sprites always face the viewer.
 /**
  * @param {any} model
  * @param {Float32Array} world
- * @param {Float32Array | null} [camera]
  */
-export function clumpMatrices(model, world, pose = null, joints = null, camera = null) {
+export function clumpMatrices(model, world, pose = null, joints = null) {
   const out = new Array(model.clumps.length);
   const visit = (/** @type {number} */ i, /** @type {number[] | Float32Array} */ parentM) => {
     const c = model.clumps[i];
     const local = (pose && pose[i]) || c.local;
     out[i] = mul(joints && joints[i] ? mul(joints[i], local) : local, parentM);
-    if (camera && c.align === 4) faceCamera(out[i], camera);
     for (const k of c.children) visit(k, out[i]);
   };
   for (const r of model.roots) visit(r, world);
   return out;
-}
-
-// Replace the rotation rows of `m` with the camera's axes, each scaled by
-// the length of the row it replaces.
-/**
- * @param {Float32Array} m
- * @param {Float32Array} camera
- */
-export function faceCamera(m, camera) {
-  for (let r = 0; r < 3; r++) {
-    const k = r * 4;
-    const s = Math.hypot(m[k], m[k + 1], m[k + 2]);
-    const c = Math.hypot(camera[k], camera[k + 1], camera[k + 2]) || 1;
-    for (let j = 0; j < 3; j++) m[k + j] = (camera[k + j] / c) * s;
-  }
 }
 
 // Axis-aligned bounds of the posed model in model space.

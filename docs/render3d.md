@@ -282,9 +282,8 @@ the script swaps those pointers for RenderWare names.
 
 ## Not done yet
 
-- Material settings ops `0x0D` (GeometrySampling, always solid), `0x0F`
-  (Hints), `0x16` (LightSampling: lighting is per face either way) and
-  `0x19` (MaterialModes, always double-sided) are read but not used. Op
-  `0x04` (AxisAlignment) is used: clumps with value 4 face the camera
-  (`clumpMatrices` takes the camera matrix). See
-  [g-nome-bin.md](formats/g-nome-bin.md).
+- Material settings ops `0x04` (AxisAlignment), `0x0D` (GeometrySampling),
+  `0x0F` (Hints), `0x16` (LightSampling: lighting is per face either way),
+  `0x19` (MaterialModes) are read but not used.
+- Ground textures look like noise in the menu palette; the mission palette
+  presumably fixes them.

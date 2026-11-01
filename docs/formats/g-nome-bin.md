@@ -185,15 +185,16 @@ a stream of u32 opcodes with fixed arguments. The opcodes mirror RenderWare
 | `0x1C` | float | opacity |
 | `0x2E` | int, path | texture. The path is only there when the int is not 0. It is NUL-terminated and padded to 4 bytes. |
 | `0x2D` | int | tag: the clump's part number, used by FRME animations |
-| `0x04` | int | RwSetAxisAlignment: 1 none, 2 zorientx, 3 zorienty, 4 xyz (the clump turns to face the camera) |
-| `0x0D` | int | RwSetSurfaceGeometrySampling: 1 pointcloud, 2 wireframe, 4 solid |
-| `0x0F` | int | RwSetHints, bits: 1 container, 2 hs, 4 editable |
-| `0x16` | int | RwSetSurfaceLightSampling: 1 facet, 2 vertex |
-| `0x19` | int | RwSetSurfaceMaterialModes: 8 double-sided |
+| `0x04` | int | RwSetAxisAlignment |
+| `0x0D` | int | RwSetSurfaceGeometrySampling |
+| `0x0F` | int | RwSetHints |
+| `0x16` | int | RwSetSurfaceLightSampling |
+| `0x19` | int | RwSetSurfaceMaterialModes |
 | `0x32` | int | RwSetSurfaceTextureModes (1 lit, 2 foreshorten, 4 filter) |
 
-The int values are RenderWare 2.0's; they come from the RWX text parser in
-`RWL20.DLL`, which maps each keyword to the constant it passes (for example
+The int values are RenderWare 2.0's (what the browser engine does with
+each is in [render3d.md](../render3d.md)); they come from the RWX text
+parser in `RWL20.DLL`, which maps each keyword to the constant it passes (for example
 `solid` pushes 4 before calling `RwSetSurfaceGeometrySampling`, and the
 hints are a table at `0x100510d8`). In the 801 models:
 
@@ -203,7 +204,7 @@ hints are a table at `0x100510d8`). In the 801 models:
 | `0x0D` | always 4 (solid) |
 | `0x0F` | 0 (2,531 times), 6 = hs + editable (181, the animated units), 2 = hs (3) |
 | `0x16` | 1 facet (5,110), 2 vertex (6, in 3852 and 5895) |
-| `0x19` | always 8 (double-sided), 304 times |
+| `0x19` | 8 (double-sided), 304 times in 266 models; the rest have no double materials |
 | `0x32` | 2 foreshorten (231, ground and walls), 0 (34, the sprites: not lit) |
 
 Op `n` calls entry `n - 1` of RENDER.R32's table of RWX functions
