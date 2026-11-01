@@ -62,7 +62,9 @@ export class Player {
     const p = new Player();
     p.logs = [];
     p.errors = []; // log lines matching BAD_LOG, and exceptions from tick()
-    p.display = new Display();
+    // display: false skips drawing (much faster; screen() and region()
+    // then have nothing to read).
+    p.display = opts.display === false ? null : new Display();
     // Settings and written files live in memory; pass the same ones to a
     // second start() to see what survives a restart.
     p.ini = opts.ini || new Ini();
