@@ -138,6 +138,19 @@ const SOLUTIONS = {
     "drive:G54,600,-31.5,26", "drive:G54,600,-31.5,5", "killpilots:3", "drive:G54,600,-10,4", "stop", "killpilots:3",
     "target:G54", "key:113", "key:115", "killpilots:3", "target:G55", "key:114", "key:115", "killpilots:3",
     "target:G56", "key:115", "key:115", "killpilots:3", "wait:300", "killpilots:3", "wait:300"],
+  // 4-6 Mano-a-Mano: "Kill Sheridan and G-Nome". Sheridan (G3, side 3)
+  // drives the G-Nome (G13[1]) along waypoints G605[0], G605[1], G359 to
+  // the gate G349; reaching G357 behind it fails the mission (9257). His
+  // update script 9259 keeps his target scan off until the player crosses
+  // trigger G625[1] (9260); then he still heads for the gate but shoots
+  // back, and if he gets there the mission fails. Killing him (hook G985
+  // = 9255) wins (2246). Before that trigger he circles the rock at
+  // G605[0] after bumping it: the collision sets his circle target (p70)
+  // and only the scan timer that 9259 holds off would clear it. He is
+  // shot with single full-charge shots (a held key fires weak ones) from
+  // close by; about 26 bring the G-Nome down, so after 24 the kill step
+  // finishes it, and then his pilot, thrown out when it dies.
+  22: ["drive:G625[1]", "near:G13[1],20,3000", "goto:G13[1],-8,0", ...Array(24).fill("fire:G13[1],1,1"), "kill:G13[1]", "wait:100", "kill:G3"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
