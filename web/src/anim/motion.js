@@ -40,9 +40,14 @@ export function motionOf(o) {
   if (!o.motion) {
     o.motion = {
       xz: false, // +0x54 bit 0x10: velocity is kept in the ground plane
-      maxAccel: 0, // +0xC0, world units/s²
-      maxAngAccel: { pitch: 0, yaw: 0, roll: 0 }, // +0xC4, +0xC8, +0xCC, degrees/s²
-      maxAngVel: { pitch: 0, yaw: 0, roll: 0 }, // +0xD0, +0xD4, +0xD8, degrees/s
+      // The limits start at RENDER.R32's defaults for a new object
+      // (FUN_1001a850, run when an OB3D is loaded); scripts that never call
+      // SetMaxAccel or SetMaxAngularAccel keep them. Script 3304 (class 181
+      // craft) sets the angular velocity twice and never the acceleration,
+      // so with zeros there it could never turn.
+      maxAccel: 0.2, // +0xC0, world units/s²
+      maxAngAccel: { pitch: 7, yaw: 40, roll: 7 }, // +0xC4, +0xC8, +0xCC, degrees/s²
+      maxAngVel: { pitch: 7, yaw: 90, roll: 7 }, // +0xD0, +0xD4, +0xD8, degrees/s
       targetYaw: 0, // +0x74: degrees still to turn; the spin step works it off
       targetCos: 0, // +0x78: cos of the angle to the target when it was set
       twistRate: 0, // +0x6C, degrees/s

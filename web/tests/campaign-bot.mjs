@@ -84,6 +84,14 @@ const SOLUTIONS = {
   // (9739, class 253) stops shots from that side.
   9: ["kill:G33[1]", "kill:G33[2]", "kill:G33[3]", "goto:G33[0],-15,10", "wait:200",
     "goto:G5,0,10", "wait:300", "key:112", "key:120", "wait:1300"],
+  // 2-6 Battle in the Clouds: "Defend Citadel buildings". The wingmen man
+  // the Citadel (G5 the shuttle G417, G2 a Meson tower); the player takes
+  // another tower (G263[0]). Waves of craft (G33, class 181) come for the
+  // player; 8993 sends in the next one as each dies, and G2471 kills (8 on
+  // easy, counting the first from 8992) win through 2246. Losing either
+  // wingman, or the shuttle while G5 flies it, fails (8995).
+  11: ["goto:G263[0],0,-4", "walkto:G263[0],400", "kill:G33[1]", "kill:G33[2]", "kill:G33[3]",
+    "kill:G33[4]", "kill:G33[5]", "kill:G33[6]", "kill:G33[7]"],
   // 3-1 Scorp Crossing: "Pass through Ur-Binshar crossing". The player
   // (G1) and two pilots (G2, G5) start on foot. Walking into trigger G625[9]
   // wakes the Scorp vehicle G53[1] and its three guards (G183, whose guns
