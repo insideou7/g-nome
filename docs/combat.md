@@ -162,5 +162,21 @@ The object keeps its root clump and stops: gravity, speed, FRME and stride 0.
   Up close, a tall vehicle's shots pass over a small unit that the lock
   bracket is on (the mission 1 walker from 8 units away is 30-55 pixels
   below the crosshair in a Tactical Defense or Heavy Assault HAWC).
+- Pitch: the Up arrow is "Pitch Down" (action 7) and the Down arrow
+  "Pitch Up" (action 8), flight-stick style. They move property 27
+  (hundredths of a degree, positive down, limits in properties 25 and 26;
+  scripts 2075 and 2076), and script 2077 hands that one value to
+  `RotateSubClump` for the gun clumps (x angle) and to `SetCameraPitch`
+  (unless the camera rides a gun clump, which already tilts it). So the
+  view and the guns always tilt together, and a positive camera pitch looks
+  down. The browser engine used to tilt the camera the other way, so after
+  pitching the shots went the opposite way to the view (into the ground
+  when looking up).
 - `web/tests/aim-check.mjs` checks the crosshair position, the shots'
-  direction and lock-on in all 25 units the debug panel offers.
+  direction (level and pitched both ways), a close-range shot at the
+  mission 1 walker's body from 4 units, and lock-on in all 25 units the
+  debug panel offers. Close up, the guns of a few units (the Union and Merc
+  Tactical Defense HAWCs) sit wider apart than the walker, and their
+  parallel shots pass either side of it: the check skips the hit for units
+  whose guns are more than 0.15 units to the side, as the original misses
+  there too.
