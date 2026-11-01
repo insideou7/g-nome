@@ -76,14 +76,17 @@ export class BattleCamera {
     }
     let { at, up, right } = view(basis);
     // RwPanCamera turns about the camera's up vector, RwTiltCamera about its
-    // right vector (which is -X for an unrotated camera).
+    // right vector (which is -X for an unrotated camera). A positive tilt
+    // looks down, the same way a positive RotateSubClump x angle pitches a
+    // gun down: script 2077 passes one value (property 27, raised by the
+    // "Pitch Down" key, Up arrow) to both, so the view follows the guns.
     if (this.yaw) {
       at = rotate(at, up, this.yaw);
       right = normalize(cross(at, up));
     }
     if (this.pitch) {
-      at = rotate(at, right, this.pitch);
-      up = rotate(up, right, this.pitch);
+      at = rotate(at, right, -this.pitch);
+      up = rotate(up, right, -this.pitch);
     }
     return { pos, at, up, right };
   }
