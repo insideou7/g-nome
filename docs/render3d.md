@@ -161,10 +161,10 @@ count come records:
 
 | Record | Fields | Kept as |
 | --- | --- | --- |
-| 1 | a, b | entry kind 1 |
+| 1 | ms, script | entry kind 1: a timer script |
 | 2 | min, max (floats), resource type, resource id | entry kind 4 when the type is 7 (a model), 5 when it is 19 (a script). Distance ranges: levels of detail |
-| 6 | a, script | entry kind 6 (30 and an update script in every object seen) |
-| 8 | a | entry kind 8 |
+| 6 | ms, script | entry kind 6: the update script and its interval (first in every object) |
+| 8 | model | entry kind 8: a fixed model linked once |
 | 7 | x, n, values[n] | the property list; always last |
 
 `GetProperty(obj, p)` (`0x1001271e`) reads `values[p]`, zero past the end;

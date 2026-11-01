@@ -83,14 +83,49 @@ followed by 16-byte slots.
 char[4] "OB3D" or "OPRT"
 u32     slots       number of 16-byte slots to allocate
 records, each a u32 kind then:
-  1  i32 a, i32 b
+  1  u32 ms, u32 script                   timer: run `script` every `ms`
   2  f32 min, f32 max, u32 type, u32 id   level-of-detail band: from min to
                                           max distance, show model `id`
                                           (type 7) or run script `id` (19)
-  6  i32 a, u32 script                    a is 30, 32, 96 or 1000
-  8  i32 a
+  6  u32 ms, u32 script                   the update: run `script` every
+                                          `ms` (30, 32, 96 or 1000)
+  8  u32 model                            a fixed model, linked once
   7  u32 words, u32 n, i32 props[n]       the property list; ends the record list
 ```
+
+Each record becomes one 16-byte slot `{u32 kind, u32 +4, u32 +8, u32
++0xC}` at object `+0xEC + 16 * i`:
+
+| Record | Slot kind | `+4` | `+8` | `+0xC` |
+| --- | --- | --- | --- | --- |
+| 1 | 1 | script | interval, ms | time it last ran |
+| 2 | 4 (model) or 5 (script) | id | min distance | max distance |
+| 6 | 6 | script | interval, ms | time it last ran |
+| 8 | 8 | model | 0 | `0x7CF08021` (1e37, "no limit") |
+
+- **Kind 6, the update.** Every object in the data starts with one, and
+  only slot 0 counts. The frame loop (`FUN_10029856`) runs the object's
+  update (`FUN_10028fb2`) once `+0xC + interval` has passed: it runs
+  `script` (or the one `SetUpdateScript` set at `+0xF0`) with the object id
+  and the time since the last update. 234 objects use 30 ms (every frame),
+  213 use 1000 ms (scenery such as trees and buildings), 31 use 32 ms and 5
+  use 96 ms. When the camera rides an object, every object is updated with
+  it.
+- **Kind 1, a timer.** After the update, `FUN_10029059` walks slots n-1 to
+  1 and runs a kind 1 slot's script (with the object id) when its interval
+  has passed. No object in the data has one.
+- **Kinds 4 and 5, levels of detail.** In the same walk, the first band
+  (from the last slot down) whose range holds the camera distance links its
+  model or runs its script, unless the current band still fits. The
+  distance is `(dx + dz - min(dx, dz) / 2) / far plane`.
+- **Kind 8, a fixed model.** `AddObject` (`0x100100f0`) links it when the
+  object is placed, like a band that always fits; it is never checked
+  again. No object in the data has one.
+
+`AddObject` stamps the current time into kinds 1 and 6 and picks the first
+level of detail straight away. The browser engine does the same in
+`web/src/battlefield/world.js` (`loadBehaviours`, `firstLevelOfDetail`,
+`tick`, `levelOfDetail`).
 
 The property list starts at the slot after the last record, so `words` is 4
 x the slots left. `GetProperty(obj, n)` is word `n` of it (object `+0xEC +

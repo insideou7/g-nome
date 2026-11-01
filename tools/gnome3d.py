@@ -97,9 +97,10 @@ MODEL_OPS = {
     # 0x2D is RWX "Tag": the clump's part number. FRME animations and
     # RENDER.R32's clump externs find clumps by it.
     0x2D: ("tag", "i"),
-    # Int settings: RwSetAxisAlignment, RwSetSurfaceGeometrySampling,
-    # RwSetHints, RwSetSurfaceLightSampling, RwSetSurfaceMaterialModes and
-    # RwSetSurfaceTextureModes.
+    # Int settings: RwSetAxisAlignment (4 = face the camera),
+    # RwSetSurfaceGeometrySampling, RwSetHints, RwSetSurfaceLightSampling,
+    # RwSetSurfaceMaterialModes and RwSetSurfaceTextureModes. Values are in
+    # docs/formats/g-nome-bin.md.
     0x04: ("op04", "i"), 0x0D: ("op0d", "i"), 0x0F: ("op0f", "i"),
     0x16: ("op16", "i"), 0x19: ("op19", "i"), 0x32: ("op32", "i"),
 }
@@ -330,9 +331,11 @@ class ObjectDef:
 
 def parse_object(data: bytes) -> ObjectDef:
     """Parse an OB3D / OPRT resource the way RENDER.R32's loader (0x100043f0)
-    does. Record kinds: 1 {a, b}; 2 {min, max distance floats, resource type
-    (7 model or 19 script), resource id} = a level-of-detail band; 6 {a,
-    script}; 8 {a}; 7 {words, n, n property words} which ends the list."""
+    does. Record kinds: 1 {ms, script} = a timer; 2 {min, max distance
+    floats, resource type (7 model or 19 script), resource id} = a
+    level-of-detail band; 6 {ms, script} = the update script and its
+    interval; 8 {model} = a fixed model; 7 {words, n, n property words}
+    which ends the list. See docs/formats/animation.md."""
     tag, slots = struct.unpack_from("<4sI", data, 0)
     if tag not in (b"OB3D", b"OPRT"):
         raise ValueError("not an OB3D/OPRT resource")
