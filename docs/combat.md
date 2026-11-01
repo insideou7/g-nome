@@ -96,7 +96,11 @@ Script 2228 handles a hit: with a hotspot it asks script 2238 by hotspot
 type; against a unit it calls `CollisionClump` to find the part, then
 `StopProjectileObject`, and `script_1709(target, part, shot)` applies the
 damage (shields in property 19 first, then the part's health in the table
-in property 85), and 1689 destroys the shot with its impact effect. When a
+in property 85), then runs the mission's hit hook `script_G987(target,
+shooter)`, and 1689 destroys the shot with its impact effect. Two weapon
+kinds skip the damage: kind 25, the EGGER, goes to 1711/1712, which empties
+a vehicle (its pilot is thrown out with 2078, property 77 set to 0) so
+someone else can board it, and kind 26 goes to 1715. When a
 unit dies (2278, 2300) `ExplodeModel(unit, -77, 50, 1731)` throws its parts.
 
 When the player's unit is hit by shot class 301 or 302 while script 2185

@@ -90,6 +90,10 @@ export function disassemble(bin, id, names = BUILTIN_NAMES) {
         text = `switch ${subj} {${cases.join(", ")}} default:${at(dv.getInt32(p + 10, true))}`;
         // The record runs to the end of its expression; case bodies follow.
         if (op === 0xdb) { let q = p + 0x10; len = exprEnd(b, q) - p; } else len = 0x10;
+        // Some records carry a pad byte after the expression: the first
+        // case body (the nearest target) is where the next statement starts.
+        const first = Math.min(dv.getInt32(p + 10, true), ...Array.from({ length: n }, (_, i) => dv.getInt32(p + tab + 12 * i + 6, true)));
+        if (first > len && first - len < 4) len = first;
         break;
       }
       case 0x59: len = 0x1a; text = `if_cmp_call ${hex(b, p + 2, p + 0x1a)}`; break;

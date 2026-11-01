@@ -58,6 +58,17 @@ const SOLUTIONS = {
   // 2-2 River Race: occupy the Meson tower (G263[0]), then destroy the
   // LATLON array (G381).
   7: ["goto:G263[0],0,-4", "eject", "walkto:G263[0],400", "eject", "kill:G381"],
+  // 2-4 Egger: "Help Thane steal Merc Patrol HAWC", "Lure Merc HAWC into
+  // Thane's EGGER range", "Signal Thane to attack". Three Merc kills
+  // (G707) bring Thane (G5, on foot) in at the trigger G625[0]. Shooting
+  // range of the patrol HAWC (G33[0]) makes it chase the player; lead it
+  // to within 12 world units of Thane (update script 8942), then F1+F9
+  // (hook G1221 = 8944) sends him in. His EGGER shot (weapon kind 25,
+  // script 1711) throws the crew out, he boards the empty HAWC (hook G984
+  // = 8938) and 2246 wins. Stand north of him: scenery south-east of him
+  // (9739, class 253) stops shots from that side.
+  9: ["kill:G33[1]", "kill:G33[2]", "kill:G33[3]", "goto:G33[0],-15,10", "wait:200",
+    "goto:G5,0,10", "wait:300", "key:112", "key:120", "wait:1300"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
