@@ -70,13 +70,15 @@ export class Mission {
     return out;
   }
 
-  // script_2080(a, b): 1 when a and b are on different sides.
+  // script_2080(a, b): 1 when a and b are on different sides. This needs
+  // the script's return value (callValue); engine.callScript only says
+  // whether the script ran, which made every unit look hostile.
   /**
    * @param {any} a
    * @param {any} b
    */
   hostile(a, b) {
-    return !!this.engine.callScript(2080, [a, b]);
+    return !!this.vm.callValue(2080, [a, b]);
   }
 
   // Units that would fight the player and still have a crew (the test the
