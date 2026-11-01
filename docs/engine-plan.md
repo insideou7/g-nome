@@ -87,7 +87,10 @@ Design choices:
    - [x] click and hover regions (statements 0x10, 0x0e), sprite bounds
      (0x3f), timers (0xc4, 0x6d), type 14 statement lists (0xd9)
    - [x] menu sounds and music (`render.DSPlayWave` and friends)
-   - [x] type 21 text objects (status line) drawn with a canvas font
+   - [x] type 21 text objects (status line) drawn with a canvas font;
+     text wider than its box wraps at spaces like RTLIB32's DrawTextA
+     with DT_WORDBREAK (map descriptions on the network host screen), see
+     `web/src/text.js`
    - [x] main menu, GAME submenu, credits movie
    - [x] all five submenus; OPTIONS screens (key mapping, difficulty,
      sound, detail); NETWORK hosts and joins games (see below)

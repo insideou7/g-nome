@@ -69,6 +69,14 @@ await type(host, "ANN");
 await shot(host, "2-settings");
 // pick the first map; the right column then offers START
 await click(host, 230, 75);
+// The map's description (text 7594) wraps inside its 150 x 150 box.
+const desc = await host.page.evaluate(() => {
+  const b = engine.texts.bitmap(7594);
+  let rows = 0;
+  for (let y = 0; y < b.height; y++) if (b.pixels.subarray(y * b.width, (y + 1) * b.width).some((p) => p)) rows++;
+  return { text: engine.texts.get(7594).text, width: b.width, rows };
+});
+await shot(host, "2-map");
 await click(host, 599, 165); // DONE
 await waitLog(host, /created session "ARENA"/);
 await host.page.waitForTimeout(1000);
@@ -128,6 +136,7 @@ console.log("host", JSON.stringify(ht));
 console.log("guest", JSON.stringify(gt));
 const total = (o) => Object.values(o).reduce((a, b) => a + b, 0);
 const fail = [];
+if (!desc.text || desc.width > 151 || desc.rows < 20) fail.push(`map description not wrapped in its box: ${JSON.stringify(desc)}`);
 if (ht.players !== 2 || gt.players !== 2) fail.push("both sides should see 2 players");
 if (!total(gt.got)) fail.push("the guest received no game messages from the host");
 if (!total(ht.got)) fail.push("the host received no game messages from the guest");
@@ -138,4 +147,4 @@ if (fail.length) {
   console.log("FAIL:\n  " + fail.join("\n  "));
   process.exit(1);
 }
-console.log(`ok: hosted, joined, chatted, launched and exchanged game messages (${mode})`);
+console.log(`ok: hosted, joined, wrapped the map description, chatted, launched and exchanged game messages (${mode})`);
