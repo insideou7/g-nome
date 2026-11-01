@@ -32,6 +32,18 @@ team members' names from the credits.
 
 Every code that works ends with `script_8351()`, a confirmation sound.
 
+### Invulnerability follows the player
+
+Ctrl+I (action 93, script 1950) runs `SetProperty(G973, 140, 1)`: it marks
+the unit the player is in at that moment, and nothing ever clears it. In the
+original that means ejecting leaves the empty vehicle invulnerable and the
+pilot on foot is not, so an enemy pilot who climbs into that HAWC drives an
+unkillable one. The browser engine moves the flag with the player instead
+(`Debug.followInvulnerable`, run every tick): when G973 changes from a pilot
+to the vehicle they boarded, or from a vehicle to the pilot who left it, the
+old unit loses property 140 and the new one gets it. A new mission's unit
+does not inherit it; press Ctrl+I again there.
+
 ## The action mask
 
 "mask" is global 1857. `script_2561(bits)` ORs bits into it and calls
