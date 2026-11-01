@@ -37,6 +37,10 @@ Project skills live in `.claude/skills/` (see its README), including the
 - [docs/missions.md](docs/missions.md): enemy AI (unit update, tasks,
   targeting, aiming) and mission goals (hooks, win/lose, debrief). In the
   engine: `web/src/battlefield/aim.js`, `mission.js` (`engine.mission`).
+- [docs/render-r32.md](docs/render-r32.md): all 260 RENDER.R32 exports
+  (address, script calls, browser file), its internals and hooks, what is
+  not implemented. The wave player is `web/src/waves.js`. Check with
+  `web/tests/render-coverage-check.mjs` and `web/tests/waves-check.mjs`.
 - [docs/combat.md](docs/combat.md): weapons, projectiles, hits and
   explosions (RENDER.R32's combat natives and the scripts' callbacks).
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
