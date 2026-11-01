@@ -27,6 +27,7 @@
 //   call:S(ARGS)        run script S with REF arguments
 //   fire:REF[,ticks[,group]]  face REF and fire weapon group 1-4 (keys 1-4, default 1)
 //                       until REF is destroyed
+//   target:REF          step the target with Tab until it is REF, and face it
 // REF is a global (G381), an array element (G73[0]) or a number; drive also
 // takes a point X/Z in world units.
 import assert from "node:assert/strict";
@@ -150,6 +151,25 @@ const SOLUTIONS = {
   // getting out there wins (2246). Losing Kylle (G5) or the HQ fails it.
   // The whole way is driven, with the player's unit vulnerable.
   17: ["kill:G419", "drive:G625[0]", "wait:300", "eject", "wait:200"],
+  // 4-5 Sheridan's Lair: "Destroy Recombination laboratory" (G417, class
+  // 227) "before arrival of transport ship (20 min.)" (9233 checks the
+  // clock every 10 s and fails at 1200 s, 2248), "Breach defenses" and
+  // "Paint lab with laser sight for Ion-strike". The lab sits in a walled
+  // compound whose gates (G427) belong to the security tower G419 (2098);
+  // shooting the tower down opens them (2101 -> 2279). The player's pilot
+  // G1 carries the laser sight (weapon 32, group 4; 9228 gives it). On
+  // foot, within 12 world units, with the lab selected (Tab, then facing
+  // it), holding 4 paints it (p141 = G974, script 1681); when the charge
+  // runs out the ion strike (1649 -> 1650) destroys it. Its death (hook
+  // G985 = 9230) marks objectives 0 and 4 and starts dialogue 9226 row 1,
+  // whose callback 9232 wins (2246). The missile turrets G283[0] and
+  // G283[3] reach the compound and kill a pilot on foot, and patrols hunt
+  // the player, so they are killed. Nothing in the scripts checks
+  // "exchange vehicles with Wilkins".
+  21: ["kill:G283[0]", "kill:G283[3]", "kill:G283[6]", "kill:G53[2]", "kill:G53[6]", "kill:G53[7]",
+    "drive:30/38", "key:48", "wait:300", "fire:G419,900,1", "fire:G419,900,2", "kill:G53[1]",
+    "drive:38/-62,20000,0", "key:48", "wait:300", "eject", "drive:36/-76,20000,0",
+    "target:G417", "fire:G417,900,4", "wait:400"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -174,6 +194,7 @@ const files = {
 };
 
 const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d, VK_FIRE = 0x31; // 1-4: fire actions 29-32
+const VK_TAB = 0x09; // next target (action 44)
 const TILE = 6; // ground tiles (level -100) sit on a 6-unit grid
 const CLEAR = 1; // world units drive keeps from wall edges where it can
 const TRIGGER = 500; // class of trigger zones: their hotspots never block
@@ -182,15 +203,17 @@ const DEAD = 1729; // update script of a destroyed unit (script 2278)
 // Waypoints (x, z) from `from` to `to` on a 1-unit grid: cells on a ground
 // tile and outside every solid hotspot still in its object's hotspot list
 // (property 16; scripts 434/435 take a gate's barrier out of it), found
-// breadth first. With `clear`, a cell also needs that much room round it
-// (for a wide vehicle that would catch on a corner). Null when there is no way.
+// breadth first. With `clear`, a cell also keeps that far from wall edges
+// (nearEdge), or with `round` has that much room all round it (for a wide
+// vehicle that would catch on a corner). Null when there is no way.
 /**
  * @param {any} engine
  * @param {number[]} from
  * @param {number[]} to
  * @param {number} clear
+ * @param {boolean} round
  */
-function findPath(engine, from, to, clear = CLEAR) {
+function findPath(engine, from, to, clear = CLEAR, round = false) {
   const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
   const objs = [...engine.world.objects.values()];
   const tiles = new Set();
@@ -224,11 +247,11 @@ function findPath(engine, from, to, clear = CLEAR) {
     }
     return false;
   };
-  const ring = clear ? [[0, 0], ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => [clear * Math.cos(k * Math.PI / 4), clear * Math.sin(k * Math.PI / 4)])] : [[0, 0]];
+  const ring = round && clear ? [[0, 0], ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => [clear * Math.cos(k * Math.PI / 4), clear * Math.sin(k * Math.PI / 4)])] : [[0, 0]];
   const blocked = (/** @type {number} */ x, /** @type {number} */ z) =>
     !tiles.has(`${Math.round(x / TILE)},${Math.round(z / TILE)}`) ||
     ring.some(([dx, dz]) => inside(x + dx, z + dz)) ||
-    (clear > 0 && [...prints.values()].some((fp) => fp.pts.length > 0 && nearEdge(fp, x, z)));
+    (!round && clear > 0 && [...prints.values()].some((fp) => fp.pts.length > 0 && nearEdge(fp, x, z)));
   const inside = (/** @type {number} */ x, /** @type {number} */ z) =>
     solid.some((h) => {
       if (h.type === 0x10) return Math.hypot(h.pos[0] - x, h.pos[2] - z) <= h.id / 100;
@@ -331,7 +354,7 @@ async function play(n) {
         const point = /^(-?[\d.]+)\/(-?[\d.]+)$/.exec(r);
         const goal = point ? [Number(point[1]), 0, Number(point[2])] : obj(id).pos;
         // Without a clearance, try the default and then none.
-        const way = clear !== undefined ? findPath(engine, obj(player()).pos, goal, Number(clear))
+        const way = clear !== undefined ? findPath(engine, obj(player()).pos, goal, Number(clear), true)
           : findPath(engine, obj(player()).pos, goal) || findPath(engine, obj(player()).pos, goal, 0);
         assert.ok(way, `mission ${n}: ${s}: no way through`);
         let i = 0;
@@ -366,10 +389,13 @@ async function play(n) {
         // Gone: the mission cleared its global, or the object is dead (death
         // script 2278 leaves structures standing with update script 1729).
         const alive = () => ref(r) === id && obj(id) && obj(id).updateScript !== DEAD;
+        let brake = false;
         for (let i = 0; i < Number(ticks) && alive() && engine.mission.status().outcome === "playing"; i++) {
           // Stand still: drive and walkto can leave some throttle on, and
-          // walking into a building boards it.
-          if (i < 30) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
+          // walking into a building boards it. Not when the throttle (p12)
+          // is already 0 (key 0, the game's full stop): that would back away.
+          if (i === 0) brake = prop(player(), 12) > 0;
+          if (i < 30 && brake) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
           else if (i === 30) engine.input.keyUp(VK_THROTTLE_DOWN);
           const me = obj(player()), target = obj(id);
           const dx = target.pos[0] - me.pos[0], dz = target.pos[2] - me.pos[2], d = Math.hypot(dx, dz);
@@ -385,6 +411,24 @@ async function play(n) {
         }
         engine.input.keyUp(vk);
         if (verbose) console.log(`    ${r} ${alive() ? "still there" : "destroyed"}`);
+      }
+      else if (k === "target") {
+        // Tab (action 44, script 2000) steps the target G1811 through the
+        // unit list; facing it for 10 frames selects it (G974, script 582),
+        // which is what the laser sight paints.
+        const id = ref(v);
+        for (let i = 0; i < 150 && vm.getGlobal(1811) !== id; i++) {
+          engine.input.keyDown(VK_TAB);
+          await step(1);
+          engine.input.keyUp(VK_TAB);
+          await step(1);
+        }
+        const me = obj(player()), t = obj(id);
+        const dx = t.pos[0] - me.pos[0], dz = t.pos[2] - me.pos[2], d = Math.hypot(dx, dz);
+        me.basis = { at: [dx / d, 0, dz / d], up: [0, 1, 0], right: [-dz / d, 0, dx / d] };
+        me.tickBasis = me.basis;
+        await step(15);
+        assert.equal(vm.getGlobal(974), id, `mission ${n}: ${s}: not selected`);
       }
       else if (k === "wait") await step(Number(v));
       else if (k === "key") {
