@@ -131,6 +131,22 @@ const SOLUTIONS = {
   // getting out there wins (2246). Losing Kylle (G5) or the HQ fails it.
   // The whole way is driven, with the player's unit vulnerable.
   17: ["kill:G419", "drive:G625[0]", "wait:300", "eject", "wait:200"],
+  // 4-4 General Delivery: "Lower bridge for reinforcements". The player
+  // (pilot G1) starts in a vehicle (G53[0]). Five seconds in, a timer
+  // (1787) raises the bridge G349. On the way west: guards G13[1..3], gun
+  // towers G283, and a minefield (G467, class 570) owned by G595, whose
+  // death sets all the mines off (2278 -> 2117). The trigger past the
+  // mines (G625[0], script 9217) sends two craft (G13[6..7] on easy) after
+  // the player, and G13[8] guards the bridge control G373. Some guns throw
+  // the pilot out of the vehicle (weapon kind 26, 1715), and the crews of
+  // destroyed units fight on foot, so the bot clears them as it goes. In
+  // the control, the mission 2 panel lowers the bridge (1777 -> 4399, p42
+  // = 0); getting out with it down (hook G983 = 9216) wins through 2246.
+  // Losing the bridge, or the control while the bridge is up, fails (hook
+  // G985 = 9214). The whole way is driven, with the player vulnerable.
+  20: ["kill:G13[1]", "kill:G13[2]", "kill:G13[3]", "kill:G283[0]", "kill:G283[1]", "kill:G283[2]",
+    "kill:G595", "wait:300", "killpilots:0", "drive:G625[0]", "kill:G13[6]", "kill:G13[7]", "kill:G13[8]",
+    "wait:300", "killpilots:0", "drive:G373", "eject", "walkto:G373,600", "click:184,146", "wait:100", "eject"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
