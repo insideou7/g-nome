@@ -89,6 +89,10 @@ then aims with 2012/2013:
   the ground plane and writes cos(angle) x 10000 to p105.
 - `MoveSubClumpToFace(unit, gun, target, 0, 1, ms, 56, 106, 111)` does the
   same for the gun's pitch (p106; the pitch rate lives in p111).
+- The yaw call passes no rate property, so it leaves the turn rate in the
+  object's twist rate; script 419 then turns the turret by
+  `StepTwist(unit, ms, 24, 20)`, which with no twist angle pending steps at
+  that rate.
 - 2072 and 2077 clamp the turret angle p24 to p20 and apply it with
   `RotateSubClump(unit, p22, 0, p27, p24)`; guns (p29, p31) get the pitch.
 

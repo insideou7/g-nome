@@ -1,7 +1,7 @@
 // Check the motion and task externs (web/src/anim/motion.js, tasks.js) on
 // stand-in objects shaped like the battlefield's WorldObject. Needs no game
 // files. Usage: node web/tests/motion-check.mjs
-import { motionExterns, leadDirection, approachAngle } from "../src/anim/motion.js";
+import { motionExterns, leadDirection, approachAngle, motionOf } from "../src/anim/motion.js";
 import { taskExterns } from "../src/anim/tasks.js";
 
 let failed = 0;
@@ -167,6 +167,20 @@ check(Math.abs(x.SphericalToRectangular(100, 0, 900, 0) - 100) <= 1 && x.Spheric
 const rate = { v: 0 };
 const s = approachAngle(90, 1, 90, rate, 0.1, 180);
 check(near(s, 0.9) && near(rate.v, 9), "the controller starts from rest with accel·dt");
+
+// Twist (turret yaw, property 24). With no twist angle pending, StepTwist
+// turns at the twist rate that SetTargetTwist (the player's torso keys) or
+// MoveSubClumpToFace (an AI turret) left in +0x6C.
+const tw = add(20);
+Object.assign(motionOf(tw), { maxAngAccel: { ...motionOf(tw).maxAngAccel, yaw: 90 }, maxAngVel: { ...motionOf(tw).maxAngVel, yaw: 45 } });
+motionOf(tw).twistRate = 30;
+check(x.StepTwist(20, 100, 24, 20) === 300, "StepTwist with no angle pending turns rate × ms (30°/s for 0.1 s = 300)");
+motionOf(tw).twistRate = 0;
+const twist = [];
+for (let i = 0; i < 10; i++) twist.push(x.SetTargetTwist(20, 1, 100), x.StepTwist(20, 100, 24, 20));
+check(twist[twist.length - 1] > 0 && twist[twist.length - 1] === Math.trunc(motionOf(tw).twistRate * 10), `holding a torso key ramps the twist up: ${twist.slice(-2)}`);
+x.SetTargetTwistAngle(20, 4500, 24);
+check(x.StepTwist(20, 100, 24, 20) !== 0 && motionOf(tw).twistLeft < 45, "a pending twist angle still goes through the approach");
 
 // Tasks: a type 11 table of 10 rows × 9 columns, as script 412 copies 411.
 const rows = 10, cols = 9;
