@@ -35,10 +35,18 @@ behaviour can be checked against the original.
 - 1 RenderWare unit = 1 model unit. Units are about 0.5 units tall. The
   battlefield thread found 1 unit = 100 script position units.
 - Colours are 0..1; camera and light colours also accept 0..255.
-- No back-face culling (`CULL` in `soft.js`): ground tile MPRT 2398 faces
-  away from a camera above it by the winding the mechs use (clockwise on
-  screen, `FRONT`), yet the game shows it. Closed models look the same with
-  the z-buffer, and lighting uses |N.L|.
+- Back faces are culled, as RenderWare 2 does, unless the polygon's
+  material has MaterialModes double (op `0x19` = 8) or `SetObjDoubleface`
+  made the clump two-sided (`twoSidedOf` in `soft.js`). RWL20's test
+  (`FUN_10049000`, used by `RwRenderImmediateTriangle` and the clump
+  renderer `FUN_1002bcc0`) draws a polygon when `(v1 - v0) x (v2 - v0) < 0`
+  in screen coordinates (x right, y down): `FRONT = -1`. That is the side
+  the model normals `(B - A) x (C - A)` point out of (432 of the 443 models
+  with over 10 triangles have them pointing outwards; the rest are open
+  shapes), so ground tile 2398 faces up and draws from above. Until
+  2026-11-01 `FRONT` had the other sign and culling was off to hide that.
+  Two-sided polygons are lit from either side (|N.L|); built meshes
+  (`createMesh`) are two-sided unless their material says otherwise.
 - Model op `0x32` is RWX TextureModes (1 lit, 2 foreshorten, 4 filter). A
   texture without the lit bit draws at full brightness; ground tiles use 2.
 - Model op `0x08` is the surface colour and `0x2C` the surface (ambient,
@@ -256,6 +264,9 @@ the screen is flipped.
 - `node web/tests/models-check.mjs game/g-nome/G-NOME` parses all 801
   models and fails if one has a visible untextured polygon that would draw
   black.
+- `node web/tests/materials-check.mjs game/g-nome/G-NOME` checks the
+  material and clump settings: back-face culling and double materials,
+  camera-facing sprites, vertex normals.
 - `node web/tests/free-check.mjs game/g-nome/G-NOME` checks
   FreeAllTextures and UncachePack, then plays missions 1, 19 and 1 again
   and fails if mission 1 holds more models, objects or textures the second
@@ -278,12 +289,31 @@ python3 scripts/rw-import-names.py re-output/render   # -> re-output/render/name
 ```
 
 `RENDER.R32` loads `RWL20.DLL` with `GetProcAddress` (`FUN_10025193`);
-the script swaps those pointers for RenderWare names.
+the script swaps those pointers for RenderWare names. RenderWare itself
+decompiles the same way (about 10 minutes, exports keep their names):
+`decompile-all game/g-nome/G-NOME/RWL20.DLL --output re-output/rwl20`.
 
-## Not done yet
+## Material and clump settings
 
-- Material settings ops `0x04` (AxisAlignment), `0x0D` (GeometrySampling),
-  `0x0F` (Hints), `0x16` (LightSampling: lighting is per face either way),
-  `0x19` (MaterialModes) are read but not used.
-- Ground textures look like noise in the menu palette; the mission palette
-  presumably fixes them.
+Values from RWL20.DLL (the RWX writer `FUN_1002d230` / `FUN_1002df20` and
+the `RwSet*` exports). `node web/tests/materials-check.mjs` checks them.
+
+| Op | RenderWare call | Values | In G-Nome's models | What the engine does |
+| --- | --- | --- | --- | --- |
+| `0x04` | `RwSetAxisAlignment` (current clump) | 1 none, 2 ZOrientX, 3 ZOrientY, 4 XYZ | 4 on the 29 one-quad effect sprites (shots 1246-1255, explosions and smoke 1796-1876, 2532, 2535) | XYZ clumps face the camera (`alignClumps` in `model.js`) |
+| `0x0D` | `RwSetSurfaceGeometrySampling` | 1 point cloud, 2 wireframe, 4 solid | always 4 | nothing (solid) |
+| `0x0F` | `RwSetHints` (current clump) | bits: 1 container, 2 HS, 4 editable | 0, 2 or 6 | nothing: the hints pick the clump renderer's polygon order (`FUN_1002bcc0`), which the z-buffer makes moot |
+| `0x16` | `RwSetSurfaceLightSampling` | 1 facet, 2 vertex | 2 on models 3852 and 5895 only | vertex normals average the faces around each vertex; WebGL interpolates them, the software renderer lights each face by the mean of its three |
+| `0x19` | `RwSetSurfaceMaterialModes` | 8 double (no other bit is allowed) | 8 on 266 models | double materials are not back-face culled |
+
+AxisAlignment XYZ (`FUN_10029dd0`, run before such a clump is drawn and
+undone after): the clump's world X axis becomes minus the camera's X
+(screen right) and Y the camera's up, both keeping their length, and Z
+points back at the camera with length 1. The position stays. Without it
+the sprites turned edge-on when the script's orientation for them did not
+face the camera. ZOrientX and ZOrientY are not used and not implemented.
+
+Ground textures look like noise when drawn with the menu palette and right
+with a mission's: their texels are palette indices, and the renderer
+converts them with the palette that is current (checked 2026-11-01). The
+game only shows ground in missions.

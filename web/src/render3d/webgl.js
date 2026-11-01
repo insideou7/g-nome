@@ -1,12 +1,12 @@
 // WebGL2 backend: same scene model and conventions as soft.js, drawn into
 // an offscreen canvas the battlefield view composites under the 2D sprites.
 import { mul } from "./math.js";
-import { clumpMatrices } from "./model.js";
+import { alignClumps, clumpMatrices } from "./model.js";
 import { activeLights, materialLight, rgb01, SPECULAR_MIN } from "./scene.js";
 
 // Lights the shader takes; more are dropped.
 const MAX_LIGHTS = 8;
-import { FRONT, CULL } from "./soft.js";
+import { FRONT, twoSidedOf } from "./soft.js";
 
 const VS = `#version 300 es
 layout(location = 0) in vec3 aPos;
@@ -206,6 +206,7 @@ export class WebGLBackend {
     gl.frontFace(FRONT > 0 ? gl.CW : gl.CCW);
     gl.useProgram(this.prog);
     gl.uniformMatrix4fv(u.uView, false, camera.view());
+    const camToWorld = camera.cameraToWorld();
     gl.uniform4f(u.uProj, 1 / camera.viewwindow[0], 1 / camera.viewwindow[1], camera.near, camera.far);
     const lights = activeLights(scene).slice(0, MAX_LIGHTS);
     gl.uniform1i(u.uLights, lights.length);
@@ -230,16 +231,16 @@ export class WebGLBackend {
       if (noDepth) gl.disable(gl.DEPTH_TEST);
       else gl.enable(gl.DEPTH_TEST);
       gl.depthMask(!noDepth && alpha >= 0.99);
-      const two = !!node.doubleSided[ci];
-      if (two || !CULL) gl.disable(gl.CULL_FACE);
+      const m = g.material;
+      const two = twoSidedOf(m, node, ci);
+      if (two) gl.disable(gl.CULL_FACE);
       else gl.enable(gl.CULL_FACE);
       gl.uniformMatrix4fv(u.uWorld, false, world);
-      const m = g.material;
       const tex = this.renderer.textureOf(m, node);
       const ml = materialLight(m, !!tex);
       gl.uniform3f(u.uK, ml.ka, ml.kd, ml.ks);
       gl.uniform3fv(u.uColor, m.color || [1, 1, 1]);
-      gl.uniform1i(u.uTwoSided, two || !CULL ? 1 : 0);
+      gl.uniform1i(u.uTwoSided, two ? 1 : 0);
       gl.uniform1f(u.uAlpha, alpha);
       gl.uniform1i(u.uTextured, tex ? 1 : 0);
       gl.uniform1i(u.uUnlit, ml.unlit ? 1 : 0);
@@ -251,7 +252,7 @@ export class WebGLBackend {
       gl.drawArrays(gl.TRIANGLES, g.start, g.count);
     };
     for (const node of scene.ordered()) {
-      const worlds = clumpMatrices(node.model, node.matrix, node.pose, node.instance?.joints);
+      const worlds = alignClumps(node.model, clumpMatrices(node.model, node.matrix, node.pose, node.instance?.joints), camToWorld);
       node.model.clumps.forEach((/** @type {any} */ clump, /** @type {number} */ ci) => {
         if (node.clumpHidden[ci] || !clump.mesh.count) return;
         for (const g of clump.mesh.groups) {
