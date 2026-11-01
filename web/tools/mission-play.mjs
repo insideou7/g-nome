@@ -30,7 +30,11 @@ const oCall = vm.callScript.bind(vm);
 globalThis.STK = []; const oRun = vm.runScript.bind(vm); vm.runScript = (s) => { STK.push(s); try { return oRun(s); } finally { STK.pop(); } };
 vm.callScript = (s, n, a) => { if (watch.has(s) || (s >= 8700 && s < 9300 && tick > 61 && !process.env.Q)) console.log(`  t${tick} script_${s}(${[...a].join(",")})` + (process.env.STACK ? "  <" + STK.join(">") : "")); return oCall(s, n, a); };
 const step = async (t) => { for (let i = 0; i < t; i++, tick++) { engine.tick(1000 / 30); await new Promise((r) => setImmediate(r)); } };
-await step(60);
+// Skip the opening movie first: left running, its end script sets G2119 to 0.
+for (let i = 0; i < 60 && !engine.plugins.some((p) => p.ownsScreen); i++) await step(1);
+engine.input.keyDown(0x1b); engine.input.keyUp(0x1b);
+for (let i = 0; i < 150 && !engine.clickRects.some((r) => !r.off && r.script === 8344); i++) await step(1);
+await step(30);
 for (const g of [2118, 2119]) vm.setGlobal(g, N); vm.setGlobal(982, 0); engine.run(8317);
 await step(60);
 const pos = (id) => engine.world.get(id)?.pos;

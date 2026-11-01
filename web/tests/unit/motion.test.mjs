@@ -125,6 +125,20 @@ test("yawToward sets a signed target angle", () => {
   assert.ok(near(motionOf(o).targetCos, 1));
 });
 
+// RENDER.R32's FUN_1001a850 gives every new object these limits. Script
+// 3304 (mission 11's class 181 craft) never sets the angular acceleration,
+// so the craft only turn because of them.
+test("motionOf starts with RENDER.R32's default limits, enough to turn", () => {
+  const o = object();
+  const m = motionOf(o);
+  assert.equal(m.maxAccel, 0.2);
+  assert.deepEqual(m.maxAngAccel, { pitch: 7, yaw: 40, roll: 7 });
+  assert.deepEqual(m.maxAngVel, { pitch: 7, yaw: 90, roll: 7 });
+  yawToward(o, [1, 0, 0]);
+  for (let i = 0; i < 300 && m.targetYaw !== 0; i++) spinStep(o, 1 / 30);
+  assert.equal(m.targetYaw, 0, "turned with no SetMaxAngularAccel");
+});
+
 test("spinStep turns the object onto the yaw target and stops", () => {
   const o = object();
   const m = motionOf(o);
