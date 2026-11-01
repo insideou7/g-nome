@@ -6,13 +6,16 @@
 //
 // The bot is not a player: it teleports near each goal (goto) and then
 // drives the last stretch with the throttle (walkto), so collisions and
-// hotspots still decide whether a unit boards or a trigger fires. Kills go
+// hotspots still decide whether a unit boards or a trigger fires. Where the
+// way itself is the test (mission 8's canyon gates), drive finds a path
+// round the solid hotspots and drives all of it. Kills go
 // through the game's own destroy script (engine.mission.destroy). Math.random
 // is seeded so a run always takes the same path.
 //
 // Step syntax, run in order with 60 ticks (2 s) after each:
 //   goto:REF[,dx,dz]    put the player's unit next to REF (offset in world units)
 //   walkto:REF[,ticks]  face REF and drive at it until the player reaches it
+//   drive:REF[,ticks]   drive to REF on a path round the solid hotspots
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
 //   wait:T              let T more ticks run
@@ -24,6 +27,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { insidePolygon } from "../src/battlefield/collision.js";
 
 // Mission goals and how the bot meets them (briefing text in quotes).
 const SOLUTIONS = {
@@ -58,6 +62,16 @@ const SOLUTIONS = {
   // 2-2 River Race: occupy the Meson tower (G263[0]), then destroy the
   // LATLON array (G381).
   7: ["goto:G263[0],0,-4", "eject", "walkto:G263[0],400", "eject", "kill:G381"],
+  // 2-3 Canyon Maze: "you'll meet [them] at the exit of the gorge". Gates
+  // (class 237) close the canyon; destroying their control tower (class
+  // 223) switches them off (2101 -> 2279 drops the barrier hotspot). Tower
+  // G420 opens the west gates (G427[0..2]); the trigger past them (G625[1])
+  // springs the ambush; tower G419 opens the south gates (G427[3..5]) to
+  // the exit (trigger G625[2], script 8919 wins). The wingman (G13[1])
+  // guards the start until ordered on the radio: guard and follow tie at
+  // priority 1 and TaskSetHighestIndex keeps the current task, as RENDER.R32
+  // does. It must live (8920: its pilot G2 dying fails the mission).
+  8: ["kill:G420", "drive:G625[1]", "kill:G419", "drive:G625[2]"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -82,6 +96,67 @@ const files = {
 };
 
 const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d;
+const TILE = 6; // ground tiles (level -100) sit on a 6-unit grid
+const TRIGGER = 500; // class of trigger zones: their hotspots never block
+
+// Waypoints (x, z) from `from` to `to` on a 1-unit grid: cells on a ground
+// tile and outside every solid hotspot still in its object's hotspot list
+// (property 16; scripts 434/435 take a gate's barrier out of it), found
+// breadth first. Null when there is no way.
+/**
+ * @param {any} engine
+ * @param {number[]} from
+ * @param {number[]} to
+ */
+function findPath(engine, from, to) {
+  const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
+  const objs = [...engine.world.objects.values()];
+  const tiles = new Set();
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const o of objs) {
+    if (o.level !== -100) continue;
+    tiles.add(`${Math.round(o.pos[0] / TILE)},${Math.round(o.pos[2] / TILE)}`);
+    x0 = Math.min(x0, o.pos[0] - TILE); x1 = Math.max(x1, o.pos[0] + TILE);
+    z0 = Math.min(z0, o.pos[2] - TILE); z1 = Math.max(z1, o.pos[2] + TILE);
+  }
+  const solid = [];
+  for (const o of objs) {
+    if (prop(o.id, 0) === TRIGGER) continue;
+    for (const n of engine.renderLists?.get(prop(o.id, 16)) || []) {
+      const h = engine.hotspots.get(n);
+      if (h && h.flags & 1) solid.push(h);
+    }
+  }
+  const blocked = (/** @type {number} */ x, /** @type {number} */ z) =>
+    !tiles.has(`${Math.round(x / TILE)},${Math.round(z / TILE)}`) ||
+    solid.some((h) => {
+      if (h.type === 0x10) return Math.hypot(h.pos[0] - x, h.pos[2] - z) <= h.id / 100;
+      const fp = engine.collision.footprint(h);
+      if (!fp.pts.length) return false;
+      return insidePolygon(fp.pts, x, z) !== (h.type === 8);
+    });
+  x0 = Math.floor(x0); z0 = Math.floor(z0);
+  const w = Math.ceil(x1) - x0 + 1, hgt = Math.ceil(z1) - z0 + 1;
+  const cell = (/** @type {number[]} */ p) => Math.round(p[2] - z0) * w + Math.round(p[0] - x0);
+  const start = cell(from), goal = cell(to);
+  const prev = new Int32Array(w * hgt).fill(-1);
+  prev[start] = start;
+  const queue = [start];
+  for (let k = 0; k < queue.length && prev[goal] < 0; k++) {
+    const c = queue[k], cx = c % w, cz = (c - cx) / w;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const x = cx + dx, z = cz + dz, n = z * w + x;
+      if (x < 0 || z < 0 || x >= w || z >= hgt || prev[n] >= 0) continue;
+      if (n !== goal && blocked(x + x0, z + z0)) continue;
+      prev[n] = c;
+      queue.push(n);
+    }
+  }
+  if (prev[goal] < 0) return null;
+  const out = [];
+  for (let c = goal; c !== start; c = prev[c]) out.push([(c % w) + x0, Math.floor(c / w) + z0]);
+  return out.reverse().filter((_, i, a) => i % 4 === 3 || i === a.length - 1);
+}
 const IFF_KEYS = [0x55, 0x49, 0x4f, 0x50]; // U I O P: actions 55-58, scripts 1994-1997
 
 /** @param {number} n */
@@ -141,6 +216,28 @@ async function play(n) {
         for (let i = 0; i < 20; i++) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)}`);
+      } else if (k === "drive") {
+        const [r, ticks = "20000"] = v.split(",");
+        const id = ref(r);
+        const way = findPath(engine, obj(player()).pos, obj(id).pos);
+        assert.ok(way, `mission ${n}: ${s}: no way through`);
+        let i = 0;
+        for (const [x, z] of way) {
+          for (; i < Number(ticks) && engine.mission.status().outcome === "playing"; i++) {
+            const me = obj(player());
+            if (!me) break;
+            const dx = x - me.pos[0], dz = z - me.pos[2], d = Math.hypot(dx, dz);
+            if (d < 2) break;
+            me.basis = { at: [dx / d, 0, dz / d], up: [0, 1, 0], right: [-dz / d, 0, dx / d] };
+            me.tickBasis = me.basis;
+            if (i % 3 === 0) engine.input.keyDown(VK_THROTTLE_UP, false, false, i > 0);
+            await step(1);
+          }
+        }
+        engine.input.keyUp(VK_THROTTLE_UP);
+        for (let j = 0; j < 20; j++) engine.input.keyDown(VK_THROTTLE_DOWN, false, false, j > 0);
+        engine.input.keyUp(VK_THROTTLE_DOWN);
+        if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)} after ${i} ticks`);
       } else if (k === "eject") engine.callScript(1943, []);
       else if (k === "kill") engine.mission.destroy(ref(v));
       else if (k === "wait") await step(Number(v));
