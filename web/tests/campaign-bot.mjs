@@ -15,8 +15,9 @@
 // Step syntax, run in order with 60 ticks (2 s) after each:
 //   goto:REF[,dx,dz]    put the player's unit next to REF (offset in world units)
 //   walkto:REF[,ticks]  face REF and drive at it until the player reaches it
-//   drive:REF[,ticks[,clear]]  drive to REF on a path round the solid hotspots,
-//                       keeping `clear` world units from them
+//   drive:REF[,ticks[,clear[,dx,dz]]]  drive to REF (plus an offset) on a path round the
+//                       solid hotspots, keeping `clear` world units from them (empty: default)
+//   stop                throttle down until the player's unit stands still
 //   eject               leave the current vehicle or building (script 1943)
 //   kill:REF            destroy REF (script 2242)
 //   killpilots:SIDE     destroy every pilot on foot whose side (p115) is SIDE
@@ -24,6 +25,9 @@
 //   key:VK              press and release a key (virtual-key code)
 //   click:X,Y           click at screen pixels
 //   iff:N               dial the IFF code N with U, I, O and P (one octal digit each)
+//   hold:REF,G[,ticks]  face REF and hold fire key G (1-4: the weapon group) for ticks (default 1)
+//   near:REF,D[,ticks]  wait (at most ticks, default 1200) until REF is within D world units; no 60-tick pause after
+//   tab:REF             press Tab (next target, script 2000) until REF is the target (G1811)
 //   call:S(ARGS)        run script S with REF arguments
 //   fire:REF[,ticks[,group]]  face REF and fire weapon group 1-4 (keys 1-4, default 1)
 //                       until REF is destroyed
@@ -139,6 +143,30 @@ const SOLUTIONS = {
   // (G5) dying fails the mission.
   13: ["goto:G273[1],-15,5", "key:69", "key:113", "key:112", "key:115", "key:112",
     "goto:G381,-6,-20", "kill:G381", "key:114", "key:120", "drive:G625[3]"],
+  // 3-3 Raid on Ur-Ulit: "Instruct wingmen to occupy Scorp vehicles"
+  // (G53[1..3], hook G984 = 9084 wins once all three have friendly
+  // pilots). Shooting the Merc HAWC G53[0] (hit hook G987 = 9081) sends it
+  // out of the base to trigger G625[0] and after the player; an EGGER shot
+  // empties it and boarding it with the player's pilot G1 (hook 9083) puts
+  // the wingmen on follow and the Merc mines (class 570, G467/G499) on
+  // view. The base buildings, guard pilot and towers go first, while the
+  // towers are empty: a crew thrown out of a destroyed tower runs for an
+  // empty Scorp, and manned towers shoot the player down. The wingmen
+  // (G13[0], G13[1], G13[3]) start behind rocks and get stuck against
+  // them when they steer straight at their leader (RENDER.R32 does the
+  // same), so they are told to follow (F1, F5) and led out of the camp to
+  // the north first; they ignore mines (property 132), the player picks a
+  // lane between them. Every 20 s after boarding, 9087 sends a new Merc
+  // pilot for the Scorps, so they are shot on the way in. At the Scorps,
+  // Tab picks each Scorp, F2-F4 picks a wingman and F4 (message 9, script
+  // 2121) sends him out of his vehicle and into the target.
+  14: ["kill:G397", "kill:G595", "kill:G183[0]", "kill:G273[0]", "kill:G273[1]", "killpilots:3",
+    "key:112", "key:116", "drive:G625[1],20000,,6,8", "wait:600",
+    "goto:G53,-12,0", "hold:G53,1,3", "goto:G625[1],6,8", "near:G53,25", "eject", "near:G53,12",
+    "goto:G53,0,5", "hold:G53,2,20", "wait:30", "walkto:G53,300",
+    "drive:G54,600,,-31.5,26", "drive:G54,600,,-31.5,5", "killpilots:3", "drive:G54,600,,-10,4", "stop", "killpilots:3",
+    "tab:G54", "key:113", "key:115", "killpilots:3", "tab:G55", "key:114", "key:115", "killpilots:3",
+    "tab:G56", "key:115", "key:115", "killpilots:3", "wait:300", "killpilots:3", "wait:300"],
   // 3-5 Ion-Strike: "Destroy G-Nome laboratory", "Defeat rocket tower
   // defense", "Destroy laboratory with ion-strike". The four rocket towers
   // (G333, class 234) belong to the control station G345 (class 222);
@@ -360,10 +388,12 @@ async function play(n) {
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)}`);
       } else if (k === "drive") {
-        const [r, ticks = "20000", clear] = v.split(",");
+        const [r, ticks = "20000", c = "", dx = "0", dz = "0"] = v.split(",");
+        const clear = c === "" ? undefined : c;
         const id = ref(r);
         const point = /^(-?[\d.]+)\/(-?[\d.]+)$/.exec(r);
-        const goal = point ? [Number(point[1]), 0, Number(point[2])] : obj(id).pos;
+        const at = point ? [Number(point[1]), 0, Number(point[2])] : obj(id).pos;
+        const goal = [at[0] + Number(dx), 0, at[2] + Number(dz)];
         // Without a clearance, try the default and then none.
         const way = clear !== undefined ? findPath(engine, obj(player()).pos, goal, Number(clear), true)
           : findPath(engine, obj(player()).pos, goal) || findPath(engine, obj(player()).pos, goal, 0);
@@ -386,6 +416,13 @@ async function play(n) {
         engine.input.keyUp(VK_THROTTLE_DOWN);
         if (verbose) console.log(`    now ${player()} at ${obj(player())?.pos.map(Math.round)} after ${i} ticks`);
       } else if (k === "eject") engine.callScript(1943, []);
+      else if (k === "stop") {
+        for (let i = 0; i < 300 && (obj(player())?.speed ?? 0) > 0; i++) {
+          engine.input.keyDown(VK_THROTTLE_DOWN, false, false, i > 0);
+          await step(1);
+        }
+        engine.input.keyUp(VK_THROTTLE_DOWN);
+      }
       else if (k === "kill") engine.mission.destroy(ref(v));
       else if (k === "killpilots") {
         // Pilots on foot (class below 100) of side p115 = v, such as the
@@ -463,6 +500,37 @@ async function play(n) {
           }
         }
         assert.equal(prop(player(), 113), want, `mission ${n}: IFF dial`);
+      } else if (k === "hold") {
+        const [r, g, ticks = "1"] = v.split(",");
+        const id = ref(r);
+        assert.ok(obj(id) && obj(player()), `mission ${n}: ${s}: no such unit`);
+        engine.input.keyDown(0x30 + Number(g));
+        for (let i = 0; i < Number(ticks); i++) {
+          const me = obj(player()), target = obj(id);
+          if (!me || !target) break;
+          const dx = target.pos[0] - me.pos[0], dz = target.pos[2] - me.pos[2], d = Math.hypot(dx, dz);
+          me.basis = { at: [dx / d, 0, dz / d], up: [0, 1, 0], right: [-dz / d, 0, dx / d] };
+          me.tickBasis = me.basis;
+          await step(1);
+        }
+        engine.input.keyUp(0x30 + Number(g));
+      } else if (k === "near") {
+        const [r, dist, ticks = "1200"] = v.split(",");
+        const id = ref(r);
+        for (let i = 0; i < Number(ticks); i++) {
+          const me = obj(player()), t = obj(id);
+          if (!me || !t || Math.hypot(t.pos[0] - me.pos[0], t.pos[2] - me.pos[2]) <= Number(dist)) break;
+          await step(1);
+        }
+        continue;
+      } else if (k === "tab") {
+        const id = ref(v);
+        for (let i = 0; i < 150 && vm.getGlobal(1811) !== id; i++) {
+          engine.input.keyDown(0x09);
+          await step(1);
+          engine.input.keyUp(0x09);
+        }
+        assert.equal(vm.getGlobal(1811), id, `mission ${n}: ${s}: not in range`);
       } else if (k === "call") {
         const [, id, args] = /** @type {RegExpExecArray} */ (/(\d+)\((.*)\)/.exec(v));
         vm.callValue(Number(id), args ? args.split(",").map(ref) : []);
