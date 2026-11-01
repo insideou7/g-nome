@@ -63,7 +63,8 @@ Pause key (runs the SetPauseScript script), a pending CaptureKey (hands
 the key, with Shift/Ctrl/mouse/joystick as device 0-6, to the script),
 mouse buttons as keys while MouseOnOff(1), joystick buttons, and the
 action-key tables of MapActionKeys. Browser: `web/src/input.js` and
-`web/src/battlefield/controls.js`.
+`web/src/battlefield/controls.js`; joysticks are gamepads
+(`web/src/battlefield/joystick.js`, see "Joysticks" in `battlefield.md`).
 
 `RtLibFree` (`0x10001ba2`) undoes the window subclass, pauses audio,
 unloads every model and object and closes RenderWare. The browser has
@@ -88,15 +89,14 @@ nothing to free.
   pauses and resumes a mission, 8395 the menus. It did nothing before.
 - **Background suspend.** Hiding the page suspends the battlefield unless
   the scripts asked for SetBackProcess(1).
-- **RangeJoystickAxis** returns -1 with no joystick, as the original does.
+- **Joysticks.** EnableJoystick, CheckActionState's devices 3 and 6,
+  RangeJoystickAxis and the button/hat poll (`0x1000c460`) read the first
+  two gamepads through the Gamepad API (`battlefield/joystick.js`).
 
 Tested by `node web/tests/waves-check.mjs`.
 
 ## Still open
 
-- **Joystick.** EnableJoystick, RangeJoystickAxis and joystick buttons
-  work only as "no joystick". The Gamepad API could stand in for
-  `joyGetPosEx` (two joysticks, six axes, buttons as devices 3 and 6).
 - **Streaming detail.** The original streams ADPCM sounds through a 4 KB
   ring buffer; the browser decodes them whole. Same sound, not the same
   timing to the millisecond.
@@ -115,7 +115,6 @@ Tested by `node web/tests/waves-check.mjs`.
 | `MoveToFlock`, `ObjectDeviate`, `animationSetupProps` | empty in RENDER.R32 (return 0) |
 | `AddStars` | empty in this build |
 | `SetObjPerspective` | perspective-correct texturing is always on |
-| `EnableJoystick` | no joystick yet (see above) |
 
 ## The exports
 
@@ -370,8 +369,8 @@ Files are kept in `localStorage` (`anim/files.js`).
 | `MouseOnOff(on)` | `0x1000dbac` | 17 | `battlefield/externs.js` | mouse buttons as keys |
 | `CaptureKey(script)` | `0x1000db64` | 1 | `plugins/render.js` | next key to a script (INTERFACE screen) |
 | `SetPauseScript(script)` | `0x1000db88` | 14 | `plugins/render.js` | script for the Pause key |
-| `EnableJoystick(on, ?)` | `0x1000d80b` | 15 | `battlefield/externs.js` | joystick on/off; no joystick here |
-| `RangeJoystickAxis(binds, action, min, max, ?)` | `0x1000d184` | 1 | `battlefield/externs.js` | axis value; -1 without joystick |
+| `EnableJoystick(on, ?)` | `0x1000d80b` | 15 | `battlefield/externs.js` | joystick on/off; gamepads (`battlefield/joystick.js`) |
+| `RangeJoystickAxis(binds, action, min, max, ?)` | `0x1000d184` | 1 | `battlefield/externs.js` | bound axis scaled to min..max; -1 without joystick |
 
 ## Not implemented
 

@@ -267,17 +267,15 @@ export function battlefieldExterns(engine) {
       controls.mouse = !!on;
       return 1;
     },
-    // RangeJoystickAxis(binds, action, min, max, ?) 0x1000d184: the bound
-    // joystick axis scaled to min..max; -1 while no joystick is enabled
-    // (+0x110 = 0), which is always the case here.
-    RangeJoystickAxis() {
-      return -1;
+    // RangeJoystickAxis(binds, action, min, max, deadZone) 0x1000d184: the
+    // bound joystick axis scaled to min..max; -1 while no joystick is on
+    RangeJoystickAxis(binds, action, min, max, deadZone) {
+      return controls.axis(binds, action, min, max, deadZone);
     },
-    // EnableJoystick(on, ?) 0x1000d80b: joyGetPosEx on joysticks 1 and 2,
-    // centre of each axis, and their buttons as key presses (MM_JOY1/2
-    // BUTTONDOWN in 0x1000dc7a). No joystick support in the browser yet.
-    EnableJoystick() {
-      return 1;
+    // EnableJoystick(on, ?) 0x1000d80b: joyGetPosEx on joysticks 1 and 2;
+    // returns which answer (gamepads here, battlefield/joystick.js)
+    EnableJoystick(on) {
+      return controls.joystick.enable(on);
     },
 
     // --- camera ------------------------------------------------------------

@@ -242,13 +242,13 @@ would (name from list 6928, which has "SHFT" and "CTRL"), and
 the key is down. Caps Lock (VK 0x14, "Capital") is a plain key.
 
 The port outlines conflicting cells in red (`web/src/key-conflicts.js`):
-the same input (devices 0 and 5 count as one; joysticks are left out) on two
+the same input (devices 0 and 5 count as one) on two
 actions that share a control mode in table 2544 columns 2-5. The default map
 has none: Space is on actions 9 and 42, but no mode allows action 42.
 
 Devices: 0 the key alone, 1 Ctrl+key, 2 Shift+key, 5 the key without
 modifiers, 4 a mouse button (1 left, 2 right, 3 middle; only while
-`MouseOnOff(1)`), 3 and 6 joystick axes and buttons. `CheckActionState`
+`MouseOnOff(1)`), 3 and 6 joystick axes and buttons (see Joysticks). `CheckActionState`
 returns 1 when a binding is held, 0 when the action is bound but not held,
 and -1 when it is not bound or not allowed in this mode. In the default map
 actions 0 and 1 (turn) are the left and right arrows, 7 and 8 the up and
@@ -258,6 +258,55 @@ In the default map the throttle is action 2 and 3: numpad `+` and `-`, or
 Ctrl+Up and Ctrl+Down. Up and Down (actions 7 and 8) tilt the gun, Left and
 Right (0 and 1) turn, `,` and `.` (5 and 6) twist the torso. The browser
 engine maps numpad and punctuation keys by `KeyboardEvent.code`.
+
+### Joysticks
+
+RENDER.R32 reads two WinMM joysticks with `joyGetPosEx`. OPTIONS >
+INTERFACE has a joystick on/off switch (global 2078, kept in the .ini, off
+by default; scripts 6330/6331); the screen and each mission (script 8317)
+call `EnableJoystick(G2078)`, and other screens turn it off.
+
+- `EnableJoystick(on)` (`0x1000d80b`) reads the caps of joysticks 1 and 2,
+  keeps the centre of each axis (`(min + max) >> 1`) and sets bit 0/1 of
+  ctx+0x110 for each that answers. It returns those bits.
+- Bindings: device 3 is joystick 1, device 6 joystick 2. Keys: 1/2 X above
+  or below the centre, 3/4 Y, 5/6 Z, 7/8 R, 9/10 U, 11/12 V, 13-16 the hat
+  at 0, 18000, 27000, 9000 (up, down, left, right), 17-24 buttons 1-8. The
+  INTERFACE screen names them from list 6929 ("Joy Left", "Hat Up", "Joy
+  Btn 3", ...).
+- `CheckActionState` (`0x1000c631`) counts an axis as held more than 8000
+  (of 0..65535) from the centre, 1000 for U, and only when the caps have
+  that axis (Z, R, U, V, hat). An axis or hat binding that is not held
+  gives 0; buttons 1-4 give 1 when down and nothing otherwise, and 5-8 are
+  never held.
+- The poll `0x1000c460` runs from the frame service every
+  `wPeriodMin + 20` ms. It posts MM_JOY1/2BUTTONDOWN with key 17-24 for
+  buttons and 13-16 when the hat moves to a direction. Buttons go through
+  `state ^= buttons`, so a held button posts again every other poll. The
+  window procedure sends them to a pending CaptureKey as device 3 or 6, or
+  runs the press bindings with that device and key.
+- `RangeJoystickAxis(binds, action, min, max, deadZone)` (`0x1000d184`)
+  finds the action's binding and reads that axis (odd keys turned round).
+  Without a dead zone it is `(max - min) * pos / range`. With one, a fifth
+  of the range around the centre gives 0; above it scales to 0..max, below
+  to min..0 (or min itself when min is not negative). Script 1975 uses it
+  for action 72, which the default map binds to joystick key 0 (no axis),
+  so it only matters for a hand-edited map.
+
+The default map (table 2548) binds the stick X to turn (actions 0/1), Y to
+the gun tilt (7/8), the hat to throttle (2/3, up/down) and torso twist
+(5/6, left/right), and buttons 1-4 to weapons 1-4 (29-32).
+
+The browser (`web/src/battlefield/joystick.js`) makes the first two
+connected gamepads into joysticks 1 and 2. A standard-mapping gamepad
+reads the way Windows reports an Xbox pad: X/Y the left stick, U/R the
+right stick, Z the triggers, buttons 1-8 A B X Y LB RB Back Start, the
+d-pad as the hat. Other gamepads give their first six axes as X Y Z R U V,
+their buttons in order and no hat. Browsers only list a gamepad after a
+button on it is pressed, so while the scripts have the joystick on, a pad
+that shows up later is taken in (the original looks only in
+`EnableJoystick`). Tested by `web/tests/unit/joystick.test.mjs` and the
+walkthrough's `joystick` section.
 
 ## Level of detail when an object is added
 

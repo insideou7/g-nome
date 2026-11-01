@@ -109,6 +109,7 @@ export class RenderPlugin {
     const e = this.engine, w = e.world;
     this.waves.service();
     if (!w) return;
+    w.controls.pollJoystick(e.time);
     w.advance(ms);
     if (!e.display) return;
     const canvas = w.shown ? w.view.frame() : null;

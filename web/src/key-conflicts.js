@@ -12,8 +12,8 @@
 // both the key without modifiers) and their actions can be active at the
 // same time: table 2544 columns 2-5 say in which control modes an action
 // works. So Space for action 9 and action 42 (which no mode allows) is no
-// conflict. Joystick bindings (devices 3 and 6) are left out: the browser
-// has no joystick.
+// conflict. Joystick bindings (devices 3 and 6, gamepads in the browser)
+// count per joystick.
 
 import { table } from "./builtins.js";
 import { ORIGIN_X, ORIGIN_Y } from "./sprites.js";
@@ -31,14 +31,14 @@ const CELL_SCRIPT = 6365; // Mapping 1 cells' click script: the screen is up
 const COLUMN_X = [268, 345, 422];
 const CELL_W = 72;
 
-// A binding as one string per input, or null when it is empty or a joystick.
+// A binding as one string per input, or null when it is empty.
 /**
  * @param {number} device
  * @param {any} key
  */
 function inputKey(device, key) {
   if (!key && !device) return null;
-  if (device === 3 || device === 6) return null;
+  if ((device === 3 || device === 6) && !key) return null;
   return `${device === 5 ? 0 : device}/${key}`;
 }
 
