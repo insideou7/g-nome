@@ -132,6 +132,25 @@ Mission 1 uses G985 = 8740: every enemy destroyed adds one to G707, and at
 G2432 it marks the mission won (`script_8318(1, 2)`) and runs 2245. Its G984
 (8739) and G988 (8738) only cue music (`script_314`).
 
+### Gates and their towers
+
+Class 237 objects are gates: barriers whose hotspots (kind 7 in the
+hotspot's callback parameter 2) block a canyon or a wall gap. Each one names
+its control tower (class 223) in property 44, set by `script_2099(gate,
+tower)` or `script_2098(&list, n, tower)`. Destroying the tower runs 2101
+from the death handler 2278: every gate in the mission's object table whose
+property 44 is the tower gets 2279, which takes the kind 7 hotspots out of
+the gate's hotspot list (`script_434(gate, 7)`), turns on the kind 16 ones
+(`script_435(gate, 16, 1)`) and sets texture frame 0. Mission 8 (Canyon
+Maze) is built on this: tower G420 opens the west gates G427[0..2] and G419
+the south gates G427[3..5] to the exit.
+
+A follow order (task 2018, `script_2348`) at the same priority as the guard
+task every vehicle gets at mission start (2530: `setNextTask(unit, 2024, 1,
+...)`) never runs: `TaskSetHighestIndex` (0x1001b98c) only switches to a row
+with a strictly higher priority. So mission 8's wingman G13[1] guards the
+start until the player orders it over the radio.
+
 ## Winning and losing
 
 | Script | Meaning |
