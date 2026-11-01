@@ -8,9 +8,14 @@ the game's data. It does not contain the game itself.
 ## Running the game
 https://insideou7.github.io/g-nome/
 
-Visit or deploy the pages URL and upload the game files. You can upload a zipped folder as well.
+Open the page and load your copy of the game: the game folder, or a .zip
+of it. The files are read in your browser and never uploaded.
 
-There is an added debug menu under options that has various cheats from the original.
+The whole game is playable: the menus, the LAB, all 22 campaign missions
+through to the ending, saves and network play. Gamepads work as joysticks
+(turn the joystick on in OPTIONS > INTERFACE). OPTIONS also has an added
+DEBUG button with a level select, the original's cheat codes and the two
+weapons the game never hands out.
 
 ## Getting the game files
 
@@ -36,7 +41,9 @@ or anything extracted from them.** Commit notes, specs and code instead.
 | [docs/render3d.md](docs/render3d.md), [docs/battlefield.md](docs/battlefield.md) | The 3D renderer, lighting, terrain, camera and mission world |
 | [docs/missions.md](docs/missions.md), [docs/combat.md](docs/combat.md) | Enemy AI, mission goals, weapons, projectiles and explosions |
 | [docs/netgn.md](docs/netgn.md) | `NETGN.R32` multiplayer (DirectPlay 3) and its browser version |
+| [docs/render-r32.md](docs/render-r32.md) | All 260 `RENDER.R32` exports: what each does and where the browser version is |
 | [docs/cheats.md](docs/cheats.md) | The cheat codes and the hidden debug actions |
+| [docs/unused-content.md](docs/unused-content.md) | Content the game never uses (two weapons, unplaced catalog objects) |
 | [docs/engine-plan.md](docs/engine-plan.md) | The browser engine: scope, architecture and status |
 | [docs/reverse-engineering-setup.md](docs/reverse-engineering-setup.md) | Full setup for REA, Ghidra and the Python helpers |
 | `web/` | The browser engine, which runs the game from your own files ([web/README.md](web/README.md)) |
@@ -87,8 +94,10 @@ the scripts' integer tables (see `web/src/builtins.js`).
 `web/` is a reimplementation of the game's engine that runs in a browser from
 your own copy of the game. It is published at
 <https://insideou7.github.io/g-nome/>: pick your game folder or a .zip of it,
-and the files are read locally, never uploaded. The menus, the LAB, the
-campaign missions and multiplayer run. To run it yourself, see
+and the files are read locally, never uploaded. The menus, the LAB, all 22
+campaign missions, saves, multiplayer and gamepads work. To run it yourself,
+or to run its tests (`cd web && npm test` for the unit tests, plus a
+walkthrough, a campaign bot and a smoke test that need the game files), see
 [web/README.md](web/README.md).
 
 ## Reading the scripts

@@ -1,7 +1,7 @@
 # G-Nome browser engine
 
-A work-in-progress reimplementation of 7th Level's Runtime Player that runs
-G-Nome from the original game files. Plan and status:
+A reimplementation of 7th Level's Runtime Player that runs G-Nome from the
+original game files. Plan and status:
 [docs/engine-plan.md](../docs/engine-plan.md).
 
 You need your own copy of the game. Nothing here contains game data.
@@ -40,11 +40,20 @@ python3 -m http.server 8000
 # open http://localhost:8000/web/
 ```
 
-Today it boots the game's scripts, plays the opening movie (Esc or Space
-skips it) and runs the main menu with its music, sounds and status text.
-All submenus, the options screens, the credits and the first campaign
-briefing work. Anything that draws 3D (the LAB, unit previews, missions)
-needs the RENDER.R32 reimplementation, which is the next big piece.
+### What works
+
+The whole game runs from its own scripts: the opening movie (Esc or Space
+skips it), the main menu and all submenus, the options screens, the
+credits, the LAB, the campaign briefings with their unit previews, and all
+22 campaign missions through to the ending movie. Every mission has been
+won by the automated campaign bot (`web/tests/campaign-bot.mjs`, mission 1
+by the walkthrough) and passes the smoke test
+(`web/tests/missions-smoke.mjs`). Saves, network play, gamepads as
+joysticks and the original's cheat codes work too; see below.
+
+Every RENDER.R32 function the scripts call is implemented
+([docs/render-r32.md](../docs/render-r32.md) lists all 260 exports, and
+what is left out is never called).
 
 ### Network play
 
@@ -97,12 +106,22 @@ cliffs.
 When the game quits (EXIT, then Y, or the end of the campaign), it starts
 over from the opening movie, without reading the game files again.
 
+## Saves
+
+Like the original, G-Nome saves the campaign between missions (GAME >
+SAVE and LOAD), not a mission in progress. Saves are kept in the browser;
+the page's **Export saves** and **Import saves** buttons move them to and
+from a file, so they survive clearing the browser.
+
 ## Debug menu
 
 OPTIONS has a DEBUG button in the first empty slot on the right. It opens a
 panel with a level select (any campaign mission, in any vehicle or as any
-soldier), a frame rate counter, and the game's own cheat codes. See
-[docs/cheats.md](../docs/cheats.md).
+soldier), an "Unused weapons" switch that hands out the two weapons the
+game never gives you, a frame rate counter, and the game's own cheat codes.
+Ctrl+I invulnerability (from the cheats) stays with the player when they
+get in or out of a vehicle. See [docs/cheats.md](../docs/cheats.md) and
+[docs/unused-content.md](../docs/unused-content.md).
 
 ## Controls
 
@@ -114,6 +133,15 @@ outlined in red share their key with another game function that can be
 active at the same time (a browser port addition; the original did not
 warn).
 
+Gamepads stand in for the original's two joysticks. Turn the joystick on
+in OPTIONS > INTERFACE (it is off by default, as in the original), then
+press a button on the pad so the browser lists it. With the default map
+the stick turns and tilts the gun, the d-pad sets the throttle and twists
+the torso, and buttons 1-4 fire weapons 1-4. The rules are in the
+Joysticks section of [docs/battlefield.md](../docs/battlefield.md).
+
+The Pause key pauses a mission, as in the original.
+
 ## Developer tools
 
 ```bash
@@ -122,11 +150,22 @@ node web/tools/run-headless.mjs game/g-nome/G-NOME --ticks 2200
 # ...in mission 1, with a summary of the 3D world and camera
 node web/tools/run-headless.mjs game/g-nome/G-NOME --ticks 300 --mission 1 --world
 
-# Automated play-through: menus, options, network, LAB, EXIT prompt,
-# campaign briefing and mission 1 (about 15 s; exits 1 on a failure)
+# Automated play-through: menus, options, controls, joystick, network,
+# LAB, EXIT prompt, campaign briefing, mission 1 and saves
+# (about 15 s; exits 1 on a failure)
 node web/tests/walkthrough.mjs game/g-nome/G-NOME
 # ...one section, with a PNG of each screen it visits
 node web/tests/walkthrough.mjs game/g-nome/G-NOME --only lab --shots /tmp/walk
+
+# Campaign bot: wins missions 2-22 with a scripted bot (boarding, ejecting,
+# triggers, control panels, IFF codes, radio, kills); the solutions and the
+# step syntax are at the top of the file
+node web/tests/campaign-bot.mjs game/g-nome/G-NOME
+node web/tests/campaign-bot.mjs game/g-nome/G-NOME --missions 2,5-7
+
+# Smoke test for all 22 missions: start, 50 s unattended with the player
+# invulnerable, force a win, check the next briefing (about 4 minutes)
+node web/tests/missions-smoke.mjs game/g-nome/G-NOME --missions 2,5-7
 
 # Network: DirectPlay stand-in and the NETGN message formats
 node web/tests/netgn-check.mjs
@@ -212,6 +251,10 @@ They live in `web/tests/unit/`:
 - `geometry.test.mjs`: point in polygon, segment crossing and footprints
   from `src/battlefield/collision.js`.
 - `saves.test.mjs`: save export and import.
+- `cheats.test.mjs`: invulnerability following the player in and out of
+  vehicles.
+- `joystick.test.mjs`: gamepads read as WinMM joysticks (axes, hat,
+  buttons, caps).
 
 `.github/workflows/unit-tests.yml` runs them on pull requests that touch
 `web/`. Add a `*.test.mjs` file there for new pure code; the `*-check.mjs`
