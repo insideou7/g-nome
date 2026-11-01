@@ -64,6 +64,9 @@ Project skills live in `.claude/skills/` (see its README), including the
 - `web/tests/walkthrough.mjs`: automated play-through of the menus, LAB and
   mission 1 on the game files. Run it after engine changes; add a check
   when you fix a bug a player would see.
+- `web/tests/campaign-bot.mjs`: scripted bot that wins campaign missions
+  2-22 (solutions per mission at the top of the file; `--missions 2,5-7`).
+  Run it after changes that touch mission play.
 - `web/tests/missions-smoke.mjs`: smoke test for all 22 campaign missions
   (start, 50 s unattended with the player invulnerable, force a win, check
   the next briefing). About 4 minutes; `--missions 2,5-7` for a subset.

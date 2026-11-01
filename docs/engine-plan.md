@@ -4,6 +4,15 @@ Goal: play G-Nome in a web browser from the original game files, the way
 ScummVM plays other old games. The player supplies their own copy; the engine
 never ships or commits game data.
 
+**Status: done.** All milestones below are complete. The intro, menus, LAB,
+briefings, all 22 campaign missions (through to the ending movie), saves and
+network play run from the game's own scripts. Every RENDER.R32 extern the
+scripts call is implemented ([render-r32.md](render-r32.md)). Missions 2-22
+are won by the campaign bot (`web/tests/campaign-bot.mjs`) and mission 1 by
+the walkthrough; `web/tests/missions-smoke.mjs` starts and wins all 22.
+Additions over the original: volume sliders, gamepads as joysticks, a DEBUG
+panel (level select, cheats, unused weapons) and save export/import.
+
 The engine lives in [`web/`](../web). It is plain JavaScript modules with no
 build step and no dependencies.
 
@@ -40,8 +49,15 @@ src/sprites.js                sprite system (type 20 resources + messages)
 src/plugins/smacker.js        SMACKER.R32 (cutscenes)
 src/plugins/render.js         RENDER.R32: sound, plus the 3D externs below
 src/battlefield/              world, camera, fixed-tick loop, mission view, controls,
-                              aiming externs, mission state (engine.mission)
-src/render3d/                 models, textures, objects, WebGL renderer
+                              joysticks, collisions, radar, aiming externs,
+                              mission state (engine.mission)
+src/anim/                     animation clips, motion, steering, tasks, hotspots
+src/combat/                   weapons, projectiles, damage, explosions
+src/render3d/                 models, textures, objects, lights, WebGL renderer
+src/waves.js                  RENDER.R32's DirectSound wave player
+src/music.js, volume-panel.js CD music from ripped tracks, volume sliders
+src/saves.js                  save export and import
+src/debug.js, debug-panel.js  DEBUG panel: level select, cheats, unused weapons
 src/plugins/netgn.js          NETGN.R32: lobby and in-game messages (docs/netgn.md)
 src/net/                      DirectPlay stand-in and transports (tabs, relay, WebRTC)
 src/smacker.js                .SMK video/audio decoder
@@ -54,6 +70,9 @@ tools/shot.mjs                run it in headless Chromium and take screenshots
 tests/smacker-check.mjs       compare the SMK decoder with FFmpeg
 tests/walkthrough.mjs         play the menus, LAB and mission 1 headless and
                               check every screen (tests/player.mjs drives it)
+tests/campaign-bot.mjs        win missions 2-22 with a scripted bot
+tests/missions-smoke.mjs      start and win all 22 missions unattended
+tests/unit/                   unit tests, no game files (npm test)
 ```
 
 Design choices:
@@ -74,7 +93,7 @@ Design choices:
 
 ## Milestones
 
-1. **Intro and menus** (in progress)
+1. **Intro and menus**: done
    - [x] VM, statements, expressions, script calls, switch tables
    - [x] boot path: script 0, startup, global initial values (key 3 of the
      .BIN turned out to be `{variable, value}` pairs)
@@ -102,9 +121,9 @@ Design choices:
      addition: the original only has On/Off), and CD music from ripped
      track files when the player has them (`src/music.js`,
      `src/volume-panel.js`)
-   - [x] NEW GAME: campaign briefing (map, objectives), training and
-     mission lists. The unit preview beside the map needs
-     `render.RenderToBitmap`, so it waits for milestone 3
+   - [x] NEW GAME: campaign briefing (map, objectives, the unit preview
+     beside the map through `render.RenderToBitmap`), training and
+     mission lists
    - [x] variable arithmetic (statement 0xa9), sprite loops and mirroring
      (queue records 6 and 7, message 7)
    - [x] palette fades over `speed` frames (colours 10-245, as RTLIB32
@@ -124,9 +143,9 @@ Design choices:
    3D work (milestones 2-3) is split across separate project threads:
    unit previews / renderer core, the battlefield, and 3D animation data
    and object properties.
-2. **Briefings and non-3D screens**: mission select, briefings, unit
+2. **Briefings and non-3D screens**: done. Mission select, briefings, unit
    loadout. Mostly more of the same 2D services.
-3. **3D battlefield**: reimplement the `RENDER.R32` externs on WebGL. Needs
+3. **3D battlefield**: done. Reimplement the `RENDER.R32` externs on WebGL. Needs
    the model formats (PR #6 converts models to OBJ), terrain, cameras,
    object properties and the AI hooks. This is the largest part.
    - [x] renderer core: models, textures, objects (`src/render3d/`,
@@ -147,6 +166,12 @@ Design choices:
      `src/battlefield/aim.js`, mission state and test shortcuts in
      `src/battlefield/mission.js` ([missions.md](missions.md)). Mission 1's
      win and loss run through the fly-by and doors to the next briefing
+   - [x] all 22 campaign missions win through to the next briefing (and
+     the ending movie after 22): `tests/campaign-bot.mjs`,
+     `tests/missions-smoke.mjs`
+   - [x] the rest of RENDER.R32: wave player, screen shake, cache freeing,
+     Pause key, joysticks (gamepads through the Gamepad API); every
+     export is mapped in [render-r32.md](render-r32.md)
 4. **Saves and settings**: done. INI values and written files are kept in
    `localStorage`. G-NOME saves the campaign between missions, not a mission
    in progress: GAME > SAVE (scripts 6290/6291) writes the next mission

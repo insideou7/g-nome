@@ -227,6 +227,20 @@ plays mission 1 headless: a guard attacks and aims at the player once they
 are close, destroying the enemies leads to mission 2's briefing, and losing
 the player's unit leads back to mission 1's.
 
+```bash
+node web/tests/campaign-bot.mjs game/g-nome/G-NOME [--missions 2,5-7]
+node web/tests/missions-smoke.mjs game/g-nome/G-NOME [--missions 2,5-7]
+```
+
+The campaign bot wins missions 2-22 the way a player would have to: it
+boards and leaves vehicles, reaches trigger zones, clicks control panels,
+dials IFF codes, answers the radio and destroys what the goals ask for.
+Each mission's solution, with the briefing's goals, is a list of steps at
+the top of `campaign-bot.mjs`. The smoke test starts all 22 missions, lets
+each run 50 s with nobody at the controls and the player invulnerable,
+then forces a win and checks that the next briefing (or, after mission 22,
+the ending movie) comes up.
+
 In the browser console (or `shot.mjs`'s `eval@` steps):
 
 ```js
