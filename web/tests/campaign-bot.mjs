@@ -123,6 +123,14 @@ const SOLUTIONS = {
     "goto:G53[1],2,0", "walkto:G53[1],200", "wait:2400",
     "kill:G13[0]", "kill:G13[1]", "kill:G13[2]", "killpilots:0", "wait:2400",
     "goto:G53[2],3,0", "drive:G625[1]", "drive:G625[8]"],
+  // 4-1 Captured!: "Rescue Kylle at Scorp Imperial HQ". The HQ (G397)
+  // sits in a walled compound whose gates (G427, class 237) belong to the
+  // security tower G419 (script 2098); destroying it opens them (2101 ->
+  // 2279). The trigger by the HQ (G625[0], script 9156) sends the guards
+  // out and sets the eject hook G983 = 9155: the player's pilot (G1)
+  // getting out there wins (2246). Losing Kylle (G5) or the HQ fails it.
+  // The whole way is driven, with the player's unit vulnerable.
+  17: ["kill:G419", "drive:G625[0]", "wait:300", "eject", "wait:200"],
 };
 
 const dir = process.argv.slice(2).find((a) => !a.startsWith("--") && !/^[\d,-]+$/.test(a)) || "game/g-nome/G-NOME";
@@ -148,6 +156,7 @@ const files = {
 
 const VK_THROTTLE_UP = 0x6b, VK_THROTTLE_DOWN = 0x6d;
 const TILE = 6; // ground tiles (level -100) sit on a 6-unit grid
+const CLEAR = 1; // world units drive keeps from wall edges where it can
 const TRIGGER = 500; // class of trigger zones: their hotspots never block
 
 // Waypoints (x, z) from `from` to `to` on a 1-unit grid: cells on a ground
@@ -159,7 +168,7 @@ const TRIGGER = 500; // class of trigger zones: their hotspots never block
  * @param {number[]} from
  * @param {number[]} to
  */
-function findPath(engine, from, to) {
+function findPath(engine, from, to, clear = CLEAR) {
   const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
   const objs = [...engine.world.objects.values()];
   const tiles = new Set();
@@ -178,13 +187,28 @@ function findPath(engine, from, to) {
       if (h && h.flags & 1) solid.push(h);
     }
   }
+  // Keep `clear` units away from wall edges too: a cell just outside a
+  // wall lets the unit cut the corner into it and get stuck in a notch
+  // (mission 17's rocks). Narrow ways (mission 8's canyon) need clear = 0.
+  const prints = new Map(solid.filter((h) => h.type !== 0x10).map((h) => [h, engine.collision.footprint(h)]));
+  const nearEdge = (/** @type {any} */ fp, /** @type {number} */ x, /** @type {number} */ z) => {
+    const { pts, flags } = fp;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      if (flags[i]) continue;
+      const [ax, , az] = pts[j], [bx, , bz] = pts[i];
+      const ex = bx - ax, ez = bz - az, l2 = ex * ex + ez * ez;
+      const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2)) : 0;
+      if (Math.hypot(ax + ex * t - x, az + ez * t - z) < clear) return true;
+    }
+    return false;
+  };
   const blocked = (/** @type {number} */ x, /** @type {number} */ z) =>
     !tiles.has(`${Math.round(x / TILE)},${Math.round(z / TILE)}`) ||
     solid.some((h) => {
       if (h.type === 0x10) return Math.hypot(h.pos[0] - x, h.pos[2] - z) <= h.id / 100;
-      const fp = engine.collision.footprint(h);
+      const fp = prints.get(h);
       if (!fp.pts.length) return false;
-      return insidePolygon(fp.pts, x, z) !== (h.type === 8);
+      return insidePolygon(fp.pts, x, z) !== (h.type === 8) || (clear > 0 && nearEdge(fp, x, z));
     });
   x0 = Math.floor(x0); z0 = Math.floor(z0);
   const w = Math.ceil(x1) - x0 + 1, hgt = Math.ceil(z1) - z0 + 1;
@@ -278,7 +302,7 @@ async function play(n) {
       } else if (k === "drive") {
         const [r, ticks = "20000"] = v.split(",");
         const id = ref(r);
-        const way = findPath(engine, obj(player()).pos, obj(id).pos);
+        const way = findPath(engine, obj(player()).pos, obj(id).pos) || findPath(engine, obj(player()).pos, obj(id).pos, 0);
         assert.ok(way, `mission ${n}: ${s}: no way through`);
         let i = 0;
         for (const [x, z] of way) {
