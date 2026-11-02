@@ -7,6 +7,7 @@ import { activeLights, materialLight, rgb01, SPECULAR_MIN } from "./scene.js";
 // Lights the shader takes; more are dropped.
 const MAX_LIGHTS = 8;
 import { FRONT, twoSidedOf } from "./soft.js";
+import { bleedEdges } from "../graphics.js";
 
 const VS = `#version 300 es
 layout(location = 0) in vec3 aPos;
@@ -52,7 +53,10 @@ void main() {
   if (uTextured) {
     vec2 uv = fract(vUV);
     uv.y = (uFrame.x + uv.y) / uFrame.y;
-    vec4 t = texture(uTex, uv);
+    // Gradients of the unwrapped UVs, so mipmaps don't pick the smallest
+    // level along the seams where fract() jumps.
+    vec2 f = vec2(1.0, 1.0 / uFrame.y);
+    vec4 t = textureGrad(uTex, uv, dFdx(vUV) * f, dFdy(vUV) * f);
     if (t.a < 0.5) discard; // colour 0 is see-through
     base = t.rgb;
   }
@@ -114,7 +118,9 @@ export class WebGLBackend {
   constructor(renderer, canvas = null) {
     this.renderer = renderer;
     this.canvas = canvas || document.createElement("canvas");
-    const gl = this.canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true });
+    // Antialiasing is our own multisampled framebuffer (msaa), so it can
+    // change without a new context.
+    const gl = this.canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true, antialias: false });
     if (!gl) throw new Error("no webgl2 context");
     this.gl = gl;
     this.prog = program(gl, VS, FS);
@@ -125,6 +131,71 @@ export class WebGLBackend {
     this.meshes = new WeakMap(); // clump mesh -> VAO
     this.textures = new WeakMap(); // texture -> {tex, key}
     this.glTextures = new Set(); // every WebGLTexture made by texture()
+    // Graphics options (graphics.js): render scale, MSAA samples, filtering.
+    this.scale = 1;
+    this.msaa = 4;
+    /** @type {"nearest" | "linear" | "mipmap"} */
+    this.filter = "nearest";
+    this.maxSamples = gl.getParameter(gl.MAX_SAMPLES) || 0;
+    this.aniso = gl.getExtension("EXT_texture_filter_anisotropic");
+    /** @type {{ fb: WebGLFramebuffer, color: WebGLRenderbuffer, depth: WebGLRenderbuffer, w: number, h: number, samples: number } | null} */
+    this.ms = null;
+  }
+
+  /**
+   * @param {{ scale?: number, msaa?: number, textures?: "nearest" | "linear" | "mipmap" }} o
+   */
+  configure(o) {
+    if (o.scale) this.scale = o.scale;
+    if (o.msaa !== undefined) this.msaa = o.msaa;
+    if (o.textures) this.filter = o.textures;
+  }
+
+  // The multisampled framebuffer for a w x h canvas, or null without MSAA.
+  /**
+   * @param {number} w
+   * @param {number} h
+   */
+  msTarget(w, h) {
+    const gl = this.gl;
+    const samples = Math.min(this.msaa, this.maxSamples);
+    const ms = this.ms;
+    if (ms && (samples < 2 || ms.w !== w || ms.h !== h || ms.samples !== samples)) {
+      gl.deleteFramebuffer(ms.fb);
+      gl.deleteRenderbuffer(ms.color);
+      gl.deleteRenderbuffer(ms.depth);
+      this.ms = null;
+    }
+    if (samples < 2) return null;
+    if (!this.ms) {
+      const fb = /** @type {WebGLFramebuffer} */ (gl.createFramebuffer());
+      const color = /** @type {WebGLRenderbuffer} */ (gl.createRenderbuffer());
+      const depth = /** @type {WebGLRenderbuffer} */ (gl.createRenderbuffer());
+      gl.bindRenderbuffer(gl.RENDERBUFFER, color);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.RGBA8, w, h);
+      gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+      gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.DEPTH_COMPONENT24, w, h);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, color);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.ms = { fb, color, depth, w, h, samples };
+    }
+    return this.ms;
+  }
+
+  // Sampling for the bound texture under the current filter setting.
+  /**
+   * @param {boolean} mips  the texture has mipmaps
+   */
+  filtering(mips) {
+    const gl = this.gl, f = this.filter;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f === "nearest" ? gl.NEAREST : gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f === "nearest" ? gl.NEAREST : f === "mipmap" && mips ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+    if (this.aniso && mips) {
+      const max = gl.getParameter(this.aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+      gl.texParameterf(gl.TEXTURE_2D, this.aniso.TEXTURE_MAX_ANISOTROPY_EXT, f === "mipmap" ? Math.min(8, max) : 1);
+    }
   }
 
   /**
@@ -153,7 +224,8 @@ export class WebGLBackend {
    */
   texture(tex) {
     const gl = this.gl;
-    const key = this.renderer.paletteKey() + ":" + tex.version;
+    const smooth = this.filter !== "nearest";
+    const key = this.renderer.paletteKey() + ":" + tex.version + ":" + this.filter;
     let t = this.textures.get(tex);
     if (t && t.key === key) return t.tex;
     if (!t) {
@@ -162,12 +234,18 @@ export class WebGLBackend {
       this.textures.set(tex, t);
     }
     gl.bindTexture(gl.TEXTURE_2D, t.tex);
-    const rgba = this.renderer.rgbaOf(tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tex.width, tex.height * tex.frames, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength));
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const h = tex.height * tex.frames;
+    let rgba = this.renderer.rgbaOf(tex);
+    // Filtered, the see-through texels need their neighbours' colour.
+    if (smooth) rgba = bleedEdges(rgba, tex.width, h);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tex.width, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength));
+    const mips = this.filter === "mipmap";
+    if (mips) gl.generateMipmap(gl.TEXTURE_2D);
+    this.filtering(mips);
+    // UVs wrap in the shader (fract); REPEAT makes filtering wrap too. The
+    // frames of an animated texture are stacked, so those clamp vertically.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, tex.frames > 1 ? gl.CLAMP_TO_EDGE : gl.REPEAT);
     t.key = key;
     return t.tex;
   }
@@ -189,15 +267,19 @@ export class WebGLBackend {
    */
   render(scene, camera, vp) {
     const gl = this.gl, u = this.u;
+    // Everything below is in game pixels; the canvas is `scale` times that.
+    const s = this.scale;
     const cw = vp.canvasWidth || vp.x + vp.width || vp.width, ch = vp.canvasHeight || vp.y + vp.height || vp.height;
-    if (this.canvas.width !== cw) this.canvas.width = cw;
-    if (this.canvas.height !== ch) this.canvas.height = ch;
+    if (this.canvas.width !== cw * s) this.canvas.width = cw * s;
+    if (this.canvas.height !== ch * s) this.canvas.height = ch * s;
+    const ms = this.msTarget(cw * s, ch * s);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, ms ? ms.fb : null);
     const x = vp.x || 0, y = ch - (vp.y || 0) - vp.height; // GL origin is bottom left
-    gl.viewport(x, y, vp.width, vp.height);
+    gl.viewport(x * s, y * s, vp.width * s, vp.height * s);
     gl.enable(gl.SCISSOR_TEST);
     // vp.clip: draw only this part of the viewport (same coordinates).
     const c = vp.clip || { x: vp.x || 0, y: vp.y || 0, width: vp.width, height: vp.height };
-    gl.scissor(c.x, ch - c.y - c.height, c.width, c.height);
+    gl.scissor(c.x * s, (ch - c.y - c.height) * s, c.width * s, c.height * s);
     const bg = rgb01(camera.background);
     gl.clearColor(bg ? bg[0] : 0, bg ? bg[1] : 0, bg ? bg[2] : 0, bg ? 1 : 0);
     gl.depthMask(true);
@@ -270,6 +352,13 @@ export class WebGLBackend {
       gl.disable(gl.BLEND);
     }
     gl.depthMask(true);
+    if (ms) {
+      // Resolve the samples into the canvas (still scissored to the clip).
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, ms.fb);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      gl.blitFramebuffer(0, 0, ms.w, ms.h, 0, 0, ms.w, ms.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
     gl.disable(gl.SCISSOR_TEST);
     gl.bindVertexArray(null);
     return this.canvas;
@@ -295,8 +384,6 @@ export class WebGLBackend {
       t = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, t);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bd.image);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       this.bdTex.set(bd.image, t);
@@ -306,6 +393,7 @@ export class WebGLBackend {
     gl.useProgram(this.bdProg);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, t);
+    this.filtering(false);
     gl.uniform1i(this.bdU.uTex, 0);
     // Viewport pixel -> image pixel: (px - x) / image size.
     gl.uniform4f(this.bdU.uRect, bd.x || 0, bd.y || 0, bd.image.width, bd.image.height);

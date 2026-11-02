@@ -34,6 +34,19 @@ export class Renderer {
     }
   }
 
+  // Browser-port graphics options (graphics.js) for the WebGL view.
+  /**
+   * @param {{ scale?: number, msaa?: number, textures?: "nearest" | "linear" | "mipmap" }} o
+   */
+  configure(o) {
+    this.gl?.configure(o);
+  }
+
+  // Canvas pixels per game pixel of what render() returns from WebGL.
+  get scale() {
+    return this.gl ? this.gl.scale : 1;
+  }
+
   // --- resources -------------------------------------------------------
 
   // Parsed MODL/MPRT for a resource id (copies resolve to their source).

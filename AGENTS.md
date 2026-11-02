@@ -73,6 +73,9 @@ Project skills live in `.claude/skills/` (see its README), including the
 - [docs/unused-content.md](docs/unused-content.md): content the original
   never uses (weapons 12 and 27, catalog rows no mission places) and how
   pause works. The DEBUG panel can give the player the two weapons.
+- [docs/graphics.md](docs/graphics.md): browser-only graphics options
+  (resolution scale, MSAA, texture filtering, Scale2x for the 2D layer,
+  fullscreen) in the Graphics row; defaults keep the original look.
 - [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
   actions they unlock, and the DEBUG button on the OPTIONS screen
   (`web/src/debug.js`).

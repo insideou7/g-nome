@@ -113,7 +113,7 @@ export class RenderPlugin {
     w.advance(ms);
     if (!e.display) return;
     const canvas = w.shown ? w.view.frame() : null;
-    e.display.underlay = canvas ? { canvas, x: w.origin[0], y: w.origin[1] } : null;
+    e.display.underlay = canvas ? { canvas, x: w.origin[0], y: w.origin[1], scale: e.render3d?.renderer?.scale ?? 1 } : null;
     if (canvas) {
       e.dirty = true;
       e.display.dirty = true;
