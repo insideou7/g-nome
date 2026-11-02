@@ -12,6 +12,11 @@
   p { color: var(--muted); margin: 4px 0 12px; }
   #screen { width: 100%; max-width: 960px; aspect-ratio: 4 / 3; image-rendering: pixelated; background: #000; display: block; outline: none; }
   #stage { position: relative; width: 100%; max-width: 960px; }
+  #stage-wrap:fullscreen { background: #000; display: flex; align-items: center; justify-content: center; }
+  #stage-wrap:fullscreen #stage { width: min(100vw, 133.333vh); max-width: none; }
+  #stage-wrap:fullscreen #screen { max-width: none; }
+  #graphics select { background: #222; color: var(--fg); border: 1px solid #555; border-radius: 4px; padding: 4px; font: inherit; }
+  #graphics label { color: var(--muted); }
   #log { height: 180px; overflow: auto; background: #000; color: #9c9; font: 12px ui-monospace, monospace; padding: 6px; white-space: pre-wrap; margin-top: 8px; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
   button, label.btn { background: #333; color: var(--fg); border: 1px solid #555; padding: 6px 10px; border-radius: 4px; cursor: pointer; font: inherit; }
@@ -55,7 +60,8 @@
     <button id="export-saves" title="Download your saved games as a file, so they survive clearing the browser">Export saves</button>
     <label class="btn" title="Load saved games from an exported file; they replace saves in the same slots">Import saves<input id="import-saves" type="file" accept=".json,application/json" hidden></label>
   </div>
-  <div id="stage"><canvas id="screen" width="640" height="480" tabindex="0"></canvas></div>
+  <div class="row" id="graphics" title="Browser-port extras; the first choice of each is the original look"></div>
+  <div id="stage-wrap"><div id="stage"><canvas id="screen" width="640" height="480" tabindex="0"></canvas></div></div>
   <div id="log"></div>
 </main>
 <script type="module" src="src/main.js"></script>

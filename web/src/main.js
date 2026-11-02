@@ -4,6 +4,7 @@ import { Display } from "./display.js";
 import { Audio } from "./audio.js";
 import { vkFromEvent } from "./input.js";
 import { DebugPanel } from "./debug-panel.js";
+import { CHOICES, DEFAULTS, loadGraphics, saveGraphics, resolveScale } from "./graphics.js";
 import { exportSaves, importSaves, scriptFilesOf } from "./saves.js";
 import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberFolder, rememberedFolder, forgetFolder } from "./gamefiles.js";
 
@@ -47,6 +48,62 @@ ini.onChange = (/** @type {object} */ d) => {
 };
 /** @type {Engine | null} */
 let running = null;
+/** @type {Display | null} */
+let screenDisplay = null;
+
+// Graphics options (src/graphics.js): selects in the row above the screen,
+// kept in localStorage, applied to the screen and the 3D renderer.
+let graphics = loadGraphics();
+function applyGraphics() {
+  const canvas = $("screen");
+  const scale = resolveScale(graphics.scale, canvas.getBoundingClientRect().width || 640, window.devicePixelRatio || 1);
+  screenDisplay?.configure(scale, graphics.sprites);
+  running?.render3d?.renderer?.configure({ scale, msaa: graphics.msaa, textures: graphics.textures });
+}
+{
+  const row = $("graphics");
+  /** @type {Record<string, string>} */
+  const names = { scale: "Resolution", msaa: "Antialiasing", textures: "Textures", sprites: "2D" };
+  row.append("Graphics:");
+  for (const key of /** @type {(keyof typeof CHOICES)[]} */ (Object.keys(CHOICES))) {
+    const sel = document.createElement("select");
+    sel.id = "gfx-" + key;
+    for (const [v, label] of CHOICES[key]) {
+      const o = document.createElement("option");
+      o.value = String(v);
+      o.textContent = label + (v === DEFAULTS[key] ? " *" : "");
+      sel.append(o);
+    }
+    sel.value = String(graphics[key]);
+    sel.onchange = () => {
+      const v = CHOICES[key].find(([c]) => String(c) === sel.value)?.[0];
+      graphics = loadGraphics({ ...graphics, [key]: v });
+      saveGraphics(graphics);
+      applyGraphics();
+      $("screen").focus();
+    };
+    const label = document.createElement("label");
+    label.append(names[key] + " ", sel);
+    row.append(label);
+  }
+  const reset = document.createElement("button");
+  reset.textContent = "Original look";
+  reset.title = "Put every graphics option back to the original game's";
+  reset.onclick = () => {
+    graphics = loadGraphics({});
+    saveGraphics(graphics);
+    for (const k of /** @type {(keyof typeof CHOICES)[]} */ (Object.keys(CHOICES))) $("gfx-" + k).value = String(graphics[k]);
+    applyGraphics();
+  };
+  const full = document.createElement("button");
+  full.textContent = "Fullscreen";
+  full.onclick = () => {
+    $("stage-wrap").requestFullscreen?.().then(() => $("screen").focus()).catch(() => {});
+  };
+  row.append(reset, full);
+  // "Match screen" follows the canvas size (window, fullscreen, zoom).
+  new ResizeObserver(() => graphics.scale === "auto" && applyGraphics()).observe($("screen"));
+}
 
 // Saved games live in this browser's storage; export them to a file so they
 // survive clearing it, and import them back (src/saves.js).
@@ -236,6 +293,7 @@ function cachedFiles(files) {
 async function start(rawFiles) {
   const files = cachedFiles(rawFiles);
   const display = new Display($("screen"));
+  screenDisplay = display;
   const canvas = $("screen");
   const cursorCss = new Map();
   /** @type {Engine} */
@@ -276,6 +334,7 @@ async function start(rawFiles) {
     };
     engine.boot();
     window.engine = running = engine; // for poking at it from the console
+    applyGraphics();
     if (panel) panel.attach(engine);
     else panel = new DebugPanel(engine, $("stage"), canvas);
   }
