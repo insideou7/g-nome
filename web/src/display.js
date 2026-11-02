@@ -4,7 +4,7 @@
 // the 3D underlay rendered at that size and the sprite layer enlarged with
 // the `sprites` filter. `image` always stays 640x480.
 import { scale2x } from "./graphics.js";
-import { Scale2xGL } from "./scale2x-gl.js";
+import { UpscaleGL } from "./upscale-gl.js";
 
 export const WIDTH = 640;
 export const HEIGHT = 480;
@@ -33,17 +33,17 @@ export class Display {
     /** @type {[number, number][]} */
     this.shakes = [];
     this.scale = 1; // canvas pixels per game pixel (graphics.js)
-    /** @type {"sharp" | "smooth" | "scale2x"} */
+    /** @type {"sharp" | "smooth" | "scale2x" | "xbr"} */
     this.sprites = "sharp";
     /** @type {Uint8Array | null} */ this.big = null; // Scale2x indices
     /** @type {ImageData | null} */ this.bigImage = null;
     /** @type {Uint32Array | undefined} */ this.pal32;
-    /** @type {Scale2xGL | null | undefined} */ this.gpu = undefined; // GPU Scale2x, made on first use
+    /** @type {UpscaleGL | null | undefined} */ this.gpu = undefined; // GPU upscaler, made on first use
   }
   // Resize the canvas to `scale` x 640x480 and pick the sprite filter.
   /**
    * @param {number} scale
-   * @param {"sharp" | "smooth" | "scale2x"} sprites
+   * @param {"sharp" | "smooth" | "scale2x" | "xbr"} sprites
    */
   configure(scale, sprites) {
     this.scale = scale;
@@ -116,17 +116,18 @@ export class Display {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     /** @type {ImageData | OffscreenCanvas} */
     let layer = this.image;
-    if (this.sprites === "scale2x" && s > 1) {
+    const filter = this.sprites;
+    if ((filter === "scale2x" || filter === "xbr") && s > 1) {
       if (this.gpu === undefined) {
         try {
-          this.gpu = new Scale2xGL(WIDTH, HEIGHT);
+          this.gpu = new UpscaleGL(WIDTH, HEIGHT);
         } catch {
           this.gpu = null;
         }
       }
-      if (this.gpu) layer = this.gpu.run(this.image);
+      if (this.gpu) layer = this.gpu.run(this.image, filter, s);
       else {
-        // No WebGL2: the same filter in JS on the palette indices.
+        // No (hardware) WebGL2: Scale2x in JS on the palette indices.
         this.big = scale2x(px, WIDTH, HEIGHT, this.big ?? undefined);
         if (!this.bigImage) this.bigImage = ctx.createImageData(WIDTH * 2, HEIGHT * 2);
         // One 32-bit write per pixel through a palette of RGBA words.

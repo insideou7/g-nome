@@ -10,12 +10,14 @@
 //   textures  3D texture filtering: "nearest" (original), "linear", or
 //             "mipmap" (trilinear, plus anisotropic where the GPU has it).
 //   sprites   how the 2D layer (menus, HUD, cockpit) is enlarged: "sharp"
-//             (whole pixels), "smooth" (bilinear) or "scale2x" (the
-//             Scale2x/EPX pixel-art filter, then smooth to the final size).
+//             (whole pixels), "smooth" (bilinear), "scale2x" (the
+//             Scale2x/EPX pixel-art filter, then smooth to the final size)
+//             or "xbr" (xBR level 2 straight to the final size; GPU only,
+//             Scale2x without hardware WebGL2). See upscale-gl.js.
 
 const KEY = "g-nome.graphics";
 
-/** @typedef {{ scale: number | "auto", msaa: number, textures: "nearest" | "linear" | "mipmap", sprites: "sharp" | "smooth" | "scale2x" }} GraphicsSettings */
+/** @typedef {{ scale: number | "auto", msaa: number, textures: "nearest" | "linear" | "mipmap", sprites: "sharp" | "smooth" | "scale2x" | "xbr" }} GraphicsSettings */
 
 /** @type {GraphicsSettings} */
 export const DEFAULTS = Object.freeze({ scale: 1, msaa: 4, textures: "nearest", sprites: "sharp" });
@@ -25,7 +27,7 @@ export const CHOICES = {
   scale: [[1, "Original 640x480"], [2, "2x (1280x960)"], [3, "3x (1920x1440)"], [4, "4x (2560x1920)"], ["auto", "Match screen"]],
   msaa: [[0, "Off"], [2, "2x"], [4, "4x"], [8, "8x"]],
   textures: [["nearest", "Sharp (original)"], ["linear", "Smooth"], ["mipmap", "Smooth + mipmaps"]],
-  sprites: [["sharp", "Sharp pixels"], ["smooth", "Smooth"], ["scale2x", "Scale2x"]],
+  sprites: [["sharp", "Sharp pixels"], ["smooth", "Smooth"], ["scale2x", "Scale2x"], ["xbr", "xBR"]],
 };
 
 /**

@@ -10,7 +10,7 @@ puts them all back. Settings stay in `localStorage` (`g-nome.graphics`).
 | Resolution | 1x (default), 2x, 3x, 4x, Match screen | The canvas is 640x480 times this. The 3D view renders at that size; the game's own logic still sees 640x480. Match screen rounds the device pixels per game pixel up (so 960 CSS px wide = 2x), and follows window, zoom and fullscreen changes. |
 | Antialiasing | Off, 2x, 4x (default), 8x | MSAA on the 3D view, through our own multisampled framebuffer. 4x is what the browser's default WebGL context gave before this option existed; Off is the original's jagged edges. Capped at the GPU's `MAX_SAMPLES`. |
 | Textures | Sharp (default), Smooth, Smooth + mipmaps | Nearest, bilinear, or trilinear filtering with 8x anisotropic where available. Applies to model textures and sky backdrops. Smooth modes bleed colour into see-through texels first (`bleedEdges`), so tree and fence edges don't get black fringes. |
-| 2D | Sharp pixels (default), Smooth, Scale2x | How the 8-bit layer (menus, cockpit, HUD) is enlarged when Resolution is above 1x. Scale2x (AdvanceMAME2x/EPX) rounds staircase diagonals while keeping hard pixel-art edges, then smooths to the final size. |
+| 2D | Sharp pixels (default), Smooth, Scale2x, xBR | How the 8-bit layer (menus, cockpit, HUD) is enlarged when Resolution is above 1x. Scale2x (AdvanceMAME2x/EPX) rounds staircase diagonals while keeping hard pixel-art edges, then smooths to the final size. xBR (Hyllian's level 2, the family xBRZ comes from) finds edges at 30, 45 and 60 degrees and draws them as smooth lines, straight at the final size. |
 
 **Fullscreen** puts the screen (and the DEBUG panel) fullscreen; with
 Resolution on Match screen it renders at the monitor's resolution.
@@ -22,9 +22,9 @@ Resolution on Match screen it renders at the monitor's resolution.
 - `web/src/display.js`: `configure(scale, sprites)`; `present()` composes the
   3D underlay (at its own `underlay.scale`) and the enlarged sprite layer.
   `image` stays 640x480, so headless tests see the same pixels as before.
-- `web/src/scale2x-gl.js`: Scale2x as a WebGL2 shader (a 1280x960
+- `web/src/upscale-gl.js`: Scale2x and xBR as WebGL2 shaders (a big
   `putImageData` per frame costs more than the filter). Not used on a
-  software GL (SwiftShader), where the JS filter is faster.
+  software GL (SwiftShader); there both fall back to the JS Scale2x.
 - `web/src/render3d/webgl.js`: `configure({scale, msaa, textures})`, the MSAA
   framebuffer (`msTarget`, resolved with `blitFramebuffer` inside the clip
   scissor), and `filtering()`. The shader samples with `textureGrad` on the
