@@ -103,6 +103,32 @@ a vehicle (its pilot is thrown out with 2078, property 77 set to 0) so
 someone else can board it, and kind 26 goes to 1715. When a
 unit dies (2278, 2300) `ExplodeModel(unit, -77, 50, 1731)` throws its parts.
 
+`CollisionClump` (`0x10010dbc`) gets each part's box from RenderWare's
+`RwGetClumpBBox` (`RWL20.DLL` `0x10008270`): a clump keeps its own bounding
+box (children not included) as 8 hidden corner vertices before its real
+ones, and the box is the min/max of those corners in world space. It then
+sorts the shot's last move against the box axis by axis: both ends inside
+the box's range, or crossing a face. Two axes inside is a hit; otherwise
+the move's projections onto the planes of the crossing axes must meet the
+box (slopes of 10000 stand for vertical). The browser's version is
+`shotHitsBox` in `web/src/combat/damage.js`.
+
+### Small targets and aim assist
+
+Shots fly straight along the heading from the gun mounts, not from the
+view line the crosshair marks. A soldier's bolt leaves about 0.03 units to
+the side of it at head height, and a soldier is about 0.05 units wide, so
+with the crosshair on a guard's middle most bolts pass beside it (mission
+2's first two guards: 1 hit from 20 shots at 3 units in
+`web/tests/aim-assist-check.mjs`). That is the original's behaviour.
+
+The browser adds aim assist (`web/src/combat/aim-assist.js`, on by default,
+"Aim assist" in the DEBUG panel): on a straight shot's first update, if the
+locked (G974) or selected (G1811) target has a part on the view line, or one
+within 2.5 degrees or its radius of it, the shot turns towards that part's
+middle. Homing, guided and falling shots are left alone. With it, the same
+test kills the guard with 6 hits from 7 shots.
+
 When the player's unit is hit by shot class 301 or 302 while script 2185
 holds (`G972 == 1`), 1709 shakes the screen with `ScreenShake(-3, -3)` and
 `ScreenShake(8, 8)` (builtin `0xC8`). RTLIB32's `SpriteScreenShake`

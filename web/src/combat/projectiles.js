@@ -13,8 +13,10 @@
 //   [4] 2055 drain energy(obj, -amount)
 //   [5] 2058 overheat(obj, 1)
 //   [6] 430  sector list(obj)                 used by Process_Sector_Collisions
-import { normalize, scale } from "../battlefield/math.js";
+import { normalize, scale, cross } from "../battlefield/math.js";
 import { UNIT } from "./host.js";
+import { assistDirection } from "./aim-assist.js";
+import { partBoxes } from "./damage.js";
 
 // Object properties (obj + 0xEC + 16 * slot + 4n).
 export const P = {
@@ -68,6 +70,28 @@ export function projectileExterns(host) {
     return hit;
   };
 
+  // The player's shot: aim at the locked target (G974) or the selected one
+  // (G1811) when the crosshair is on it.
+  const assist = (/** @type {any} */ o, /** @type {number} */ owner) => {
+    const vm = host.vm;
+    if (!owner || owner !== vm.getGlobal(973)) return;
+    for (const t of [vm.getGlobal(974), vm.getGlobal(1811)]) {
+      const q = t && t !== owner ? host.obj(t) : null;
+      if (!q) continue;
+      const me = host.obj(owner);
+      const parts = partBoxes(q, host.model(t));
+      if (!me || !parts.length) continue;
+      const at = assistDirection(o.pos, [me.pos[0], o.pos[1], me.pos[2]], o.basis.at, parts, host.radius(t));
+      if (!at) continue;
+      // Keep the shot's roll: a new right and up around the new heading.
+      const right = normalize(cross(at, o.basis.up));
+      if (!right.every(Number.isFinite)) return;
+      o.basis = { right, up: cross(right, at), at };
+      if (o.tickBasis) o.tickBasis = o.basis;
+      return;
+    }
+  };
+
   return {
     // Decrement_Recharge_Timers(obj, ms, callbacks) 0x100286ab: once per
     // tick for every unit. Counts the recovery timer down, lets each weapon
@@ -119,6 +143,12 @@ export function projectileExterns(host) {
         const axis = host.extern("SetTargetAxis");
         axis?.(id, prop(guided, P.TURN_AXIS), 2, ms);
         axis?.(id, prop(guided, P.PITCH_AXIS), 1, ms);
+      }
+      // Aim assist (ours, not the original's): on its first update, turn a
+      // straight shot of the player's towards the target under the crosshair.
+      if (!o.aimChecked) {
+        o.aimChecked = true;
+        if (host.engine.debug?.aimAssist !== false && !homing && guided !== id && !o.gravity) assist(o, owner);
       }
       // A unit within reach of this tick's flight (looking ahead 2 ms per ms).
       const check = host.extern("UpdateCollideCheck");
