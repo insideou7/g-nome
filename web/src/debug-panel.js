@@ -86,6 +86,7 @@ export class DebugPanel {
     this.fps.style.display = this.showFps ? "block" : "none";
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
     this.debug.extraWeapons = load("g-nome.debug.weapons", false);
+    this.debug.aimAssist = load("g-nome.debug.aimassist", true);
     this.debug.onOpen = () => this.open();
     this.root.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.close();
@@ -103,6 +104,7 @@ export class DebugPanel {
     this.debug = engine.debug;
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
     this.debug.extraWeapons = load("g-nome.debug.weapons", false);
+    this.debug.aimAssist = load("g-nome.debug.aimassist", true);
     this.debug.onOpen = () => this.open();
     /** @type {any} */
     this.used = null;
@@ -164,6 +166,18 @@ export class DebugPanel {
       },
     }, "Start mission");
 
+    // Gameplay
+    const assistLabel = () => `Aim assist: ${d.aimAssist ? "on" : "off"}`;
+    const assist = el("button", {
+      class: d.aimAssist ? "on" : "",
+      onclick: () => {
+        d.aimAssist = !d.aimAssist;
+        save("g-nome.debug.aimassist", d.aimAssist);
+        assist.className = d.aimAssist ? "on" : "";
+        assist.textContent = assistLabel();
+      },
+    }, assistLabel());
+
     // Display
     const fps = el("button", {
       class: this.showFps ? "on" : "",
@@ -213,6 +227,9 @@ export class DebugPanel {
       el("div", { class: "row" }, weapons),
       el("div", { class: "note" }, "The vehicle choice also sticks for later starts from here. Personnel are on foot."),
       el("div", { class: "note" }, `Unused weapons: the game has two finished weapons nobody ever gets (${UNUSED_WEAPONS.map((w) => `kind ${w.kind}, ${w.name}`).join("; ")}). On, a start from here adds them to free mounts: fire them with the number keys after your own weapons.`),
+      el("h3", {}, "Gameplay"),
+      el("div", { class: "row" }, assist),
+      el("div", { class: "note" }, "Not in the original. On, your shots turn towards the locked or selected target when the crosshair is on it. Off, shots fly straight from the guns, as in the original, and can pass beside small targets such as soldiers on foot."),
       el("h3", {}, "Display"),
       el("div", { class: "row" }, fps),
       el("h3", {}, "Game cheats"),

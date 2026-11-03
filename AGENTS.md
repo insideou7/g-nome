@@ -46,6 +46,9 @@ Project skills live in `.claude/skills/` (see its README), including the
   Joysticks section of [docs/battlefield.md](docs/battlefield.md).
 - [docs/combat.md](docs/combat.md): weapons, projectiles, hits and
   explosions (RENDER.R32's combat natives and the scripts' callbacks).
+  Aim assist (ours, DEBUG panel, on by default) turns the player's shots
+  onto the part of the target under the crosshair; check with
+  `web/tests/aim-assist-check.mjs`.
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
   (scope, architecture, milestones, status). It is published to GitHub
   Pages by `.github/workflows/pages.yml` (code only; players load their

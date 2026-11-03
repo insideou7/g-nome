@@ -38,6 +38,9 @@
 //   fire:REF[,ticks[,group]]  face REF and fire weapon group 1-4 (keys 1-4, default 1)
 //                       until REF is destroyed
 //   target:REF          step the target with Tab until it is REF, and face it
+//   tough               from now on keep the player's unit invulnerable (property
+//                       140, the Ctrl+I cheat), for long drives under fire the bot
+//                       cannot dodge
 // REF is a global (G381), an array element (G73[0]) or a number; drive also
 // takes a point X/Z in world units.
 import assert from "node:assert/strict";
@@ -196,7 +199,7 @@ const SOLUTIONS = {
   // shoot him), and the HQ empty: with its Scorp crew he cannot board it,
   // so the EGGER hit (1711) that the wingman would bring is run directly.
   // His transport is destroyed to put him out, as the base usually does.
-  15: ["wait:200", "kill:G273[0]", "kill:G273[1]", "goto:G373,8,-8", "key:112", "key:113", "wait:600",
+  15: ["tough", "wait:200", "kill:G273[0]", "kill:G273[1]", "goto:G373,8,-8", "key:112", "key:113", "wait:600",
     "key:112", "key:117", "wait:1200", "goto:G373,0,-4", "eject", "walkto:G373,300", "iff:1053",
     "click:184,146", "wait:200", "eject", "goto:G13[0],0,-3", "walkto:G13[0],300", "kill:G53[2]",
     "kill:G53[0]", "drive:G357", "walkto:G359,300", "drive:G625[0]", "stop", "kill:G595", "kill:G385",
@@ -214,7 +217,7 @@ const SOLUTIONS = {
   // Nothing in the mission gives the player the laser sight (weapon kind
   // 32, the Ctrl+Z cheat), so the lab is shot down. The escorts and
   // turrets are killed, and their crews, as in other missions.
-  16: ["kill:G53[0]", "kill:G53[1]", "kill:G53[2]", "kill:G53[3]", "kill:G53[4]", "kill:G53[5]",
+  16: ["tough", "kill:G53[0]", "kill:G53[1]", "kill:G53[2]", "kill:G53[3]", "kill:G53[4]", "kill:G53[5]",
     "kill:G273[0]", "kill:G273[1]", "kill:G273[2]", "kill:G273[3]", "wait:100", "killpilots:3",
     "drive:-26/-50,20000,1.5", "fire:G345,900,2", "drive:G625[0],20000,1", "fire:G417,1800,2", "wait:600"],
   // 4-1 Captured!: "Rescue Kylle at Scorp Imperial HQ". The HQ (G397)
@@ -442,8 +445,10 @@ async function play(n) {
     /** @type {number[][]} */
     const avoid = []; // circles (x, z, radius) drive keeps out of
     const obj = (/** @type {number} */ id) => engine.world.get(id);
+    let tough = false;
     const step = async (/** @type {number} */ ticks) => {
       for (let i = 0; i < ticks; i++) {
+        if (tough && player()) engine.render3d.objects.setProperty(player(), 140, 1);
         engine.tick(1000 / 30);
         await new Promise((r) => setImmediate(r));
       }
@@ -606,6 +611,7 @@ async function play(n) {
         assert.equal(vm.getGlobal(974), id, `mission ${n}: ${s}: not selected`);
       }
       else if (k === "wait") await step(Number(v));
+      else if (k === "tough") tough = true;
       else if (k === "key") {
         engine.input.keyDown(Number(v));
         await step(2);

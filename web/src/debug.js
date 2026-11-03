@@ -93,6 +93,7 @@ export class Debug {
     this.colors = null;
     this.vehicle = -1; // catalog row (table 5843) to start missions in, -1 = the mission's own
     this.extraWeapons = false; // give the player the unused weapons on a start from here
+    this.aimAssist = true; // turn the player's shots onto the target under the crosshair (not in the original)
     this.player = 0; // G973 last tick, for followInvulnerable
     this.pilot = 0; // and its pilot (property 78)
   }

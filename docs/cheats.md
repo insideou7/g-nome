@@ -95,3 +95,11 @@ mounts 0-3. Ammunition is a pickup's (`column 23 x 1.5`, script 1659),
 except that energy weapons get 2000 like in the setup scripts: kind 27's
 column 23 is 0, and script 1682 does not fire a weapon with no ammunition
 left, so a pickup of kind 27 would never have fired either.
+
+## Aim assist
+
+"Aim assist" under Gameplay (on by default, kept in the browser) is not in
+the original: the player's straight shots turn towards the part of the
+locked or selected target that the crosshair is on. Off, shots fly straight
+from the gun mounts as in the original and can pass beside soldiers on foot.
+See [combat.md](combat.md#small-targets-and-aim-assist).

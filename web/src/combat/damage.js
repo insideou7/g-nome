@@ -122,17 +122,28 @@ function worldClumps(o, inst) {
   return clumpMatrices(inst.model, modelMatrix(o.basis, o.pos), inst.pose);
 }
 
-// RwGetClumpBBox: the box around a clump's own vertices, in world space.
+// RwGetClumpBBox (RWL20.DLL 0x10008270 -> 0x10008110): RenderWare keeps a
+// clump's own bounding box (children not included) as 8 hidden corner
+// vertices in front of its real ones, and returns the min and max of those
+// 8 corners moved into world space. A clump without vertices of its own
+// (8 or fewer) gets a point box at its origin.
 /**
  * @param {any} c
  * @param {number[]} m
  */
 function worldBox(c, m) {
   const p = c.mesh?.positions;
-  if (!p || !p.length) return null;
-  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  if (!p || !p.length) return { lo: [m[12], m[13], m[14]], hi: [m[12], m[13], m[14]] };
+  const a = [Infinity, Infinity, Infinity], b = [-Infinity, -Infinity, -Infinity];
   for (let n = 0; n < p.length; n += 3) {
-    const x = p[n], y = p[n + 1], z = p[n + 2];
+    for (let j = 0; j < 3; j++) {
+      if (p[n + j] < a[j]) a[j] = p[n + j];
+      if (p[n + j] > b[j]) b[j] = p[n + j];
+    }
+  }
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let k = 0; k < 8; k++) {
+    const x = k & 1 ? b[0] : a[0], y = k & 2 ? b[1] : a[1], z = k & 4 ? b[2] : a[2];
     for (let j = 0; j < 3; j++) {
       const v = x * m[j] + y * m[4 + j] + z * m[8 + j] + m[12 + j];
       if (v < lo[j]) lo[j] = v;
@@ -140,6 +151,25 @@ function worldBox(c, m) {
     }
   }
   return { lo, hi };
+}
+
+// The world boxes of an object's parts, as CollisionClump tests them (its
+// tagged clumps, or the root of an untagged model). For aim assist.
+/**
+ * @param {any} o
+ * @param {any} inst
+ */
+export function partBoxes(o, inst) {
+  const m = inst?.model;
+  if (!o || !m) return [];
+  const ms = worldClumps(o, inst);
+  const parts = m.count > 0 ? Array.from({ length: m.count }, (_, k) => m.tagged[k + 1]) : [m.roots[0]];
+  const out = [];
+  for (const i of parts) {
+    const c = i === undefined || i < 0 ? null : m.clumps[i];
+    if (c?.mesh?.positions?.length) out.push(worldBox(c, ms[i]));
+  }
+  return out;
 }
 
 // Slab test: does the segment a -> b touch the box?
@@ -163,6 +193,60 @@ export function segmentHitsBox(a, b, { lo, hi }) {
     if (t0 > t1) return false;
   }
   return true;
+}
+
+// CollisionClump's own test (0x10010dbc) of a shot's last move, from `a`
+// (where it was, +0x24) to `b` (where it is, +0x0c), against a box. Per
+// axis the move is either inside the box's range or crosses one of its
+// faces. Two axes inside is a hit; otherwise the move's 2D projections
+// onto the planes of the crossing axes must meet the box's, using the
+// slopes the original works out (10000 for a vertical one). This is a bit
+// looser than an exact segment test.
+/**
+ * @param {number[]} a
+ * @param {number[]} b
+ * @param {{ lo: number[], hi: number[] }} box
+ */
+export function shotHitsBox(a, b, { lo, hi }) {
+  const [ax, ay, az] = a, [bx, by, bz] = b;
+  const [x0, y0, z0] = lo, [x1, y1, z1] = hi;
+  let yx, zx, xy, zy, yz, xz;
+  if (bx - ax === 0) yx = zx = 10000;
+  else {
+    yx = (by - ay) / (bx - ax);
+    zx = (bz - az) / (bx - ax);
+  }
+  if (by - ay === 0) zy = xy = 10000;
+  else {
+    xy = yx === 10000 ? 0 : 1 / yx;
+    zy = (bz - az) / (by - ay);
+  }
+  if (zx === 0) xz = yz = 10000;
+  else {
+    yz = zy === 10000 ? 0 : 1 / zy;
+    xz = zx === 10000 ? 0 : 1 / zx;
+  }
+  // Per axis: crosses a face (c), or both ends inside the range (i).
+  const axis = (/** @type {number} */ s, /** @type {number} */ e, /** @type {number} */ min, /** @type {number} */ max) => {
+    const endBelowMax = e < max, minAtStart = min <= s, endBelowMin = e < min, maxAtStart = max <= s;
+    const c = (!endBelowMin && !minAtStart) || (!maxAtStart && !endBelowMax) || (maxAtStart && endBelowMax) || (endBelowMin && minAtStart);
+    const i = !maxAtStart && !endBelowMin && minAtStart && endBelowMax;
+    return [c ? 1 : 0, i ? 1 : 0];
+  };
+  const [cx, ix] = axis(ax, bx, x0, x1), [cy, iy] = axis(ay, by, y0, y1), [cz, iz] = axis(az, bz, z0, z1);
+  const inside = ix + iy + iz;
+  if (cx + cy + cz + inside <= 2) return false;
+  if (inside > 1) return true;
+  const within = (/** @type {number} */ v, /** @type {number} */ min, /** @type {number} */ max) => min <= v && v <= max;
+  const xyPlane = () => within((y1 - ay) * xy + ax, x0, x1) || within((y0 - ay) * xy + ax, x0, x1) || within((x1 - ax) * yx + ay, y0, y1) || within((x0 - ax) * yx + ay, y0, y1);
+  const yzPlane = () => within((z1 - az) * yz + ay, y0, y1) || within((z0 - az) * yz + ay, y0, y1) || within((y1 - ay) * zy + az, z0, z1) || within((y0 - ay) * zy + az, z0, z1);
+  const xzPlane = () => within((x1 - ax) * zx + az, z0, z1) || within((x0 - ax) * zx + az, z0, z1) || within((z1 - az) * xz + ax, x0, x1) || within((z0 - az) * xz + ax, x0, x1);
+  if (inside === 1) {
+    if (cx && cy) return xyPlane(); // z inside
+    if (cy && cz) return yzPlane(); // x inside
+    return xzPlane(); // y inside
+  }
+  return xyPlane() && yzPlane() && xzPlane();
 }
 
 const rows = (/** @type {any} */ m) => ({ right: [m[0], m[1], m[2]], up: [m[4], m[5], m[6]], at: [m[8], m[9], m[10]] });
@@ -313,7 +397,7 @@ export function damageExterns(host) {
         const i = parts[k];
         if (i === undefined || i < 0) continue;
         const box = worldBox(m.clumps[i], ms[i]);
-        if (box && segmentHitsBox(o.last, o.pos, box)) return tagged ? k + 1 : 0;
+        if (box && shotHitsBox(o.last, o.pos, box)) return tagged ? k + 1 : 0;
       }
       return -1;
     },
