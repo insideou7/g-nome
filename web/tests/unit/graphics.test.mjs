@@ -47,3 +47,10 @@ test("bleedEdges colours transparent texels from neighbours, alpha stays 0", () 
   assert.deepEqual([...out], [255, 0, 0, 255, 255, 0, 0, 0, 255, 0, 0, 0]);
   assert.equal(rgba[4], 0, "input untouched");
 });
+
+test("imageKey matches tools/hdpack.py image_key", async () => {
+  const { imageKey } = await import("../../src/hdpack.js");
+  // 3x2: red, clear, (10,20,30) / (1,2,3), (200,100,50), clear
+  const rgba = new Uint8Array([255, 0, 0, 255, 0, 0, 0, 0, 10, 20, 30, 255, 1, 2, 3, 255, 200, 100, 50, 255, 0, 0, 0, 0]);
+  assert.equal(imageKey(rgba, 3, 2), "c86b59e0d263d596");
+});

@@ -249,6 +249,33 @@ export async function rememberedFolder() {
     return null;
   }
 }
+// Any blob (an HD pack), by name, in the same store.
+/**
+ * @param {string} key
+ * @param {Blob} blob
+ */
+export async function rememberBlob(key, blob) {
+  try {
+    const d = await db();
+    d.transaction("handles", "readwrite").objectStore("handles").put(blob, key);
+  } catch {}
+}
+/**
+ * @param {string} key
+ * @returns {Promise<Blob | null>}
+ */
+export async function rememberedBlob(key) {
+  try {
+    const d = await db();
+    return await new Promise((ok) => {
+      const r = d.transaction("handles").objectStore("handles").get(key);
+      r.onsuccess = () => ok(r.result || null);
+      r.onerror = () => ok(null);
+    });
+  } catch {
+    return null;
+  }
+}
 export async function forgetFolder() {
   try {
     const d = await db();

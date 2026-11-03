@@ -5,8 +5,9 @@ import { Audio } from "./audio.js";
 import { vkFromEvent } from "./input.js";
 import { DebugPanel } from "./debug-panel.js";
 import { CHOICES, DEFAULTS, loadGraphics, saveGraphics, resolveScale } from "./graphics.js";
+import { HdPack } from "./hdpack.js";
 import { exportSaves, importSaves, scriptFilesOf } from "./saves.js";
-import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberFolder, rememberedFolder, forgetFolder } from "./gamefiles.js";
+import { fromDirectoryHandle, fromDroppedEntry, fromFileList, fromZip, rememberFolder, rememberedFolder, forgetFolder, rememberBlob, rememberedBlob } from "./gamefiles.js";
 
 /** @type {(id: string) => any} */
 const $ = (id) => document.getElementById(id);
@@ -54,11 +55,48 @@ let screenDisplay = null;
 // Graphics options (src/graphics.js): selects in the row above the screen,
 // kept in localStorage, applied to the screen and the 3D renderer.
 let graphics = loadGraphics();
+// AI-upscaled art (tools/hdpack.py, src/hdpack.js), and whether it is on.
+/** @type {HdPack | null} */
+let hdPack = null;
+let hdOn = true;
+try {
+  hdOn = localStorage.getItem("g-nome.hd") !== "off";
+} catch {}
 function applyGraphics() {
   const canvas = $("screen");
   const scale = resolveScale(graphics.scale, canvas.getBoundingClientRect().width || 640, window.devicePixelRatio || 1);
   screenDisplay?.configure(scale, graphics.sprites);
-  running?.render3d?.renderer?.configure({ scale, msaa: graphics.msaa, textures: graphics.textures });
+  const renderer = running?.render3d?.renderer;
+  renderer?.configure({ scale, msaa: graphics.msaa, textures: graphics.textures });
+  const hd = hdOn ? hdPack : null;
+  if (screenDisplay) screenDisplay.hd = hd;
+  if (renderer) renderer.hd = hd;
+  if (running) running.dirty = true; // compose again, noting blits for HD art
+  const sel = $("gfx-hd");
+  if (sel) {
+    sel.disabled = !hdPack;
+    sel.value = hdPack && hdOn ? "on" : "off";
+    sel.title = hdPack ? `${hdPack.size} pictures` : "Load an HD pack first (tools/hdpack.py makes one from your game)";
+  }
+}
+/**
+ * @param {Blob} blob
+ * @param {boolean} [remember]  keep it in this browser for next time
+ */
+async function loadHdPack(blob, remember = false) {
+  try {
+    const pack = await HdPack.fromZip(blob);
+    pack.onReady = () => {
+      if (running) running.dirty = true;
+      if (screenDisplay) screenDisplay.dirty = true;
+    };
+    hdPack = pack;
+    if (remember) rememberBlob("hdpack", blob);
+    status(`HD pack loaded: ${pack.size} pictures (${pack.manifest.model || "AI"}).`);
+    applyGraphics();
+  } catch (e) {
+    status(`HD pack: ${/** @type {Error} */ (e).message}`, true);
+  }
 }
 {
   const row = $("graphics");
@@ -86,12 +124,49 @@ function applyGraphics() {
     label.append(names[key] + " ", sel);
     row.append(label);
   }
+  // HD pack: a file picker and an on/off switch.
+  const hdSel = document.createElement("select");
+  hdSel.id = "gfx-hd";
+  for (const [v, t] of [["off", "Off"], ["on", "On"]]) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = t;
+    hdSel.append(o);
+  }
+  hdSel.onchange = () => {
+    hdOn = hdSel.value === "on";
+    try {
+      localStorage.setItem("g-nome.hd", hdOn ? "on" : "off");
+    } catch {}
+    applyGraphics();
+    $("screen").focus();
+  };
+  const hdLabel = document.createElement("label");
+  hdLabel.append("AI HD art ", hdSel);
+  const hdPick = document.createElement("label");
+  hdPick.className = "btn";
+  hdPick.title = "Load a G-NOME-HD.zip made by tools/hdpack.py (also found automatically in the game folder)";
+  hdPick.textContent = "Load HD pack";
+  const hdFile = document.createElement("input");
+  hdFile.type = "file";
+  hdFile.accept = ".zip,application/zip";
+  hdFile.hidden = true;
+  hdFile.onchange = () => hdFile.files?.[0] && loadHdPack(hdFile.files[0], true);
+  hdPick.append(hdFile);
+  row.append(hdLabel, hdPick);
+  rememberedBlob("hdpack").then((b) => {
+    if (b && !hdPack) loadHdPack(b);
+  });
   const reset = document.createElement("button");
   reset.textContent = "Original look";
   reset.title = "Put every graphics option back to the original game's";
   reset.onclick = () => {
     graphics = loadGraphics({});
     saveGraphics(graphics);
+    hdOn = false;
+    try {
+      localStorage.setItem("g-nome.hd", "off");
+    } catch {}
     for (const k of /** @type {(keyof typeof CHOICES)[]} */ (Object.keys(CHOICES))) $("gfx-" + k).value = String(graphics[k]);
     applyGraphics();
   };
@@ -294,6 +369,8 @@ async function start(rawFiles) {
   const files = cachedFiles(rawFiles);
   const display = new Display($("screen"));
   screenDisplay = display;
+  // An HD pack next to the game files loads by itself.
+  if (!hdPack && files.has?.("G-NOME-HD.ZIP")) files.read("G-NOME-HD.ZIP").then((/** @type {Uint8Array} */ b) => loadHdPack(new Blob([/** @type {any} */ (b)])));
   const canvas = $("screen");
   const cursorCss = new Map();
   /** @type {Engine} */

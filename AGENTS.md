@@ -77,8 +77,10 @@ Project skills live in `.claude/skills/` (see its README), including the
   never uses (weapons 12 and 27, catalog rows no mission places) and how
   pause works. The DEBUG panel can give the player the two weapons.
 - [docs/graphics.md](docs/graphics.md): browser-only graphics options
-  (resolution scale, MSAA, texture filtering, Scale2x for the 2D layer,
-  fullscreen) in the Graphics row; defaults keep the original look.
+  (resolution scale, MSAA, texture filtering, Scale2x/xBR for the 2D layer,
+  fullscreen) in the Graphics row; defaults keep the original look. AI HD
+  packs: `tools/hdpack.py` (Real-ESRGAN via `tools/sr_onnx.py`, no PyTorch)
+  makes one from the player's game; `web/src/hdpack.js` loads it.
 - [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
   actions they unlock, and the DEBUG button on the OPTIONS screen
   (`web/src/debug.js`).

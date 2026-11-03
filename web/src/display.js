@@ -5,6 +5,7 @@
 // the `sprites` filter. `image` always stays 640x480.
 import { scale2x } from "./graphics.js";
 import { UpscaleGL } from "./upscale-gl.js";
+import { imageKey } from "./hdpack.js";
 
 export const WIDTH = 640;
 export const HEIGHT = 480;
@@ -39,6 +40,125 @@ export class Display {
     /** @type {ImageData | null} */ this.bigImage = null;
     /** @type {Uint32Array | undefined} */ this.pal32;
     /** @type {UpscaleGL | null | undefined} */ this.gpu = undefined; // GPU upscaler, made on first use
+    // HD pack (hdpack.js) for 2D art, and what the last compose drew.
+    /** @type {import("./hdpack.js").HdPack | null} */ this.hd = null;
+    /** @type {{ owner: Uint16Array, list: any[] } | null} */ this.rec = null;
+    /** @type {WeakMap<object, { pal: string, key: string, has: boolean }>} */ this.hdKeys = new WeakMap();
+    /** @type {ImageData | undefined} */ this.hdMask;
+    /** @type {OffscreenCanvas | undefined} */ this.hdMaskCanvas;
+    /** @type {OffscreenCanvas | undefined} */ this.hdTmp;
+  }
+
+  // Engine.compose asks before drawing: with HD art in use, blits note
+  // which of them drew each pixel (sprites.js blit).
+  hdRecord() {
+    if (!this.hd || this.scale < 2 || !this.ctx) return (this.rec = null);
+    if (!this.rec) this.rec = { owner: new Uint16Array(WIDTH * HEIGHT), list: [] };
+    this.rec.owner.fill(0);
+    this.rec.list.length = 0;
+    return this.rec;
+  }
+
+  // The HD image for a decoded bitmap under the current palette, if the
+  // pack has one and it is ready.
+  /**
+   * @param {any} b  {width, height, pixels}
+   * @param {Uint8Array} pal
+   * @param {string} palKey
+   */
+  hdImage(b, pal, palKey) {
+    const hd = /** @type {import("./hdpack.js").HdPack} */ (this.hd);
+    let k = this.hdKeys.get(b);
+    if (!k || k.pal !== palKey) {
+      const n = b.width * b.height, rgba = new Uint8Array(n * 4);
+      for (let i = 0; i < n; i++) {
+        const c = b.pixels[i];
+        if (!c) continue;
+        rgba[i * 4] = pal[c * 3];
+        rgba[i * 4 + 1] = pal[c * 3 + 1];
+        rgba[i * 4 + 2] = pal[c * 3 + 2];
+        rgba[i * 4 + 3] = 255;
+      }
+      const key = imageKey(rgba, b.width, b.height);
+      k = { pal: palKey, key, has: hd.has(key) };
+      this.hdKeys.set(b, k);
+    }
+    return k.has ? hd.get(k.key) : null;
+  }
+
+  // Draw HD versions of the bitmaps the last compose blitted, over the
+  // enlarged frame, only where each one's own pixels still show.
+  /**
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {number} s
+   */
+  drawHd(ctx, s) {
+    const rec = this.rec, pal = this.palette;
+    if (!rec || !rec.list.length) return;
+    let palKey = "";
+    for (let i = 30; i < 738; i += 7) palKey += pal[i].toString(36);
+    const owner = rec.owner, px = this.pixels;
+    rec.list.forEach((/** @type {any} */ e, /** @type {number} */ i) => {
+      const img = this.hdImage(e.b, pal, palKey);
+      if (!img) return;
+      const { width: w, height: h, pixels } = e.b;
+      const tag = i + 1;
+      // Mask of this blit's pixels that nothing covered since.
+      const mask = (this.hdMask ??= new ImageData(WIDTH, HEIGHT));
+      const md = new Uint32Array(mask.data.buffer);
+      let shown = 0, drawn = 0;
+      const x0 = Math.max(0, e.x), y0 = Math.max(0, e.y), x1 = Math.min(WIDTH, e.x + w), y1 = Math.min(HEIGHT, e.y + h);
+      if (x1 <= x0 || y1 <= y0) return;
+      for (let y = y0; y < y1; y++) {
+        const sy = e.flipY ? h - 1 - (y - e.y) : y - e.y;
+        for (let x = x0; x < x1; x++) {
+          const sx = e.flipX ? w - 1 - (x - e.x) : x - e.x;
+          const c = pixels[sy * w + sx];
+          if (!c) continue;
+          drawn++;
+          const o = y * WIDTH + x;
+          const ok = owner[o] === tag && px[o] === c;
+          if (ok) shown++;
+          md[(y - y0) * WIDTH + (x - x0)] = ok ? 0xffffffff : 0;
+        }
+      }
+      if (!shown) return;
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      const draw = (/** @type {any} */ c) => {
+        ctx.translate(e.flipX ? (e.x + w) * s : e.x * s, e.flipY ? (e.y + h) * s : e.y * s);
+        ctx.scale(e.flipX ? -1 : 1, e.flipY ? -1 : 1);
+        ctx.drawImage(img, 0, 0, w * s, h * s);
+      };
+      if (shown === drawn) draw(ctx);
+      else {
+        // Partly covered: cut the HD picture down to the visible pixels.
+        const bw = x1 - x0, bh = y1 - y0;
+        for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+          const sx = e.flipX ? w - 1 - (x + x0 - e.x) : x + x0 - e.x, sy = e.flipY ? h - 1 - (y + y0 - e.y) : y + y0 - e.y;
+          if (!pixels[sy * w + sx]) md[y * WIDTH + x] = 0;
+        }
+        const mc = (this.hdMaskCanvas ??= new OffscreenCanvas(WIDTH, HEIGHT));
+        /** @type {OffscreenCanvasRenderingContext2D} */ (mc.getContext("2d")).putImageData(mask, 0, 0, 0, 0, bw, bh);
+        const tmp = (this.hdTmp ??= new OffscreenCanvas(1, 1));
+        if (tmp.width !== WIDTH * s) (tmp.width = WIDTH * s), (tmp.height = HEIGHT * s);
+        const tc = /** @type {OffscreenCanvasRenderingContext2D} */ (tmp.getContext("2d"));
+        tc.setTransform(1, 0, 0, 1, 0, 0);
+        tc.globalCompositeOperation = "copy";
+        tc.imageSmoothingEnabled = true;
+        tc.save();
+        tc.translate(e.flipX ? (e.x + w) * s : e.x * s, e.flipY ? (e.y + h) * s : e.y * s);
+        tc.scale(e.flipX ? -1 : 1, e.flipY ? -1 : 1);
+        tc.drawImage(img, 0, 0, w * s, h * s);
+        tc.restore();
+        tc.globalCompositeOperation = "destination-in";
+        tc.imageSmoothingEnabled = false;
+        tc.drawImage(mc, 0, 0, bw, bh, x0 * s, y0 * s, bw * s, bh * s);
+        ctx.drawImage(tmp, x0 * s, y0 * s, bw * s, bh * s, x0 * s, y0 * s, bw * s, bh * s);
+      }
+      ctx.restore();
+    });
   }
   // Resize the canvas to `scale` x 640x480 and pick the sprite filter.
   /**
@@ -168,6 +288,8 @@ export class Display {
       ctx.imageSmoothingEnabled = this.sprites !== "sharp";
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(sprites, 0, 0, WIDTH * s, HEIGHT * s);
+      // HD art; not while fading or frozen (the pack has full brightness).
+      if (this.hd && !this.frozen && this.fade === 1 && s > 1) this.drawHd(/** @type {CanvasRenderingContext2D} */ (ctx), s);
     }
     if (shake) {
       ctx.imageSmoothingEnabled = false;
