@@ -25,6 +25,8 @@ export class Renderer {
     this.lut = null; // RGB555 -> palette index
     this.lutKey = "";
     this.gl = null;
+    /** @type {import("../hdpack.js").HdPack | null} AI-upscaled pictures, if loaded */
+    this.hd = null;
     if (webgl && typeof document !== "undefined") {
       try {
         this.gl = new WebGLBackend(this);

@@ -599,7 +599,11 @@ export class Sprites {
   /**
    * @param {any} pixels
    */
-  draw(pixels) {
+  /**
+   * @param {any} pixels
+   * @param {{ owner: Uint16Array, list: any[] } | null} [rec]  see blit()
+   */
+  draw(pixels, rec = null) {
     for (const s of this.visibleSorted()) {
       // The cockpit radar (battlefield/radar.js) paints its sprite's bounds;
       // the sprite's own cels go over it.
@@ -611,7 +615,7 @@ export class Sprites {
         if (!drawable(this.engine.bin.type(id))) continue;
         const b = this.bitmap(id);
         const left = s.x + b.x - ((b.width - 1) >> 1), top = s.y + b.y - ((b.height - 1) >> 1);
-        blit(pixels, b, left + ORIGIN_X, top + ORIGIN_Y, s.flipX, s.flipY);
+        blit(pixels, b, left + ORIGIN_X, top + ORIGIN_Y, s.flipX, s.flipY, rec);
       }
     }
   }
@@ -676,9 +680,11 @@ export function curvePoint(i, n, x0, y0, x1, y1, x2, y2) {
  * @param {any} b
  * @param {number} x0
  * @param {number} y0
+ * @param {{ owner: Uint16Array, list: any[] } | null} [rec]  HD 2D art: note the blit and mark the pixels it drew (display.js)
  */
-export function blit(dst, b, x0, y0, flipX = false, flipY = false) {
+export function blit(dst, b, x0, y0, flipX = false, flipY = false, rec = null) {
   const { width: w, height: h, pixels } = b;
+  if (rec && rec.list.length < 0xffff) return blitRec(dst, b, x0, y0, flipX, flipY, rec);
   for (let y = 0; y < h; y++) {
     const dy = y0 + y;
     if (dy < 0 || dy >= HEIGHT) continue;
@@ -689,6 +695,37 @@ export function blit(dst, b, x0, y0, flipX = false, flipY = false) {
       if (dx < 0 || dx >= WIDTH) continue;
       const c = pixels[src + (flipX ? w - 1 - x : x)];
       if (c) dst[row + dx] = c;
+    }
+  }
+}
+
+// blit() that also records which blit last drew each screen pixel.
+/**
+ * @param {any} dst
+ * @param {any} b
+ * @param {number} x0
+ * @param {number} y0
+ * @param {boolean} flipX
+ * @param {boolean} flipY
+ * @param {{ owner: Uint16Array, list: any[] }} rec
+ */
+function blitRec(dst, b, x0, y0, flipX, flipY, rec) {
+  const { width: w, height: h, pixels } = b;
+  const tag = rec.list.push({ b, x: x0, y: y0, flipX, flipY });
+  const owner = rec.owner;
+  for (let y = 0; y < h; y++) {
+    const dy = y0 + y;
+    if (dy < 0 || dy >= HEIGHT) continue;
+    const row = dy * WIDTH;
+    const src = (flipY ? h - 1 - y : y) * w;
+    for (let x = 0; x < w; x++) {
+      const dx = x0 + x;
+      if (dx < 0 || dx >= WIDTH) continue;
+      const c = pixels[src + (flipX ? w - 1 - x : x)];
+      if (c) {
+        dst[row + dx] = c;
+        owner[row + dx] = tag;
+      }
     }
   }
 }

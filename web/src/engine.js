@@ -218,16 +218,18 @@ export class Engine {
     this.dirty = false;
     const d = this.display;
     const bg = this.background;
+    // HD 2D art (display.js): which bitmap drew which pixel.
+    const rec = d.hdRecord();
     // While the battlefield is shown, the 3D view is the background
     // (Resume3D: SpriteSetBackground(-1)); colour 0 lets it show through.
     if (this.world?.shown) d.pixels.fill(0);
     else if (bg.mode === 0 && this.bin.type(bg.bitmap) === 1) {
       d.pixels.fill(0);
       const b = this.sprites.bitmap(bg.bitmap);
-      blit(d.pixels, b, 0, 0);
+      blit(d.pixels, b, 0, 0, false, false, rec);
     } else if (bg.mode === 1) d.pixels.fill(bg.color);
     else d.pixels.fill(0);
-    this.sprites.draw(d.pixels);
+    this.sprites.draw(d.pixels, rec);
     this.debug.draw(d.pixels);
     d.dirty = true;
   }

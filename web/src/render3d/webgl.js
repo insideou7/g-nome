@@ -8,6 +8,7 @@ import { activeLights, materialLight, rgb01, SPECULAR_MIN } from "./scene.js";
 const MAX_LIGHTS = 8;
 import { FRONT, twoSidedOf } from "./soft.js";
 import { bleedEdges } from "../graphics.js";
+import { imageKey } from "../hdpack.js";
 
 const VS = `#version 300 es
 layout(location = 0) in vec3 aPos;
@@ -225,20 +226,33 @@ export class WebGLBackend {
   texture(tex) {
     const gl = this.gl;
     const smooth = this.filter !== "nearest";
-    const key = this.renderer.paletteKey() + ":" + tex.version + ":" + this.filter;
+    const hd = this.renderer.hd || null; // HD pack (hdpack.js)
+    const key = this.renderer.paletteKey() + ":" + tex.version + ":" + this.filter + ":" + (hd ? hd.id : "");
     let t = this.textures.get(tex);
-    if (t && t.key === key) return t.tex;
+    // Same picture: done, unless its HD version was still decoding.
+    if (t && t.key === key && !(t.hdWait && hd?.get(t.hdKey))) return t.tex;
     if (!t) {
-      t = { tex: gl.createTexture(), key: "" };
+      t = { tex: gl.createTexture(), key: "", hdKey: "", hdWait: false };
       this.glTextures.add(t.tex);
       this.textures.set(tex, t);
     }
     gl.bindTexture(gl.TEXTURE_2D, t.tex);
     const h = tex.height * tex.frames;
     let rgba = this.renderer.rgbaOf(tex);
-    // Filtered, the see-through texels need their neighbours' colour.
-    if (smooth) rgba = bleedEdges(rgba, tex.width, h);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tex.width, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength));
+    if (t.key !== key) {
+      t.hdKey = hd ? imageKey(rgba, tex.width, h) : "";
+      t.hdWait = !!hd && hd.has(t.hdKey);
+    }
+    const big = t.hdWait ? hd?.get(t.hdKey) : null;
+    if (big) {
+      // The AI-upscaled picture (already bled at its see-through edges).
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, big);
+      t.hdWait = false;
+    } else {
+      // Filtered, the see-through texels need their neighbours' colour.
+      if (smooth) rgba = bleedEdges(rgba, tex.width, h);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tex.width, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.byteLength));
+    }
     const mips = this.filter === "mipmap";
     if (mips) gl.generateMipmap(gl.TEXTURE_2D);
     this.filtering(mips);
