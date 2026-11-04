@@ -48,7 +48,9 @@ Project skills live in `.claude/skills/` (see its README), including the
   explosions (RENDER.R32's combat natives and the scripts' callbacks).
   Aim assist (ours, DEBUG panel, on by default) turns the player's shots
   onto the part of the target under the crosshair; check with
-  `web/tests/aim-assist-check.mjs`.
+  `web/tests/aim-assist-check.mjs`. Part health comes from the clump's
+  world box (Part health section); `web/tests/turret-check.mjs` checks it
+  on mission 10's turrets.
 - [docs/engine-plan.md](docs/engine-plan.md): the browser engine in `web/`
   (scope, architecture, milestones, status). It is published to GitHub
   Pages by `.github/workflows/pages.yml` (code only; players load their

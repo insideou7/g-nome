@@ -66,7 +66,7 @@ value.
 | `AmputateClump(obj, model, clump)` | `0x10007152` | cuts a clump with its children off into a new still object and returns its id; the scripts then explode and delete it |
 | `QueryClumpList(model, clump)` | `0x1000853e` | a list of the tags in a clump's hierarchy (for clump 0, without the untagged root) |
 | `ReplaceClump(model, source, clump)` | `0x10009091` | swaps a part for the same part of another model (damaged parts), keeping its joint and children |
-| `DefaultClumpHealths(model, clump)` | `0x100089ca` | `max(1, trunc((dx dy dz)^0.3333 x 390))` of the clump's bounding box |
+| `DefaultClumpHealths(model, clump)` | `0x100089ca` | `max(1, trunc((dx dy dz)^0.3333 x 390))` of the clump's bounding box from `RwGetClumpBBox`, so in world space (see Part health below) |
 | `SetAnimatedTexture(obj, clump, frames)` | `0x10009962` | marks the object's texture as animated with `frames` frames (`+0x94`, flag `0x20`) |
 | `UpdateAnimTex(obj)` / `UpdateAnimTexCycle(obj)` | `0x1000a64a` / `0x1000a789` | shows frame `+0xBC` and steps it; the first returns 1 once past the last frame (fireballs then delete themselves), the second wraps (flames, smoke) |
 | `SetTextureFrame(obj, f)`, `GetTextureNumFrames(obj)` | `0x1000a2c9`, `0x1001278e` | set the frame counter, read the count |
@@ -113,6 +113,33 @@ the move's projections onto the planes of the crossing axes must meet the
 box (slopes of 10000 stand for vertical). The browser's version is
 `shotHitsBox` in `web/src/combat/damage.js`.
 
+### Part health
+
+Script 2286 fills a unit's part table (property 85) once the unit is placed:
+for each tagged part, `DefaultClumpHealths(model, part)` scaled by two
+percentages goes into columns 2 and 3 (health) and 0 and 1 (armour).
+`DefaultClumpHealths` gets the box from `RwGetClumpBBox` (`RWL20.DLL`
+`0x10008270`), the same call `CollisionClump` uses: it updates the
+hierarchy and moves the clump's own box through its local-to-world matrix
+(the matrix at clump `+0`, which `RwGetClumpLTM` returns too;
+`RwGetClumpMatrix` returns the modelling matrix at `+0xEC`, and
+`RwGetClumpLocalBBox` the untransformed box). So parent scales and turns
+count. Walker parts sit under clumps scaled to about 0.18, which gives them
+about a fifth of their local-space health; mission 10's turret base is
+turned in its hierarchy, so its box is larger (412 instead of 288).
+
+A hit (script 1709) takes the shot's property 51 (column 17 of table 1281)
+off the part's armour (column 1) first and the shot's damage (46) minus
+that off its health (column 3); once the armour is gone the whole damage
+goes to health. Property 52 (column 16) drains shields (property 97).
+Mission 10's turrets (class 221, G263[2] and G263[3]) and popup cluster
+(G345) are tough: the player's machine gun (kind 20: 7 damage, range
+754 = 7.5 units) needs about 120 hits on a turret base, the missiles (kind
+10: 44 damage, 32 off the armour) about 20, from 10 units with nothing in
+the way (rocks, class 253, stop shots below their 0.47 height).
+`web/tests/turret-check.mjs` checks the healths and that missiles destroy
+a turret.
+
 ### Small targets and aim assist
 
 Shots fly straight along the heading from the gun mounts, not from the
@@ -127,7 +154,7 @@ The browser adds aim assist (`web/src/combat/aim-assist.js`, on by default,
 locked (G974) or selected (G1811) target has a part on the view line, or one
 within 2.5 degrees or its radius of it, the shot turns towards that part's
 middle. Homing, guided and falling shots are left alone. With it, the same
-test kills the guard with 6 hits from 7 shots.
+test kills the guard with 4 hits from 5 shots.
 
 When the player's unit is hit by shot class 301 or 302 while script 2185
 holds (`G972 == 1`), 1709 shakes the screen with `ScreenShake(-3, -3)` and

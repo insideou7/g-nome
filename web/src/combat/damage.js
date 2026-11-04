@@ -153,6 +153,18 @@ function worldBox(c, m) {
   return { lo, hi };
 }
 
+// DefaultClumpHealths' formula: max(1, trunc((dx dy dz)^0.3333 x 390)) of
+// the clump's box under its local-to-world matrix `m` (RwGetClumpBBox).
+/**
+ * @param {any} c
+ * @param {number[]} m
+ */
+export function clumpHealth(c, m) {
+  const { lo, hi } = worldBox(c, m);
+  const v = Math.pow((hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]), 0.3333) * 390;
+  return v >= 1 ? Math.trunc(v) : 1;
+}
+
 // The world boxes of an object's parts, as CollisionClump tests them (its
 // tagged clumps, or the root of an untagged model). For aim assist.
 /**
@@ -404,23 +416,27 @@ export function damageExterns(host) {
 
     // DefaultClumpHealths(model, clump) 0x100089ca: a part's starting
     // health from the size of its bounding box: max(1, (dx dy dz)^0.3333 x
-    // 390), box in the clump's own space.
+    // 390). The box comes from RwGetClumpBBox (RWL20.DLL 0x10008270), the
+    // same call CollisionClump uses: the clump's own box moved through its
+    // local-to-world matrix (the clump at +0, which RwGetClumpLTM also
+    // returns), not RwGetClumpLocalBBox. So the scale and turn of every
+    // parent clump count, and the turn of the object carrying the model
+    // (script 2286 runs after the unit is placed). Walker parts, which sit
+    // under scaled-down clumps, get about a fifth of their local-space
+    // health this way.
     DefaultClumpHealths(model, k) {
       const inst = host.r3d?.instance(model);
       if (!inst) return 1;
       const i = k ? inst.clump(k) : inst.model.roots[0];
       const c = i >= 0 ? inst.model.clumps[i] : null;
-      const p = c?.mesh?.positions;
-      if (!p || !p.length) return 1;
-      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-      for (let n = 0; n < p.length; n += 3) {
-        for (let j = 0; j < 3; j++) {
-          lo[j] = Math.min(lo[j], p[n + j]);
-          hi[j] = Math.max(hi[j], p[n + j]);
-        }
+      if (!c?.mesh?.positions?.length) return 1;
+      let o = null;
+      for (const [id, r] of host.r3d.objects.records) {
+        if (r.model === model || r.props?.[39] === model || r.props?.[79] === model) o = host.obj(id);
+        if (o) break;
       }
-      const v = Math.pow((hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]), 0.3333) * 390;
-      return v >= 1 ? Math.trunc(v) : 1;
+      const ms = clumpMatrices(inst.model, o ? modelMatrix(o.basis, o.pos) : identity(), inst.pose);
+      return clumpHealth(c, ms[i]);
     },
   };
 }
