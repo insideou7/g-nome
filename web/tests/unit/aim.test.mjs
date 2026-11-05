@@ -2,7 +2,7 @@
 // src/combat/damage.js) and aim assist (src/combat/aim-assist.js).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shotHitsBox, segmentHitsBox } from "../../src/combat/damage.js";
+import { shotHitsBox, segmentHitsBox, clumpHealth } from "../../src/combat/damage.js";
 import { assistDirection, ASSIST_DEGREES } from "../../src/combat/aim-assist.js";
 
 const box = { lo: [0, 0, 0], hi: [1, 1, 1] };
@@ -52,4 +52,20 @@ test("assistDirection: the part on the view line, a near miss, and off the cross
   const off = 30 * Math.tan(((ASSIST_DEGREES - 0.5) * Math.PI) / 180);
   const far = { lo: [29.9, 0.03, off - 0.05], hi: [30.1, 0.13, off + 0.05] };
   assert.ok(assistDirection([0, 0.08, 0.03], view, at, [far], 0.06));
+});
+
+test("clumpHealth: the box under the clump's world matrix (RwGetClumpBBox)", () => {
+  // A 1 x 1 x 1 cube of vertices.
+  const positions = [];
+  for (let k = 0; k < 8; k++) positions.push(k & 1, (k >> 1) & 1, (k >> 2) & 1);
+  const c = { mesh: { positions } };
+  const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 6, 7, 1];
+  assert.equal(clumpHealth(c, I), 390, "unit cube");
+  const s = 0.2;
+  const small = [s, 0, 0, 0, 0, s, 0, 0, 0, 0, s, 0, 0, 0, 0, 1];
+  assert.equal(clumpHealth(c, small), 78, "a parent scaled to a fifth: a fifth of the health");
+  const r = Math.SQRT1_2;
+  const turned = [r, 0, -r, 0, 0, 1, 0, 0, r, 0, r, 0, 0, 0, 0, 1];
+  assert.equal(clumpHealth(c, turned), 491, "turned 45 degrees: the box grows to sqrt 2 in x and z");
+  assert.equal(clumpHealth({ mesh: { positions: [] } }, I), 1, "no vertices: 1");
 });
