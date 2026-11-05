@@ -270,6 +270,26 @@ const rows = (/** @type {any} */ m) => ({ right: [m[0], m[1], m[2]], up: [m[4], 
 export function damageExterns(host) {
   const engine = host.engine;
 
+  // Which object a model copy belongs to: its linked model, property 39,
+  // or property 79. Script 2286 passes property 79 (a second copy of the
+  // unit's model, not the one it draws), so all three count. The index is
+  // rebuilt only when a model is missing or its entry went stale, so
+  // placing many units costs one scan, not one per part.
+  /** @type {Map<number, number>} */
+  const owners = new Map();
+  const unowned = new Set(); // models already logged as having no owner
+  const models = (/** @type {any} */ r) => (r ? [r.model, r.props?.[39], r.props?.[79]] : []);
+  const modelOwner = (/** @type {number} */ model) => {
+    const records = host.r3d.objects.records;
+    const id = owners.get(model);
+    if (id !== undefined && models(records.get(id)).includes(model)) return id;
+    owners.clear();
+    for (const [rid, r] of records) {
+      for (const m of models(r)) if (m && !owners.has(m)) owners.set(m, rid);
+    }
+    return owners.get(model) ?? 0;
+  };
+
   // A new object (FUN_100295c6 slot + RtDynamicResource) carrying clump i of
   // `inst`, at that clump's place in the world. Updates every `interval` ms
   // with `script` (behaviour 6), as a copy of `parentId`.
@@ -430,10 +450,11 @@ export function damageExterns(host) {
       const i = k ? inst.clump(k) : inst.model.roots[0];
       const c = i >= 0 ? inst.model.clumps[i] : null;
       if (!c?.mesh?.positions?.length) return 1;
-      let o = null;
-      for (const [id, r] of host.r3d.objects.records) {
-        if (r.model === model || r.props?.[39] === model || r.props?.[79] === model) o = host.obj(id);
-        if (o) break;
+      const owner = modelOwner(model);
+      const o = owner ? host.obj(owner) : null;
+      if (!o && !unowned.has(model)) {
+        unowned.add(model);
+        engine.log(`DefaultClumpHealths: no placed object draws model ${model}; using its local box`);
       }
       const ms = clumpMatrices(inst.model, o ? modelMatrix(o.basis, o.pos) : identity(), inst.pose);
       return clumpHealth(c, ms[i]);

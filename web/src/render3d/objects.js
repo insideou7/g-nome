@@ -15,7 +15,8 @@
 // Property numbers seen so far (scripts):
 //   0 object class, 1 model resource, 39 linked model copy,
 //   55/56/57 model size x/y/z in thousandths (SetModelDimensions),
-//   79 model used for RenderToBitmap, 99 its FRME pose resource.
+//   79 model used for RenderToBitmap (units: a second copy of their model,
+//   which script 2286 passes to DefaultClumpHealths), 99 its FRME pose resource.
 /** @import { Engine } from "../engine.js" */
 
 
