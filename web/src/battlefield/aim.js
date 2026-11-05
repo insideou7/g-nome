@@ -156,7 +156,7 @@ export function aimExterns(engine) {
       const shift = local ? add(add(scale(basis.right, off[0]), scale(basis.up, off[1])), scale(basis.at, off[2])) : off;
       d.basis = basis;
       d.setPosition(add(origin, shift));
-      if (world()?.groundFlag && s.ground !== undefined) d.ground = s.ground; // +0x84
+      if (world()?.groundFlag && s.groundY !== undefined) d.groundY = s.groundY; // +0x84
       return 0;
     },
   };

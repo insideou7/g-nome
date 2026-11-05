@@ -206,27 +206,33 @@ export function battlefieldExterns(engine) {
       spin(o, ms / 1000);
       return 1;
     },
-    // UpdateTimeStep(id, ms, slot) (0x10011ec1): move forward at the
-    // object's speed for the time banked in timer `slot` plus `ms`. For an
-    // animated object the animation code decides first (UpdateFrameTerm +
-    // doAnimationUpdate): 0 means no frame change yet, so only spin and keep
-    // banking time; otherwise move for |result| ms and resync the clip rate.
+    // UpdateTimeStep(id, ms, prop) (0x10011ec1): move forward at the
+    // object's speed for the time banked in property `prop` plus `ms`. For
+    // an animated object the animation code decides first (UpdateFrameTerm
+    // + doAnimationUpdate): 0 means no frame change yet, so only spin and
+    // keep banking time; otherwise move for |result| ms and resync the clip
+    // rate. The bank is an ordinary object property (script 1728 uses 41,
+    // and the unit set-up scripts 2041 and 2043 start it at 1).
     UpdateTimeStep(id, ms, slot) {
       const o = obj(id);
       if (!o) return 0;
-      o.timers ??= [];
-      let t = (o.timers[slot] || 0) + ms;
+      const props = engine.render3d?.objects;
+      const banked = props?.getProperty(id, slot) ?? 0;
+      let t = banked + ms;
       const anim = engine.animation;
       if (anim?.timeStep) t = anim.timeStep(id, t) ?? t;
       if (t === 0) {
         spin(o, ms / 1000);
-        o.timers[slot] = o.speed ? (o.timers[slot] || 0) + ms : 0;
+        o.moved = true;
+        props?.setProperty(id, slot, o.speed ? banked + ms : 0);
       } else {
+        // FUN_1001a6c5: velocity along `at`, in 3D (clears flag 0x10).
         o.vel = scale(o.basis.at, o.speed);
+        if (o.motion) o.motion.xz = false;
         anim?.syncRate?.(id);
         o.move(Math.abs(t) / 1000);
         spin(o, ms / 1000);
-        o.timers[slot] = 0;
+        props?.setProperty(id, slot, 0);
       }
       return t;
     },

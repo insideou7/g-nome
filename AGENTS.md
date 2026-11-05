@@ -83,6 +83,9 @@ Project skills live in `.claude/skills/` (see its README), including the
   fullscreen) in the Graphics row; defaults keep the original look. AI HD
   packs: `tools/hdpack.py` (Real-ESRGAN via `tools/sr_onnx.py`, no PyTorch)
   makes one from the player's game; `web/src/hdpack.js` loads it.
+- [docs/mechanics-audit.md](docs/mechanics-audit.md): which mechanics are
+  script data (run as-is) and which natives were checked against the
+  decompile, plus the differences left open (tick rate, aim assist).
 - [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
   actions they unlock, and the DEBUG button on the OPTIONS screen
   (`web/src/debug.js`).
