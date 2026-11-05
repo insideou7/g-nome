@@ -51,33 +51,27 @@ PR #86), hit boxes (`CollisionClump`, PR #84), object turn limits
 - **`OrientModels` ground height** was copied to a field nothing reads
   (`ground` instead of `groundY`). G-Nome's ground is flat, so nothing
   changed on screen.
+- **Update intervals.** An object with an update interval runs when more
+  than the interval has passed (`interval + last < now` in `FUN_10029856`);
+  the port used `>=`, so with 33 ms ticks a 100 ms interval ran every 3
+  ticks instead of 4. `World.due` now uses `>`.
+- **Aim assist** (ours) is now off by default, as the original has nothing
+  like it. It stays a toggle in the DEBUG panel (Gameplay, "Aim assist").
 
 ## Differences left for a decision
 
-1. **Fixed 30 Hz tick.** The original runs one update per frame with the
+1. **Fixed 30 Hz tick** (kept, by choice). The original runs one update per frame with the
    real elapsed time (at least 5 ms, at most 250 ms per update). The port
    steps a fixed 33 ms. Most rules scale with elapsed time, so speeds,
    turns, recharge and timers come out the same. Two things depend on the
    step size: the 1/100 nudge when a turn starts from rest (once per call)
    and the collision look-ahead (2 ms per ms). Both are small at normal
    frame rates.
-2. **Update intervals.** An object with an update interval runs when more
-   than the interval has passed (`interval + last < now`); the port uses
-   `>=`. With 33 ms ticks, a 100 ms interval runs every 3 ticks in the port
-   and every 4 with the original's test. Only objects whose behaviour list
-   gives an interval (for example the pieces `ExplodeModel` throws) are
-   affected. In the original the frame rate varies, so ties are rare and
-   the real period is a little over the interval. Switching to the strict
-   test is a one-character change.
-3. **Frames with no camera object.** With Init3D's flag at 0 (as G-Nome
+2. **Frames with no camera object.** With Init3D's flag at 0 (as G-Nome
    sets it), the original runs other objects' updates only in frames where
    the object carrying the camera was updated. With no camera object
    (`SetCamera` only), nothing else updates. The port updates every due
    object in that case. This was not traced to a scene a player would see.
-4. **Aim assist** (ours, on by default, DEBUG panel) turns the player's
-   straight shots onto the part under the crosshair. The original has
-   nothing like it, so the player hits more often than in 1997 (mission 2's
-   soldiers, for example). Turn it off for the original feel.
-5. **Random sequences.** `Math.random` replaces the C runtime's `rand()`:
+3. **Random sequences.** `Math.random` replaces the C runtime's `rand()`:
    same ranges and odds, different sequences. Explosion scatter already
    uses the MSVC `rand` formula (`damage.js` `crand`).

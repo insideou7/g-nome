@@ -149,7 +149,7 @@ with the crosshair on a guard's middle most bolts pass beside it (mission
 2's first two guards: 1 hit from 20 shots at 3 units in
 `web/tests/aim-assist-check.mjs`). That is the original's behaviour.
 
-The browser adds aim assist (`web/src/combat/aim-assist.js`, on by default,
+The browser adds aim assist (`web/src/combat/aim-assist.js`, off by default,
 "Aim assist" in the DEBUG panel): on a straight shot's first update, if the
 locked (G974) or selected (G1811) target has a part on the view line, or one
 within 2.5 degrees or its radius of it, the shot turns towards that part's

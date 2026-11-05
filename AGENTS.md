@@ -46,7 +46,7 @@ Project skills live in `.claude/skills/` (see its README), including the
   Joysticks section of [docs/battlefield.md](docs/battlefield.md).
 - [docs/combat.md](docs/combat.md): weapons, projectiles, hits and
   explosions (RENDER.R32's combat natives and the scripts' callbacks).
-  Aim assist (ours, DEBUG panel, on by default) turns the player's shots
+  Aim assist (ours, DEBUG panel, off by default) turns the player's shots
   onto the part of the target under the crosshair; check with
   `web/tests/aim-assist-check.mjs`. Part health comes from the clump's
   world box (Part health section); `web/tests/turret-check.mjs` checks it
@@ -85,7 +85,7 @@ Project skills live in `.claude/skills/` (see its README), including the
   makes one from the player's game; `web/src/hdpack.js` loads it.
 - [docs/mechanics-audit.md](docs/mechanics-audit.md): which mechanics are
   script data (run as-is) and which natives were checked against the
-  decompile, plus the differences left open (tick rate, aim assist).
+  decompile, plus the differences left open (tick rate).
 - [docs/cheats.md](docs/cheats.md): the 15 cheat codes, the hidden Ctrl-key
   actions they unlock, and the DEBUG button on the OPTIONS screen
   (`web/src/debug.js`).

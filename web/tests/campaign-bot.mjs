@@ -435,6 +435,9 @@ async function play(n) {
     const engine = new Engine(files, { log: () => {} });
     await engine.init();
     engine.boot();
+    // The solutions were worked out with aim assist on (DEBUG panel; off
+    // by default since it is not in the original).
+    engine.debug.aimAssist = true;
     const vm = engine.vm;
     const prop = (/** @type {number} */ id, /** @type {number} */ p) => engine.render3d.objects.getProperty(id, p);
     const ref = (/** @type {string} */ s) => {
