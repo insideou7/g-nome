@@ -98,7 +98,7 @@ left, so a pickup of kind 27 would never have fired either.
 
 ## Aim assist
 
-"Aim assist" under Gameplay (on by default, kept in the browser) is not in
+"Aim assist" under Gameplay (off by default, kept in the browser) is not in
 the original: the player's straight shots turn towards the part of the
 locked or selected target that the crosshair is on. Off, shots fly straight
 from the gun mounts as in the original and can pass beside soldiers on foot.

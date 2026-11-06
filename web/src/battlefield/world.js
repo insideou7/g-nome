@@ -362,7 +362,7 @@ export class World {
    * @param {number} now
    */
   due(o, now) {
-    return now - o.lastUpdate >= o.updateInterval;
+    return now - o.lastUpdate > o.updateInterval;
   }
 
   // FUN_10028fb2: run the update script with the time since the last one.

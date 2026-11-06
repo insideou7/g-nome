@@ -86,7 +86,7 @@ export class DebugPanel {
     this.fps.style.display = this.showFps ? "block" : "none";
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
     this.debug.extraWeapons = load("g-nome.debug.weapons", false);
-    this.debug.aimAssist = load("g-nome.debug.aimassist", true);
+    this.debug.aimAssist = load("g-nome.debug.aimassist", false);
     this.debug.onOpen = () => this.open();
     this.root.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.close();
@@ -104,7 +104,7 @@ export class DebugPanel {
     this.debug = engine.debug;
     this.debug.vehicle = load("g-nome.debug.vehicle", -1);
     this.debug.extraWeapons = load("g-nome.debug.weapons", false);
-    this.debug.aimAssist = load("g-nome.debug.aimassist", true);
+    this.debug.aimAssist = load("g-nome.debug.aimassist", false);
     this.debug.onOpen = () => this.open();
     /** @type {any} */
     this.used = null;

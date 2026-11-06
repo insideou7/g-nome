@@ -148,7 +148,7 @@ export function projectileExterns(host) {
       // straight shot of the player's towards the target under the crosshair.
       if (!o.aimChecked) {
         o.aimChecked = true;
-        if (host.engine.debug?.aimAssist !== false && !homing && guided !== id && !o.gravity) assist(o, owner);
+        if (host.engine.debug?.aimAssist && !homing && guided !== id && !o.gravity) assist(o, owner);
       }
       // A unit within reach of this tick's flight (looking ahead 2 ms per ms).
       const check = host.extern("UpdateCollideCheck");
